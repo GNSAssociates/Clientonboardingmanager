@@ -41,9 +41,14 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             {c.substatus ? ` · ${c.substatus}` : ""}
           </p>
         </div>
-        <Link href={`/staff/cases/${c.id}/documents`}>
-          <Button variant="outline" size="sm">Documents</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href={`/staff/cases/${c.id}/documents`}>
+            <Button variant="outline" size="sm">Documents</Button>
+          </Link>
+          <Link href={`/staff/cases/${c.id}/letters`}>
+            <Button variant="outline" size="sm">Letters & E-sign</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Advance */}

@@ -9,3 +9,5 @@ export * from "./services/cases";
 export * from "./services/leads";
 export * from "./services/catalogue";
 export * from "./services/documents";
+export * from "./services/generated-docs";
+export * from "./templates/index";

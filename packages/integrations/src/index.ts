@@ -7,6 +7,7 @@ import type {
   MailerPort,
 } from "@gns/core";
 import { stubDocExtractionAdapter } from "./adapters/doc-extraction.stub";
+import { dropboxSignStubAdapter } from "./adapters/dropbox-sign.stub";
 
 /**
  * Adapter registry (A2 §9). Concrete adapters are registered here per module:
@@ -26,6 +27,7 @@ export interface AdapterRegistry {
 
 export const adapters: AdapterRegistry = {
   docExtraction: stubDocExtractionAdapter,
+  esign: dropboxSignStubAdapter,
 };
 
-export { stubDocExtractionAdapter };
+export { stubDocExtractionAdapter, dropboxSignStubAdapter };
