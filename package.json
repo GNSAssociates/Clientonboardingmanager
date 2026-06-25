@@ -1,0 +1,27 @@
+{
+  "name": "gns-onboarding-platform",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI-Powered Client Onboarding & Compliance Platform — GNS Associates",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @gns/web dev",
+    "build": "pnpm --filter @gns/web build",
+    "start": "pnpm --filter @gns/web start",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "db:generate": "pnpm --filter @gns/db generate",
+    "db:migrate": "pnpm --filter @gns/db migrate",
+    "db:studio": "pnpm --filter @gns/db studio"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prettier": "^3.4.2",
+    "typescript": "^5.6.3"
+  }
+}
