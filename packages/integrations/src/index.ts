@@ -8,6 +8,8 @@ import type {
 } from "@gns/core";
 import { stubDocExtractionAdapter } from "./adapters/doc-extraction.stub";
 import { dropboxSignStubAdapter } from "./adapters/dropbox-sign.stub";
+import { companiesHouseAdapter } from "./adapters/companies-house.stub";
+import { amiqusStubAdapter } from "./adapters/amiqus.stub";
 
 /**
  * Adapter registry (A2 §9). Concrete adapters are registered here per module:
@@ -28,6 +30,8 @@ export interface AdapterRegistry {
 export const adapters: AdapterRegistry = {
   docExtraction: stubDocExtractionAdapter,
   esign: dropboxSignStubAdapter,
+  companiesHouse: companiesHouseAdapter,
+  kyc: amiqusStubAdapter,
 };
 
-export { stubDocExtractionAdapter, dropboxSignStubAdapter };
+export { stubDocExtractionAdapter, dropboxSignStubAdapter, companiesHouseAdapter, amiqusStubAdapter };

@@ -96,6 +96,25 @@ export const taskSourceEnum = pgEnum("task_source", ["auto", "manual"]);
 
 export const pricingModelEnum = pgEnum("pricing_model", ["fixed", "tiered", "custom"]);
 
+// ── M4 generated document + e-sign enums ─────────────────────────────────────
+export const generatedDocTypeEnum = pgEnum("generated_doc_type", [
+  "auth_letter",
+  "engagement_letter",
+  "clearance_request",
+  "handover_letter",
+  "other",
+]);
+
+export const esignStatusEnum = pgEnum("esign_status", [
+  "draft",
+  "sent",
+  "viewed",
+  "signed",
+  "declined",
+  "voided",
+  "expired",
+]);
+
 // ── M3 document enums ────────────────────────────────────────────────────────
 export const documentStatusEnum = pgEnum("document_status", [
   "pending",
@@ -121,4 +140,34 @@ export const classificationSourceEnum = pgEnum("classification_source", [
   "auto",
   "manual",
   "agent",
+]);
+
+// ── M5 compliance enums ───────────────────────────────────────────────────────
+export const kycStatusEnum = pgEnum("kyc_status", [
+  "pending",
+  "in_progress",
+  "passed",
+  "failed",
+  "expired",
+]);
+
+export const cddOutcomeEnum = pgEnum("cdd_outcome", [
+  "standard",
+  "enhanced",
+  "simplified",
+  "refused",
+]);
+
+export const sanctionStatusEnum = pgEnum("sanction_status", [
+  "clear",
+  "potential_match",
+  "confirmed_match",
+  "false_positive",
+]);
+
+export const complianceGateEnum = pgEnum("compliance_gate", [
+  "pending",
+  "passed",
+  "failed",
+  "overridden",
 ]);

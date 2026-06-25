@@ -13,3 +13,5 @@ export * from "./cases";
 export * from "./services";
 export * from "./tasks";
 export * from "./documents";
+export * from "./generated-docs";
+export * from "./compliance";

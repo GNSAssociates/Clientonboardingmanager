@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIDENCE_THRESHOLD } from "@gns/config";
 import { documentClassifierAgent } from "./classifier";
 import { missingInfoDetectorAgent } from "./missing-info";
+import { complianceReviewerAgent } from "./compliance-reviewer";
+import { riskAssessorAgent } from "./risk-assessor";
 
 /**
- * M3 agent definition tests (FR-AI-2, FR-AI-3).
+ * M3/M5 agent definition tests (FR-AI-2, FR-AI-3, FR-AI-4, FR-AI-5).
  * Validates contract — no Claude API call, no DB.
  */
 
@@ -115,6 +117,111 @@ describe("MissingInfoDetector agent definition (FR-AI-3)", () => {
       suggestions: ["The uploaded 'other' document may be an ID document"],
       allDocumentsReceived: false,
       confidence: 0.9,
+    });
+    expect(valid.success).toBe(true);
+  });
+});
+
+describe("ComplianceReviewer agent definition (FR-AI-5)", () => {
+  it("has the correct agent name", () => {
+    expect(complianceReviewerAgent.name).toBe("compliance_reviewer");
+  });
+
+  it("uses complex model tier (Opus)", () => {
+    expect(complianceReviewerAgent.model).toBe("complex");
+  });
+
+  it("HITL is always — all compliance decisions need human sign-off", () => {
+    expect(complianceReviewerAgent.hitl.kind).toBe("always");
+  });
+
+  it("HITL assigned role is ComplianceOfficer", () => {
+    const hitl = complianceReviewerAgent.hitl as { kind: string; assignedRole: string };
+    expect(hitl.assignedRole).toBe("ComplianceOfficer");
+  });
+
+  it("has 3 validators", () => {
+    expect(complianceReviewerAgent.validators).toHaveLength(3);
+  });
+
+  it("red-flags-require-review validator rejects false needsReview when flags present", () => {
+    const v = complianceReviewerAgent.validators.find((v) => v.name === "red-flags-require-review");
+    const result = v?.validate({
+      overallCompliant: false,
+      amlRisk: "medium" as const,
+      gaps: [],
+      redFlags: ["PEP connection"],
+      recommendations: [],
+      requiredActions: ["Conduct EDD"],
+      reasoning: "PEP found",
+      confidence: 0.9,
+      needsReview: false,
+    });
+    expect(typeof result).toBe("string");
+  });
+
+  it("output schema validates a correct compliance review", () => {
+    const valid = complianceReviewerAgent.output.safeParse({
+      overallCompliant: true,
+      amlRisk: "low",
+      gaps: [],
+      redFlags: [],
+      recommendations: ["Annual review in 12 months"],
+      requiredActions: [],
+      reasoning: "All checks passed",
+      confidence: 0.92,
+      needsReview: true,
+    });
+    expect(valid.success).toBe(true);
+  });
+});
+
+describe("RiskAssessor agent definition (FR-AI-4)", () => {
+  it("has the correct agent name", () => {
+    expect(riskAssessorAgent.name).toBe("risk_assessor");
+  });
+
+  it("uses complex model tier", () => {
+    expect(riskAssessorAgent.model).toBe("complex");
+  });
+
+  it("HITL is below_threshold", () => {
+    expect(riskAssessorAgent.hitl.kind).toBe("below_threshold");
+  });
+
+  it("confidence threshold is 0.75", () => {
+    expect(riskAssessorAgent.confidence.threshold).toBe(0.75);
+  });
+
+  it("has 3 validators", () => {
+    expect(riskAssessorAgent.validators).toHaveLength(3);
+  });
+
+  it("score-matches-rating rejects high rating with low score", () => {
+    const v = riskAssessorAgent.validators.find((v) => v.name === "score-matches-rating");
+    const result = v?.validate({
+      riskRating: "high" as const,
+      overallScore: 30,
+      factors: [],
+      reasoning: "test",
+      confidence: 0.8,
+      needsReview: true,
+      recommendedDdLevel: "enhanced" as const,
+      nextReviewMonths: 3,
+    });
+    expect(typeof result).toBe("string");
+  });
+
+  it("output schema validates a correct risk assessment", () => {
+    const valid = riskAssessorAgent.output.safeParse({
+      riskRating: "low",
+      overallScore: 15,
+      factors: [{ factor: "Sector risk", weight: "low", score: 2, rationale: "IT consulting" }],
+      reasoning: "Low-risk tech consultancy",
+      confidence: 0.88,
+      needsReview: false,
+      recommendedDdLevel: "standard",
+      nextReviewMonths: 12,
     });
     expect(valid.success).toBe(true);
   });

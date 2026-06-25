@@ -6,3 +6,4 @@ export * from "./repositories/audit";
 export * from "./repositories/onboarding";
 export * from "./repositories/documents";
 export * from "./repositories/generated-docs";
+export * from "./repositories/compliance";

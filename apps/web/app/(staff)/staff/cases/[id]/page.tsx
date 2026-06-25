@@ -48,6 +48,9 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           <Link href={`/staff/cases/${c.id}/letters`}>
             <Button variant="outline" size="sm">Letters & E-sign</Button>
           </Link>
+          <Link href={`/staff/cases/${c.id}/compliance`}>
+            <Button variant="outline" size="sm">Compliance</Button>
+          </Link>
         </div>
       </div>
 
