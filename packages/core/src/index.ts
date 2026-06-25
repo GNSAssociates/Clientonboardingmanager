@@ -8,3 +8,4 @@ export * from "./services/entities";
 export * from "./services/cases";
 export * from "./services/leads";
 export * from "./services/catalogue";
+export * from "./services/documents";

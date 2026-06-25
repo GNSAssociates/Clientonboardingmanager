@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getCaseDetail, listServicesForSession, type CaseDetail } from "@gns/core";
 import { CASE_STATUSES, type CaseStatus } from "@gns/config";
 import { requireSession } from "@/lib/auth/session";
@@ -31,13 +32,18 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">{c.reference}</p>
-        <h1 className="text-2xl font-semibold">{client?.name ?? "Client"}</h1>
-        <p className="mt-1 text-sm">
-          Status: <span className="font-medium">{c.status.replace(/_/g, " ")}</span>
-          {c.substatus ? ` · ${c.substatus}` : ""}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">{c.reference}</p>
+          <h1 className="text-2xl font-semibold">{client?.name ?? "Client"}</h1>
+          <p className="mt-1 text-sm">
+            Status: <span className="font-medium">{c.status.replace(/_/g, " ")}</span>
+            {c.substatus ? ` · ${c.substatus}` : ""}
+          </p>
+        </div>
+        <Link href={`/staff/cases/${c.id}/documents`}>
+          <Button variant="outline" size="sm">Documents</Button>
+        </Link>
       </div>
 
       {/* Advance */}

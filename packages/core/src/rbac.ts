@@ -23,6 +23,7 @@ export type Capability =
   | "conduct_review"
   | "upload_documents"
   | "view_documents"
+  | "verify_documents"
   | "view_audit_log"
   | "manage_retention"
   | "complete_onboarding";
@@ -66,6 +67,7 @@ const MATRIX: Record<Capability, Role[]> = {
     "ComplianceOfficer",
     "Client",
   ],
+  verify_documents: ["Admin", "Partner", "Manager", "Reviewer", "ComplianceOfficer"],
   view_audit_log: ["Admin", "Partner", "Manager", "ComplianceOfficer"],
   manage_retention: ["Admin", "Partner", "ComplianceOfficer"],
   complete_onboarding: ["Admin", "Partner", "Manager", "ComplianceOfficer"],

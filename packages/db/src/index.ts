@@ -4,3 +4,4 @@ export * as tables from "./schema/index";
 export * from "./repositories/entities";
 export * from "./repositories/audit";
 export * from "./repositories/onboarding";
+export * from "./repositories/documents";

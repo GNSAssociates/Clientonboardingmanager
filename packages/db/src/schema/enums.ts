@@ -95,3 +95,30 @@ export const taskStatusEnum = pgEnum("task_status", [
 export const taskSourceEnum = pgEnum("task_source", ["auto", "manual"]);
 
 export const pricingModelEnum = pgEnum("pricing_model", ["fixed", "tiered", "custom"]);
+
+// ── M3 document enums ────────────────────────────────────────────────────────
+export const documentStatusEnum = pgEnum("document_status", [
+  "pending",
+  "received",
+  "verified",
+  "rejected",
+]);
+
+export const documentCategoryEnum = pgEnum("document_category", [
+  "id_document",
+  "proof_of_address",
+  "bank_statement",
+  "vat_return",
+  "payroll_record",
+  "accounts",
+  "tax_return",
+  "company_formation",
+  "contract",
+  "other",
+]);
+
+export const classificationSourceEnum = pgEnum("classification_source", [
+  "auto",
+  "manual",
+  "agent",
+]);

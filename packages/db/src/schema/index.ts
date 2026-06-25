@@ -12,3 +12,4 @@ export * from "./clients";
 export * from "./cases";
 export * from "./services";
 export * from "./tasks";
+export * from "./documents";
