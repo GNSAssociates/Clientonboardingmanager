@@ -134,6 +134,13 @@
       "when": 1782476389835,
       "tag": "0018_small_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782477420944,
+      "tag": "0019_brave_leopardon",
+      "breakpoints": true
     }
   ]
 }

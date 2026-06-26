@@ -16,13 +16,14 @@ export default function CompanyPage() {
   const router = useRouter();
   const firm = searchParams.get('firm') || 'gns';
   const services = searchParams.get('services') || '';
+  const companyNumberParam = searchParams.get('companyNumber') || '';
+  const directorEmailParam = searchParams.get('directorEmail') || '';
+  const serviceDetailsParam = searchParams.get('serviceDetails') || '[]';
 
   const [step, setStep] = useState<'input' | 'preview'>('input');
-  const [companyNumber, setCompanyNumber] = useState('');
-  const [email, setEmail] = useState('');
-  const [prevAccountantName, setPrevAccountantName] = useState('');
-  const [prevAccountantEmail, setPrevAccountantEmail] = useState('');
-  const [prevAccountantPhone, setPrevAccountantPhone] = useState('');
+  const [companyNumber, setCompanyNumber] = useState(companyNumberParam);
+  const [email, setEmail] = useState(directorEmailParam);
+  const [selectedDirector, setSelectedDirector] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [company, setCompany] = useState<CompanyData | null>(null);
@@ -51,14 +52,16 @@ export default function CompanyPage() {
       }
 
       const data = await res.json();
+      const directors = (data.officers || []) as Array<{ name: string; email?: string }>;
       setCompany({
         companyNumber: data.number,
         companyName: data.name,
         address: data.address,
-        directors: data.officers || [],
+        directors,
         verified: true,
       });
-
+      // Auto-select first director
+      if (directors.length > 0) setSelectedDirector(directors[0].name);
       setStep('preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to lookup company');
@@ -75,19 +78,20 @@ export default function CompanyPage() {
 
     try {
       // Generate onboarding link
+      let serviceDetails: Array<{ id: string; name: string; price: number }> = [];
+      try { serviceDetails = JSON.parse(decodeURIComponent(serviceDetailsParam)); } catch {}
+
       const res = await fetch('/api/onboarding/links/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          entityId: firm,
+          firmSlug: firm,
           companyName: company.companyName,
           companyNumber: company.companyNumber,
-          clientEmail: email,
-          prevAccountantName,
-          prevAccountantEmail,
-          prevAccountantPhone,
-          services: services.split(',').filter(Boolean),
-          prices: JSON.parse(searchParams.get('prices') || '{}'),
+          companyAddress: company.address,
+          directorName: selectedDirector || company.directors[0]?.name || '',
+          directorEmail: email,
+          serviceDetails,
         }),
       });
 
@@ -300,14 +304,32 @@ export default function CompanyPage() {
 
                     {company.directors.length > 0 && (
                       <div>
-                        <p className="text-sm text-gray-600 mb-2">Directors</p>
-                        <ul className="space-y-1">
-                          {company.directors.map((director, i) => (
-                            <li key={i} className="text-gray-900 font-medium">
-                              • {typeof director === 'string' ? director : director.name}
-                            </li>
-                          ))}
-                        </ul>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {company.directors.length > 1 ? 'Select Primary Director' : 'Director'}
+                        </p>
+                        {company.directors.length > 1 ? (
+                          <div className="space-y-2">
+                            {company.directors.map((director, i) => (
+                              <label key={i} className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-purple-50 transition-colors">
+                                <input
+                                  type="radio"
+                                  name="director"
+                                  value={typeof director === 'string' ? director : director.name}
+                                  checked={selectedDirector === (typeof director === 'string' ? director : director.name)}
+                                  onChange={(e) => setSelectedDirector(e.target.value)}
+                                  className="text-purple-600"
+                                />
+                                <span className="font-medium text-gray-900">
+                                  {typeof director === 'string' ? director : director.name}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="font-medium text-gray-900">
+                            • {typeof company.directors[0] === 'string' ? company.directors[0] : company.directors[0].name}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

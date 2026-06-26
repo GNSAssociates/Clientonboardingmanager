@@ -22,6 +22,7 @@ export default function ServicesPage() {
     Object.fromEntries(SERVICES.map((s) => [s.id, s.basePrice]))
   );
   const [companyNumber, setCompanyNumber] = useState('');
+  const [directorEmail, setDirectorEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
   const toggleService = (id: string) => {
@@ -38,11 +39,16 @@ export default function ServicesPage() {
   const total = selected.reduce((sum, id) => sum + (prices[id] || 0), 0);
 
   const handleContinue = async () => {
-    if (selected.length === 0 || !companyNumber) return;
+    if (selected.length === 0 || !companyNumber || !directorEmail) return;
     setLoading(true);
+    const selectedServices = selected.map((id) => ({
+      id,
+      name: SERVICES.find((s) => s.id === id)?.name || id,
+      price: prices[id] || 0,
+    }));
     setTimeout(() => {
       router.push(
-        `/onboarding/company?firm=${firm}&services=${selected.join(',')}&prices=${JSON.stringify(prices)}&companyNumber=${companyNumber}`
+        `/onboarding/company?firm=${firm}&services=${selected.join(',')}&prices=${encodeURIComponent(JSON.stringify(prices))}&serviceDetails=${encodeURIComponent(JSON.stringify(selectedServices))}&companyNumber=${companyNumber}&directorEmail=${encodeURIComponent(directorEmail)}`
       );
     }, 500);
   };
@@ -71,22 +77,39 @@ export default function ServicesPage() {
           </p>
         </div>
 
-        {/* Company Number */}
-        <div className="mb-10 p-6 bg-purple-50 border border-purple-200 rounded-xl">
-          <label className="block text-sm font-semibold text-gray-700 mb-3">
-            Company Number *
-          </label>
-          <input
-            type="text"
-            placeholder="e.g., 12345678"
-            value={companyNumber}
-            onChange={(e) => setCompanyNumber(e.target.value.toUpperCase())}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-            maxLength={8}
-          />
-          <p className="text-xs text-gray-500 mt-2">
-            We'll verify this with Companies House and get your company details automatically
-          </p>
+        {/* Company Number + Director Email */}
+        <div className="mb-10 p-6 bg-purple-50 border border-purple-200 rounded-xl space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Company Registration Number *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., 12345678"
+              value={companyNumber}
+              onChange={(e) => setCompanyNumber(e.target.value.toUpperCase())}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+              maxLength={8}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              We'll verify this with Companies House automatically
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Primary Director Email *
+            </label>
+            <input
+              type="email"
+              placeholder="director@company.com"
+              value={directorEmail}
+              onChange={(e) => setDirectorEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              The engagement letter will be sent to this email address
+            </p>
+          </div>
         </div>
 
         {/* Services grid */}
@@ -195,9 +218,9 @@ export default function ServicesPage() {
 
           <button
             onClick={handleContinue}
-            disabled={selected.length === 0 || !companyNumber || loading}
+            disabled={selected.length === 0 || !companyNumber || !directorEmail || loading}
             className={`flex items-center gap-2 px-8 py-3 rounded-lg font-semibold transition-all ${
-              selected.length === 0 || !companyNumber
+              selected.length === 0 || !companyNumber || !directorEmail
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:shadow-lg hover:scale-105'
             }`}

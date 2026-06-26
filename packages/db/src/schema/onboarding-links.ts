@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, json, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { entities } from "./tenancy";
 import { clients } from "./clients";
 
@@ -16,6 +16,10 @@ export const onboardingLinks = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    directorName: text("director_name"),
+    directorEmail: text("director_email"),
+    firmSlug: text("firm_slug"),
+    services: json("services").$type<Array<{ id: string; name: string; price: number }>>(),
     resendCount: text("resend_count").notNull().default("0"),
     lastResentAt: timestamp("last_resent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
