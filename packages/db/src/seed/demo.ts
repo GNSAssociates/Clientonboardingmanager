@@ -1,4 +1,5 @@
 import { getDb } from "../client";
+import { randomBytes } from "crypto";
 
 const uuid = () => crypto.randomUUID();
 
@@ -207,11 +208,75 @@ export async function seedDemo() {
     await db.insert(db.schema.complianceChecks).values(check);
   }
 
+  // Demo onboarding links
+  const onboardingLinks = [
+    {
+      id: uuid(),
+      entityId,
+      clientId: clients[0].id,
+      token: randomBytes(32).toString("hex"),
+      companyNumber: clients[0].companyNumber,
+      companyName: clients[0].name,
+      clientEmail: "contact@techinnovations.com",
+      status: "accepted" as const,
+      sentAt: new Date("2024-01-15"),
+      expiresAt: new Date("2024-02-15"),
+      acceptedAt: new Date("2024-01-16"),
+      resendCount: "0",
+      createdAt: new Date("2024-01-15"),
+      updatedAt: new Date("2024-01-16"),
+    },
+    {
+      id: uuid(),
+      entityId,
+      clientId: clients[1].id,
+      token: randomBytes(32).toString("hex"),
+      companyNumber: clients[1].companyNumber,
+      companyName: clients[1].name,
+      clientEmail: "sarah@consultingco.com",
+      status: "sent" as const,
+      sentAt: new Date("2024-02-01"),
+      expiresAt: new Date("2024-03-02"),
+      acceptedAt: null,
+      resendCount: "1",
+      lastResentAt: new Date("2024-02-05"),
+      createdAt: new Date("2024-02-01"),
+      updatedAt: new Date("2024-02-05"),
+    },
+    {
+      id: uuid(),
+      entityId,
+      token: randomBytes(32).toString("hex"),
+      companyNumber: "99999999",
+      companyName: "Test Company Ltd",
+      clientEmail: "test@example.com",
+      status: "sent" as const,
+      sentAt: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      acceptedAt: null,
+      resendCount: "0",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ];
+
+  console.log("📌 Seeding demo onboarding links...");
+  for (const link of onboardingLinks) {
+    await db.insert(db.schema.onboardingLinks).values(link);
+  }
+
   console.log("✅ Demo data seeded successfully!");
   console.log(`   - ${clients.length} demo clients`);
   console.log(`   - ${cases.length} demo cases`);
   console.log(`   - ${services.length} demo services`);
   console.log(`   - ${complianceChecks.length} demo compliance checks`);
+  console.log(`   - ${onboardingLinks.length} demo onboarding links`);
+  console.log("\n📋 Demo onboarding links (for testing):");
+  onboardingLinks.forEach((link) => {
+    console.log(`   - ${link.companyName} (${link.clientEmail}) - Status: ${link.status}`);
+    console.log(`     Token: ${link.token.substring(0, 16)}...`);
+    console.log(`     URL: /onboarding/engage/${link.token}`);
+  });
 }
 
 // Run if called directly

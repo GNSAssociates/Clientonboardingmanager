@@ -34,6 +34,7 @@ export default function SuccessPage() {
   const searchParams = useSearchParams();
   const firm = searchParams.get('firm') || 'gns';
   const company = searchParams.get('company') || 'Your Company';
+  const clientEmail = searchParams.get('email') || '';
   const firmData = FIRM_INFO[firm] || FIRM_INFO.gns;
 
   return (
@@ -61,9 +62,14 @@ export default function SuccessPage() {
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-8 mb-12">
           <p className="text-sm text-gray-600 mb-2">Company being onboarded</p>
           <p className="text-2xl font-bold text-gray-900">{company}</p>
-          <p className="text-sm text-gray-600 mt-3">
-            A confirmation email has been sent to {firmData.email}
-          </p>
+          <div className="space-y-2 mt-4">
+            <p className="text-sm text-gray-600">
+              Engagement link sent to: <span className="font-semibold text-gray-900">{clientEmail}</span>
+            </p>
+            <p className="text-sm text-gray-600">
+              Confirmation sent to: <span className="font-semibold text-gray-900">{firmData.email}</span>
+            </p>
+          </div>
         </div>
 
         {/* Next steps */}
