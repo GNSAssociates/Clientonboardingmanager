@@ -127,6 +127,13 @@
       "when": 1782458651846,
       "tag": "0017_nosy_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782476389835,
+      "tag": "0018_small_sunspot",
+      "breakpoints": true
     }
   ]
 }

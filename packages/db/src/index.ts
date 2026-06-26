@@ -11,3 +11,4 @@ export * from "./repositories/clearance";
 export * from "./repositories/integrations";
 export * from "./repositories/agent-runs";
 export * from "./repositories/reviews";
+export * from "./repositories/onboarding-links";
