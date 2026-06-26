@@ -6,6 +6,17 @@ const MOCK_COMPANIES: Record<string, {
   number: string; name: string; address: string; status: string;
   officers: Array<{ name: string; email?: string }>;
 }> = {
+  // GNS Associates UK LLP — real entry (CH OC428532)
+  "OC428532": {
+    number: "OC428532",
+    name: "GNS Associates UK LLP",
+    address: "Boundary House, Cricket Field Road, Uxbridge, UB8 1QG",
+    status: "active",
+    officers: [
+      { name: "Gurdeep Singh" },
+      { name: "Navdeep Singh" },
+    ],
+  },
   // GNS Associates Limited — real entry (CH 08086819)
   "08086819": {
     number: "08086819",
@@ -43,9 +54,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // Normalise: Companies House numbers are 8 chars, zero-padded
   const raw = params.id.replace(/\s/g, "").toUpperCase();
-  const companyNumber = raw.padStart(8, "0");
+  // LLP numbers start with OC/SO/NC etc — don't zero-pad those
+  const companyNumber = /^[A-Z]/.test(raw) ? raw : raw.padStart(8, "0");
 
   try {
     // 1. Check seed / known companies first
