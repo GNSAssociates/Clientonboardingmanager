@@ -1,40 +1,19 @@
 'use client';
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { FIRMS } from '@/lib/firms';
 
-const FIRMS = [
-  {
-    id: 'gns',
-    name: 'GNS Associates',
-    description: 'Comprehensive accounting & compliance services for small to mid-market businesses',
-    color: 'from-purple-500 to-purple-600',
-    accent: 'purple',
-  },
-  {
-    id: 'llp',
-    name: 'GNS Associates LLP',
-    description: 'Partnership-focused accounting, tax planning, and business advisory',
-    color: 'from-indigo-500 to-indigo-600',
-    accent: 'indigo',
-  },
-  {
-    id: 'galaxy',
-    name: 'Galaxy (GXY)',
-    description: 'Specialized services for tech startups and growth-stage companies',
-    color: 'from-violet-500 to-violet-600',
-    accent: 'violet',
-  },
-];
+const FIRM_LIST = Object.values(FIRMS);
 
 export default function OnboardingStart() {
   const [selectedFirm, setSelectedFirm] = useState<string | null>(null);
 
-  const handleSelect = (firmId: string) => {
-    setSelectedFirm(firmId);
-    // Redirect to services page after brief delay
+  const handleSelect = (slug: string) => {
+    setSelectedFirm(slug);
     setTimeout(() => {
-      window.location.href = `/onboarding/services?firm=${firmId}`;
+      window.location.href = `/onboarding/services?firm=${slug}`;
     }, 300);
   };
 
@@ -44,50 +23,62 @@ export default function OnboardingStart() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">
-            Welcome to Client Onboarding
+            Client Onboarding
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Select your firm to get started. We'll guide you through the onboarding process in just a few minutes.
+            Select the firm you are onboarding this client for.
           </p>
         </div>
 
         {/* Firm selector cards */}
         <div className="grid md:grid-cols-3 gap-6">
-          {FIRMS.map((firm) => (
+          {FIRM_LIST.map((firm) => (
             <button
-              key={firm.id}
-              onClick={() => handleSelect(firm.id)}
-              className={`group relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
-                selectedFirm === firm.id ? 'ring-2 ring-purple-400' : ''
+              key={firm.slug}
+              onClick={() => handleSelect(firm.slug)}
+              className={`group relative overflow-hidden rounded-2xl shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl ${
+                selectedFirm === firm.slug ? 'ring-4 ring-purple-400 scale-105' : ''
               }`}
             >
-              {/* Card background */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${firm.color} opacity-90 group-hover:opacity-100 transition-opacity`} />
+              {/* Background gradient */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${firm.gradient} opacity-95`} />
 
-              {/* Decorative blur */}
-              <div className="absolute inset-0 bg-white/10 backdrop-blur-xl" />
+              {/* Subtle shimmer */}
+              <div className="absolute inset-0 bg-white/5" />
 
               {/* Content */}
               <div className="relative p-8 text-left h-full flex flex-col justify-between min-h-64">
-                <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">{firm.name}</h3>
-                  <p className="text-purple-100 text-sm leading-relaxed">{firm.description}</p>
+                {/* Logo area */}
+                <div className="mb-4">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+                    <Image
+                      src={firm.logo}
+                      alt={firm.name}
+                      width={56}
+                      height={56}
+                      className="object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                  <h3 className="text-xl font-bold text-white leading-tight">{firm.name}</h3>
+                  <p className="text-xs text-white/70 mt-0.5 font-mono">{firm.legalName}</p>
                 </div>
 
+                <p className="text-white/80 text-sm leading-relaxed mb-6">{firm.description}</p>
+
                 {/* CTA */}
-                <div className="flex items-center gap-2 text-white group-hover:gap-3 transition-all mt-6">
-                  <span className="text-sm font-semibold">Select Firm</span>
+                <div className="flex items-center gap-2 text-white group-hover:gap-3 transition-all">
+                  <span className="text-sm font-semibold">Select this firm</span>
                   <ChevronRight size={16} />
                 </div>
               </div>
-
-              {/* Hover glow */}
-              <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-all" />
             </button>
           ))}
         </div>
 
-        {/* Footer link */}
+        {/* Footer */}
         <div className="mt-12 text-center">
           <p className="text-sm text-gray-500">
             Already onboarded?{' '}

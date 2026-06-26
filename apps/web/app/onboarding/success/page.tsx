@@ -1,149 +1,173 @@
 'use client';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle2, Mail, Calendar, FileCheck } from 'lucide-react';
-
-const FIRM_INFO: Record<string, { name: string; email: string }> = {
-  gns: { name: 'GNS Associates', email: 'onboarding@gnsassociates.co.uk' },
-  llp: { name: 'GNS Associates LLP', email: 'onboarding@gnsassociates-llp.co.uk' },
-  galaxy: { name: 'Galaxy (GXY)', email: 'onboarding@galaxy.co.uk' },
-};
+import Image from 'next/image';
+import { CheckCircle2, Mail, Calendar, FileCheck, Loader2 } from 'lucide-react';
+import { getFirm } from '@/lib/firms';
 
 const NEXT_STEPS = [
   {
     icon: Mail,
-    title: 'Verification Email',
-    description: 'Check your inbox for a verification email with next steps',
-    timeline: 'Within 5 minutes',
+    title: 'Engagement Letter Sent',
+    description: 'The client will receive an email with a link to read and sign the engagement letter online.',
+    timeline: 'Now',
   },
   {
     icon: FileCheck,
-    title: 'Records Request',
-    description: 'We\'ll contact your previous accountant to request your records',
-    timeline: 'Within 24 hours',
+    title: 'Professional Clearance',
+    description: 'Once the client signs, we will contact their previous accountant to request a professional handover of records.',
+    timeline: 'Upon client signature',
   },
   {
     icon: Calendar,
     title: 'Onboarding Call',
-    description: 'A member of our team will schedule a call to discuss your requirements',
-    timeline: 'Within 2 business days',
+    description: 'A member of the team will schedule a welcome call to discuss requirements and next steps.',
+    timeline: 'Within 2 business days of signing',
   },
 ];
 
-export default function SuccessPage() {
+function SuccessPageInner() {
   const searchParams = useSearchParams();
-  const firm = searchParams.get('firm') || 'gns';
-  const company = searchParams.get('company') || 'Your Company';
+  const firmSlug = searchParams.get('firm') || 'gns';
+  const company = searchParams.get('company') || 'the company';
   const clientEmail = searchParams.get('email') || '';
-  const firmData = FIRM_INFO[firm] || FIRM_INFO.gns;
+  const token = searchParams.get('token') || '';
+
+  const firm = getFirm(firmSlug);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-2xl">
-        {/* Success animation */}
-        <div className="text-center mb-12">
+
+        {/* Success icon */}
+        <div className="text-center mb-10">
           <div className="inline-flex mb-6">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-indigo-400 rounded-full animate-pulse" />
+              <div className="absolute inset-0 bg-green-200 rounded-full animate-ping opacity-40" />
               <CheckCircle2 size={80} className="text-green-500 relative" />
             </div>
           </div>
-
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Welcome to {firmData.name}!
-          </h1>
-
-          <p className="text-xl text-gray-600 max-w-xl mx-auto">
-            Your onboarding has been successfully initiated. We're excited to work with you and help grow your business.
+          <h1 className="text-4xl font-bold text-gray-900 mb-3">Engagement Link Sent!</h1>
+          <p className="text-lg text-gray-600 max-w-xl mx-auto">
+            The client has been sent their engagement letter and will be able to review and sign it online.
           </p>
         </div>
 
-        {/* Company confirmation */}
-        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-8 mb-12">
-          <p className="text-sm text-gray-600 mb-2">Company being onboarded</p>
-          <p className="text-2xl font-bold text-gray-900">{company}</p>
-          <div className="space-y-2 mt-4">
-            <p className="text-sm text-gray-600">
-              Engagement link sent to: <span className="font-semibold text-gray-900">{clientEmail}</span>
-            </p>
-            <p className="text-sm text-gray-600">
-              Confirmation sent to: <span className="font-semibold text-gray-900">{firmData.email}</span>
-            </p>
+        {/* Summary card */}
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-8">
+          <div className="h-2" style={{ background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }} />
+          <div className="p-6">
+            <div className="flex items-center gap-4 mb-5">
+              <Image src={firm.logo} alt={firm.name} width={48} height={48} className="object-contain" />
+              <div>
+                <p className="text-xs text-gray-500">Sent on behalf of</p>
+                <p className="font-bold text-gray-900">{firm.legalName}</p>
+              </div>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-gray-500">Company</span>
+                <span className="font-semibold text-gray-900">{decodeURIComponent(company)}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-gray-500">Engagement link sent to</span>
+                <span className="font-semibold text-gray-900">{decodeURIComponent(clientEmail)}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-gray-500">Firm notified at</span>
+                <span className="font-semibold text-gray-900">{firm.email}</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="text-gray-500">Link expires</span>
+                <span className="font-semibold text-gray-900">
+                  {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                  })}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Next steps */}
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-8">What happens next?</h2>
-
-          <div className="space-y-4">
-            {NEXT_STEPS.map((step, index) => {
+        <div className="mb-10">
+          <h2 className="text-xl font-bold text-gray-900 mb-5">What happens next?</h2>
+          <div className="space-y-3">
+            {NEXT_STEPS.map((step, i) => {
               const Icon = step.icon;
               return (
-                <div
-                  key={index}
-                  className="flex gap-4 p-6 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all"
-                >
-                  <div className="flex-shrink-0">
-                    <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-gradient-to-br from-purple-100 to-indigo-100">
-                      <Icon className="text-purple-600" size={24} />
-                    </div>
+                <div key={i} className="flex items-start gap-4 p-5 bg-white border border-gray-200 rounded-xl">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                    <Icon className="text-purple-600" size={20} />
                   </div>
-
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{step.title}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{step.description}</p>
-                    <p className="text-xs text-gray-500 mt-2">{step.timeline}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900">{step.title}</p>
+                    <p className="text-sm text-gray-600 mt-0.5">{step.description}</p>
+                    <p className="text-xs text-purple-600 font-medium mt-1">{step.timeline}</p>
                   </div>
-
-                  <div className="text-3xl text-gray-300 font-light">{index + 1}</div>
+                  <span className="text-3xl text-gray-200 font-light flex-shrink-0">{i + 1}</span>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* FAQ / Contact */}
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 mb-8">
-          <h3 className="font-semibold text-gray-900 mb-4">Questions?</h3>
-          <p className="text-gray-600 mb-4">
-            If you have any questions during the onboarding process, please don't hesitate to reach out to our team.
+        {/* Questions */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8">
+          <p className="font-semibold text-gray-900 mb-2">Need help?</p>
+          <p className="text-sm text-gray-600 mb-3">
+            Contact us if you have any questions about this engagement.
           </p>
           <a
-            href={`mailto:${firmData.email}`}
-            className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-semibold"
+            href={`mailto:${firm.email}`}
+            className="inline-flex items-center gap-2 font-semibold text-sm hover:underline"
+            style={{ color: firm.accentColor }}
           >
-            <Mail size={16} />
-            {firmData.email}
+            <Mail size={15} />
+            {firm.email}
           </a>
         </div>
 
-        {/* CTA */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row gap-3">
           <Link
-            href="/dev-login"
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all text-center"
+            href="/staff/onboarding-dashboard"
+            className="flex-1 py-3 text-white rounded-xl font-semibold text-center hover:shadow-lg transition-all"
+            style={{ background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
           >
-            Sign In to Portal
+            View Dashboard
           </Link>
           <Link
-            href="/"
-            className="px-8 py-3 border-2 border-purple-600 text-purple-600 rounded-lg font-semibold hover:bg-purple-50 transition-all text-center"
+            href="/onboarding"
+            className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold text-center hover:border-gray-400 transition-all"
           >
-            Back to Home
+            Onboard Another Client
           </Link>
         </div>
 
-        {/* Footer note */}
-        <div className="mt-12 pt-8 border-t text-center">
-          <p className="text-sm text-gray-500">
-            Confirmation ID: <span className="font-mono text-gray-700">{Date.now().toString().slice(-8).toUpperCase()}</span>
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            This onboarding session has been securely recorded
-          </p>
+        {/* Reference */}
+        <div className="mt-8 pt-6 border-t text-center">
+          {token && (
+            <p className="text-sm text-gray-500 mb-1">
+              Reference: <span className="font-mono text-gray-700">{token.substring(0, 8).toUpperCase()}</span>
+            </p>
+          )}
+          <p className="text-xs text-gray-400">This session has been securely recorded by {firm.legalName}</p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-purple-600" size={32} />
+      </div>
+    }>
+      <SuccessPageInner />
+    </Suspense>
   );
 }

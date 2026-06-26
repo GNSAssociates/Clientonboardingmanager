@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
-
-const FIRM_INFO: Record<string, { name: string; email: string }> = {
-  gns: { name: "GNS Associates", email: "info@gnsassociates.co.uk" },
-  llp: { name: "GNS Associates LLP", email: "info@gnsassociates-llp.co.uk" },
-  galaxy: { name: "Galaxy Accountants", email: "info@galaxyaccountants.co.uk" },
-};
+import { getFirm } from "@/lib/firms";
 
 export async function POST(
   req: NextRequest,
@@ -54,7 +49,7 @@ export async function POST(
       })
     );
 
-    const firm = FIRM_INFO[link.firmSlug || "gns"];
+    const firm = getFirm(link.firmSlug || "gns");
     const services = (link.services as Array<{ name: string; price: number }> || []);
     const totalMonthly = services.reduce((s, sv) => s + sv.price, 0);
 

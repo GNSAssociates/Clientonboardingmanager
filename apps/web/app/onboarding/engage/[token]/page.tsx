@@ -1,31 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import { AlertCircle, Clock, CheckCircle2, FileText, Lock, ChevronDown, ChevronUp } from 'lucide-react';
-
-const FIRM_INFO: Record<string, { name: string; address: string; phone: string; email: string; reg: string }> = {
-  gns: {
-    name: 'GNS Associates',
-    address: '123 Business Street, London, EC1A 1AA',
-    phone: '+44 20 1234 5678',
-    email: 'info@gnsassociates.co.uk',
-    reg: 'Registered in England & Wales',
-  },
-  llp: {
-    name: 'GNS Associates LLP',
-    address: '456 Partnership Avenue, London, EC2B 2BB',
-    phone: '+44 20 2345 6789',
-    email: 'info@gnsassociates-llp.co.uk',
-    reg: 'Registered in England & Wales as a Limited Liability Partnership',
-  },
-  galaxy: {
-    name: 'Galaxy Accountants',
-    address: '789 Tech Hub, London, EC3C 3CC',
-    phone: '+44 20 3456 7890',
-    email: 'info@galaxyaccountants.co.uk',
-    reg: 'Registered in England & Wales',
-  },
-};
+import { getFirm } from '@/lib/firms';
 
 const REQUIRED_DOCS = [
   { id: 'photo_id', label: 'Photo ID', description: 'Passport or driving licence' },
@@ -109,7 +87,7 @@ export default function EngagementPage() {
   const isExpired = daysLeft <= 0;
   const isExpiringSoon = daysLeft > 0 && daysLeft <= 7;
 
-  const firm = FIRM_INFO[link.firmSlug] || FIRM_INFO.gns;
+  const firm = getFirm(link.firmSlug || 'gns');
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const totalMonthly = (link.services || []).reduce((s, sv) => s + sv.price, 0);
   const allDocsChecked = REQUIRED_DOCS.every((d) => docsChecked[d.id]);
@@ -194,17 +172,30 @@ export default function EngagementPage() {
 
         {/* Firm letterhead */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="h-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700" />
+          {/* Coloured stripe using firm's accent colour */}
+          <div className="h-2" style={{ background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }} />
           <div className="p-8 border-b border-gray-100">
-            <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{firm.name}</h1>
-                <p className="text-sm text-gray-500 mt-1">{firm.address}</p>
-                <p className="text-sm text-gray-500">{firm.phone} · {firm.email}</p>
-                <p className="text-xs text-gray-400 mt-1">{firm.reg}</p>
+            <div className="flex justify-between items-start gap-4">
+              <div className="flex items-center gap-5">
+                {/* Logo */}
+                <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+                  <Image
+                    src={firm.logo}
+                    alt={firm.name}
+                    width={80}
+                    height={80}
+                    className="object-contain"
+                  />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">{firm.legalName}</h1>
+                  <p className="text-sm text-gray-500 mt-0.5">{firm.address}</p>
+                  <p className="text-sm text-gray-500">{firm.city}, {firm.postcode}</p>
+                  <p className="text-sm text-gray-500 mt-0.5">{firm.phone} · {firm.email}</p>
+                </div>
               </div>
-              <div className="text-right text-sm text-gray-500">
-                <p>{today}</p>
+              <div className="text-right text-sm text-gray-500 flex-shrink-0">
+                <p className="font-medium">{today}</p>
                 <p className="mt-1 font-mono text-xs text-gray-400">Ref: {token.substring(0, 8).toUpperCase()}</p>
               </div>
             </div>
@@ -267,8 +258,12 @@ export default function EngagementPage() {
 
             <p className="mt-4">
               Yours sincerely,<br />
-              <span className="font-semibold">{firm.name}</span><br />
-              <span className="text-sm text-gray-500">{firm.email}</span>
+              <span className="font-semibold">{firm.legalName}</span><br />
+              <span className="text-sm text-gray-500">{firm.email} · {firm.website}</span>
+            </p>
+
+            <p className="text-xs text-gray-400 border-t border-gray-100 pt-4 mt-6">
+              {firm.regStatement}
             </p>
           </div>
         </div>
