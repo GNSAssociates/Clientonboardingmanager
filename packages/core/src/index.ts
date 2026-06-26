@@ -11,4 +11,5 @@ export * from "./services/catalogue";
 export * from "./services/documents";
 export * from "./services/generated-docs";
 export * from "./services/compliance";
+export * from "./services/clearance";
 export * from "./templates/index";

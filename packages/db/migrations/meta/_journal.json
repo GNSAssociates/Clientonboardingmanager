@@ -71,6 +71,20 @@
       "when": 1782391300000,
       "tag": "0009_rls_compliance",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782391867803,
+      "tag": "0010_absurd_penance",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782392000000,
+      "tag": "0011_rls_clearance",
+      "breakpoints": true
     }
   ]
 }

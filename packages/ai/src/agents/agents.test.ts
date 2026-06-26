@@ -4,9 +4,10 @@ import { documentClassifierAgent } from "./classifier";
 import { missingInfoDetectorAgent } from "./missing-info";
 import { complianceReviewerAgent } from "./compliance-reviewer";
 import { riskAssessorAgent } from "./risk-assessor";
+import { prevAccountantCommunicatorAgent } from "./prev-accountant-communicator";
 
 /**
- * M3/M5 agent definition tests (FR-AI-2, FR-AI-3, FR-AI-4, FR-AI-5).
+ * M3/M5/M6 agent definition tests (FR-AI-2, FR-AI-3, FR-AI-4, FR-AI-5, FR-AI-7).
  * Validates contract — no Claude API call, no DB.
  */
 
@@ -222,6 +223,82 @@ describe("RiskAssessor agent definition (FR-AI-4)", () => {
       needsReview: false,
       recommendedDdLevel: "standard",
       nextReviewMonths: 12,
+    });
+    expect(valid.success).toBe(true);
+  });
+});
+
+describe("PrevAccountantCommunicator agent definition (FR-AI-7)", () => {
+  it("has the correct agent name", () => {
+    expect(prevAccountantCommunicatorAgent.name).toBe("prev_accountant_communicator");
+  });
+
+  it("uses complex model tier", () => {
+    expect(prevAccountantCommunicatorAgent.model).toBe("complex");
+  });
+
+  it("HITL is first_then_auto", () => {
+    expect(prevAccountantCommunicatorAgent.hitl.kind).toBe("first_then_auto");
+  });
+
+  it("HITL assigns to Manager role", () => {
+    if (prevAccountantCommunicatorAgent.hitl.kind === "first_then_auto") {
+      expect(prevAccountantCommunicatorAgent.hitl.assignedRole).toBe("Manager");
+    }
+  });
+
+  it("confidence threshold is 0.75", () => {
+    expect(prevAccountantCommunicatorAgent.confidence.threshold).toBe(0.75);
+  });
+
+  it("has 3 validators", () => {
+    expect(prevAccountantCommunicatorAgent.validators).toHaveLength(3);
+  });
+
+  it("auto-send validator rejects low-confidence auto-send", () => {
+    const v = prevAccountantCommunicatorAgent.validators.find(
+      (v) => v.name === "followup-requires-review-false",
+    );
+    const result = v?.validate({
+      subject: "Chase",
+      body: "<p>Please respond</p>",
+      keyPoints: [],
+      requestedResponseDate: "2026-07-09",
+      suggestedFollowupDays: 7,
+      tone: "formal",
+      confidence: 0.7,
+      needsReview: false,
+    });
+    expect(typeof result).toBe("string");
+  });
+
+  it("body-is-html validator rejects plain text body", () => {
+    const v = prevAccountantCommunicatorAgent.validators.find(
+      (v) => v.name === "body-is-html",
+    );
+    const result = v?.validate({
+      subject: "Chase",
+      body: "Plain text — no HTML tags",
+      keyPoints: [],
+      requestedResponseDate: "2026-07-09",
+      suggestedFollowupDays: 7,
+      tone: "formal",
+      confidence: 0.9,
+      needsReview: false,
+    });
+    expect(typeof result).toBe("string");
+  });
+
+  it("output schema validates a valid clearance draft", () => {
+    const valid = prevAccountantCommunicatorAgent.output.safeParse({
+      subject: "Professional Clearance Request — Acme Ltd",
+      body: "<p>Dear Sir, we write to request professional clearance...</p>",
+      keyPoints: ["Clearance under ICAEW Code R320.7", "Response requested within 14 days"],
+      requestedResponseDate: "2026-07-09",
+      suggestedFollowupDays: 7,
+      tone: "formal",
+      confidence: 0.91,
+      needsReview: true,
     });
     expect(valid.success).toBe(true);
   });

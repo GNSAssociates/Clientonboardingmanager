@@ -15,3 +15,4 @@ export * from "./tasks";
 export * from "./documents";
 export * from "./generated-docs";
 export * from "./compliance";
+export * from "./clearance";

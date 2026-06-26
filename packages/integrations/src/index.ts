@@ -10,18 +10,22 @@ import { stubDocExtractionAdapter } from "./adapters/doc-extraction.stub";
 import { dropboxSignStubAdapter } from "./adapters/dropbox-sign.stub";
 import { companiesHouseAdapter } from "./adapters/companies-house.stub";
 import { amiqusStubAdapter } from "./adapters/amiqus.stub";
+import { graphMailerAdapter } from "./adapters/mailer-graph.stub";
+import { smtpMailerAdapter } from "./adapters/mailer-smtp.stub";
 
 /**
  * Adapter registry (A2 §9). Concrete adapters are registered here per module:
  *   M3 → DocExtraction stub (Azure Doc AI in M5)
- *   M4 → ESignProvider (Dropbox Sign), MailerPort (Graph + SMTP fallback)
- *   M5 → CompaniesHousePort, KycProvider (Amiqus), DocExtraction (Azure Doc AI real)
+ *   M4 → ESignProvider (Dropbox Sign)
+ *   M5 → CompaniesHousePort, KycProvider (Amiqus)
+ *   M6 → MailerPort (Graph primary, SMTP fallback)
  *   M7 → LedgerPort (Xero, then QuickBooks)
  */
 export interface AdapterRegistry {
   companiesHouse?: CompaniesHousePort;
   ledger?: Record<string, LedgerPort>;
   mailer?: MailerPort;
+  mailerFallback?: MailerPort;
   esign?: ESignProvider;
   kyc?: KycProvider;
   docExtraction?: DocExtraction;
@@ -32,6 +36,15 @@ export const adapters: AdapterRegistry = {
   esign: dropboxSignStubAdapter,
   companiesHouse: companiesHouseAdapter,
   kyc: amiqusStubAdapter,
+  mailer: graphMailerAdapter,
+  mailerFallback: smtpMailerAdapter,
 };
 
-export { stubDocExtractionAdapter, dropboxSignStubAdapter, companiesHouseAdapter, amiqusStubAdapter };
+export {
+  stubDocExtractionAdapter,
+  dropboxSignStubAdapter,
+  companiesHouseAdapter,
+  amiqusStubAdapter,
+  graphMailerAdapter,
+  smtpMailerAdapter,
+};

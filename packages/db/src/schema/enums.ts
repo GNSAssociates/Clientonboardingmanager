@@ -142,6 +142,24 @@ export const classificationSourceEnum = pgEnum("classification_source", [
   "agent",
 ]);
 
+// ── M6 clearance enums ────────────────────────────────────────────────────────
+export const clearanceStatusEnum = pgEnum("clearance_status", [
+  "draft",
+  "sent",
+  "chased",
+  "received",
+  "declined",
+  "not_required",
+  "timed_out",
+]);
+
+export const clearanceOutcomeEnum = pgEnum("clearance_outcome", [
+  "clear",
+  "issues_raised",
+  "no_response",
+  "refused",
+]);
+
 // ── M5 compliance enums ───────────────────────────────────────────────────────
 export const kycStatusEnum = pgEnum("kyc_status", [
   "pending",
