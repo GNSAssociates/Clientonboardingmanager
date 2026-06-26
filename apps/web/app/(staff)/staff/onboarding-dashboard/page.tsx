@@ -1,8 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getSession } from '@/lib/auth/session';
 import { Mail, RotateCcw, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 
 interface OnboardingStats {
@@ -23,9 +21,6 @@ interface OnboardingStats {
 }
 
 export default function OnboardingDashboard() {
-  const session = getSession();
-  if (!session) return notFound();
-
   const [stats, setStats] = useState<OnboardingStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'sent' | 'accepted' | 'expired'>('all');

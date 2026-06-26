@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { getFirm } from "@/lib/firms";
+import { sendMail } from "@/lib/mailer";
 
 export async function POST(
   req: NextRequest,
@@ -41,7 +42,6 @@ export async function POST(
       return NextResponse.json({ error: "Already accepted" }, { status: 409 });
     }
 
-    // Mark as accepted
     await db.transaction((tx) =>
       updateOnboardingLink(tx, link.id, {
         status: "accepted",
@@ -52,80 +52,125 @@ export async function POST(
     const firm = getFirm(link.firmSlug || "gns");
     const services = (link.services as Array<{ name: string; price: number }> || []);
     const totalMonthly = services.reduce((s, sv) => s + sv.price, 0);
+    const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const serviceRows = services.map((s) =>
+      `<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0">${s.name}</td><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;text-align:right">£${s.price}/month</td></tr>`
+    ).join("");
 
-    // --- EMAIL 1: To Previous Accountant ---
-    // Sent only if they had a previous accountant
+    // ── EMAIL 1: To Previous Accountant ──────────────────────────────────────
     if (!noPrevAccountant && prevEmail) {
-      const prevAccountantEmailBody = `
-Dear ${prevFirmName || "Previous Accountant"},
-
-We are writing to inform you that ${link.companyName} (Company No. ${link.companyNumber}) has appointed ${firm.name} as their new accountants with effect from today.
-
-The director has authorised us to contact you to request the professional handover of their accounting records, including:
-- Latest filed accounts
-- CT600 and tax computations
-- Payroll records (if applicable)
-- VAT returns history
-- Any outstanding matters
-
-Please confirm by return email whether you are able to provide these records and confirm there are no outstanding fees or matters we should be aware of.
-
-If you have any questions, please contact us at ${firm.email}.
-
-Yours faithfully,
-${firm.name}
-`.trim();
-
-      console.log("📧 [EMAIL → Previous Accountant]");
-      console.log(`  To: ${prevEmail} (${prevFirmName})`);
-      console.log(`  Subject: Professional Clearance Request — ${link.companyName}`);
-      console.log(`  Body preview: ${prevAccountantEmailBody.substring(0, 100)}...`);
-
-      // TODO: await mailer.send({ to: prevEmail, subject: `Professional Clearance Request — ${link.companyName}`, text: prevAccountantEmailBody });
+      await sendMail({
+        to: prevEmail,
+        subject: `Professional Clearance Request — ${link.companyName}`,
+        replyTo: firm.email,
+        html: `
+<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px">
+  <div style="border-top:4px solid ${firm.accentColor};padding-top:20px;margin-bottom:24px">
+    <h2 style="margin:0;color:#111">${firm.legalName}</h2>
+    <p style="margin:4px 0 0;color:#666;font-size:13px">${firm.address}, ${firm.city}, ${firm.postcode}</p>
+  </div>
+  <p style="color:#666;font-size:13px">${today}</p>
+  <p>Dear ${prevFirmName || "Previous Accountant"},</p>
+  <p>We are writing to inform you that <strong>${link.companyName}</strong> (Company No. ${link.companyNumber ?? "—"}) has appointed <strong>${firm.legalName}</strong> as their new accountants with effect from ${today}.</p>
+  <p>The director, <strong>${link.directorName ?? link.clientEmail}</strong>, has provided their consent and authorised us to contact you to arrange a professional handover of their accounting records.</p>
+  <p>We would be grateful if you could confirm:</p>
+  <ol>
+    <li>Whether you are aware of any reason why we should not accept this appointment</li>
+    <li>Whether there are any outstanding fees owed to your firm</li>
+    <li>Arrange handover of the following records (where held):</li>
+  </ol>
+  <ul>
+    <li>Latest filed statutory accounts and tax computations (CT600)</li>
+    <li>Previous year working papers</li>
+    <li>Payroll records and employee details (if applicable)</li>
+    <li>VAT returns history</li>
+    <li>Any correspondence with HMRC</li>
+    <li>Login credentials for accounting software (Xero, QuickBooks, Sage etc.)</li>
+  </ul>
+  <p>Please respond to this email within <strong>14 days</strong>. If we do not hear from you we will assume there are no matters to draw to our attention.</p>
+  <p>If you have any queries, please do not hesitate to contact us.</p>
+  <p>Yours faithfully,<br><strong>${firm.legalName}</strong><br>
+  <a href="mailto:${firm.email}" style="color:${firm.accentColor}">${firm.email}</a></p>
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="font-size:11px;color:#999">${firm.regStatement}</p>
+</body></html>`,
+      });
     }
 
-    // --- EMAIL 2: To the Firm (GNS / LLP / Galaxy) ---
-    const firmNotificationBody = `
-New Client Onboarding Completed
+    // ── EMAIL 2: To the Firm ──────────────────────────────────────────────────
+    await sendMail({
+      to: firm.email,
+      subject: `✅ New Client Onboarded — ${link.companyName}`,
+      html: `
+<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px">
+  <div style="border-top:4px solid ${firm.accentColor};padding-top:20px;margin-bottom:24px">
+    <h2 style="margin:0;color:#111">New Client Onboarding Confirmed</h2>
+    <p style="color:#666;font-size:13px">${today}</p>
+  </div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <tr><td style="padding:8px 0;color:#666;width:160px">Company</td><td style="padding:8px 0;font-weight:bold">${link.companyName}</td></tr>
+    <tr><td style="padding:8px 0;color:#666">Company No.</td><td style="padding:8px 0">${link.companyNumber ?? "—"}</td></tr>
+    <tr><td style="padding:8px 0;color:#666">Director</td><td style="padding:8px 0">${link.directorName ?? "—"}</td></tr>
+    <tr><td style="padding:8px 0;color:#666">Director Email</td><td style="padding:8px 0"><a href="mailto:${link.clientEmail}">${link.clientEmail}</a></td></tr>
+    <tr><td style="padding:8px 0;color:#666">Firm</td><td style="padding:8px 0">${firm.legalName}</td></tr>
+  </table>
+  <h3 style="font-size:14px;color:#555;margin-bottom:8px">Services Agreed</h3>
+  <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden;margin-bottom:20px">
+    <thead><tr style="background:#f9f5ff"><th style="padding:8px 12px;text-align:left;font-size:13px">Service</th><th style="padding:8px 12px;text-align:right;font-size:13px">Monthly Fee</th></tr></thead>
+    <tbody>${serviceRows}</tbody>
+    <tfoot><tr style="background:#f3f0ff"><td style="padding:8px 12px;font-weight:bold">Total Monthly</td><td style="padding:8px 12px;text-align:right;font-weight:bold;color:${firm.accentColor}">£${totalMonthly}</td></tr></tfoot>
+  </table>
+  <h3 style="font-size:14px;color:#555;margin-bottom:8px">Previous Accountant</h3>
+  <p>${noPrevAccountant ? "None — new business (no clearance required)" : `${prevFirmName} · ${prevEmail} · ${prevPhone ?? "—"}`}</p>
+  <h3 style="font-size:14px;color:#555;margin-bottom:8px">Action Required</h3>
+  <ol>
+    <li>Create client record in the system</li>
+    <li>${!noPrevAccountant ? `Await professional clearance from <strong>${prevFirmName}</strong>` : "No clearance required — new business"}</li>
+    <li>Schedule welcome call with <strong>${link.directorName ?? link.clientEmail}</strong></li>
+    <li>Issue first invoice</li>
+  </ol>
+  ${docsAcknowledged?.length ? `<p style="font-size:12px;color:#888">Docs acknowledged: ${docsAcknowledged.join(", ")}</p>` : ""}
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="font-size:11px;color:#999">${firm.regStatement}</p>
+</body></html>`,
+    });
 
-Company: ${link.companyName} (${link.companyNumber})
-Director: ${link.directorName} <${link.clientEmail}>
-Firm: ${firm.name}
-
-Services Agreed:
-${services.map((s) => `  - ${s.name}: £${s.price}/month`).join("\n")}
-Total Monthly: £${totalMonthly}
-
-Previous Accountant:
-${noPrevAccountant ? "None (new business)" : `${prevFirmName} — ${prevEmail} — ${prevPhone}`}
-
-Documents Acknowledged: ${docsAcknowledged?.join(", ") || "None"}
-
-Action Required:
-1. Create client record in the system
-2. ${!noPrevAccountant ? "Await professional clearance response from previous accountant" : "No clearance required — new business"}
-3. Schedule onboarding call with ${link.directorName}
-`.trim();
-
-    console.log("📧 [EMAIL → Firm]");
-    console.log(`  To: ${firm.email}`);
-    console.log(`  Subject: New Client Onboarding — ${link.companyName}`);
-    console.log(`  Body preview: ${firmNotificationBody.substring(0, 100)}...`);
-
-    // TODO: await mailer.send({ to: firm.email, subject: `New Client Onboarding — ${link.companyName}`, text: firmNotificationBody });
-
-    // --- EMAIL 3: Confirmation to Client ---
-    console.log("📧 [EMAIL → Client]");
-    console.log(`  To: ${link.clientEmail}`);
-    console.log(`  Subject: Engagement Confirmed — Welcome to ${firm.name}`);
-
-    // TODO: await mailer.send({ to: link.clientEmail, subject: `Engagement Confirmed — Welcome to ${firm.name}`, ... });
+    // ── EMAIL 3: Confirmation to Client ──────────────────────────────────────
+    await sendMail({
+      to: link.clientEmail,
+      subject: `Engagement Confirmed — Welcome to ${firm.legalName}`,
+      replyTo: firm.email,
+      html: `
+<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px">
+  <div style="border-top:4px solid ${firm.accentColor};padding-top:20px;margin-bottom:24px">
+    <h2 style="margin:0;color:#111">${firm.legalName}</h2>
+    <p style="margin:4px 0 0;color:#666;font-size:13px">${firm.address}, ${firm.city}, ${firm.postcode}</p>
+  </div>
+  <p>Dear ${link.directorName ?? "Director"},</p>
+  <p>Thank you for completing your engagement with <strong>${firm.legalName}</strong>. We are delighted to welcome <strong>${link.companyName}</strong> as a new client.</p>
+  <p>Your engagement has been confirmed as of <strong>${today}</strong>.</p>
+  ${!noPrevAccountant ? `<p>We have contacted your previous accountant, <strong>${prevFirmName}</strong>, to arrange the professional handover of your records. We will keep you informed of progress.</p>` : ""}
+  <h3 style="font-size:14px;color:#555;margin-bottom:8px">What happens next?</h3>
+  <ol>
+    <li>A member of our team will be in touch within <strong>2 business days</strong> to schedule a welcome call</li>
+    ${!noPrevAccountant ? `<li>We will chase your previous accountant for your records within <strong>14 days</strong></li>` : ""}
+    <li>We will set up your client portal and begin work on your agreed services</li>
+  </ol>
+  <p>If you have any questions in the meantime, please don't hesitate to contact us:</p>
+  <p><strong>${firm.legalName}</strong><br>
+  📧 <a href="mailto:${firm.email}" style="color:${firm.accentColor}">${firm.email}</a><br>
+  📞 ${firm.phone}</p>
+  <p>Yours sincerely,<br><strong>${firm.legalName}</strong></p>
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="font-size:11px;color:#999">${firm.regStatement}</p>
+</body></html>`,
+    });
 
     return NextResponse.json({
       success: true,
       message: !noPrevAccountant
-        ? "Engagement accepted. Previous accountant has been contacted and firm notified."
-        : "Engagement accepted. Firm has been notified.",
+        ? "Engagement accepted. Previous accountant contacted and firm notified."
+        : "Engagement accepted. Firm notified.",
     });
   } catch (error) {
     console.error("Error accepting engagement:", error);
