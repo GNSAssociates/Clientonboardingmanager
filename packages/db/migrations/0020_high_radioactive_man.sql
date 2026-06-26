@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding_links" ALTER COLUMN "entity_id" DROP NOT NULL;

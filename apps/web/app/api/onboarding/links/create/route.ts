@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
     // 30-day expiry
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    // Resolve entityId — use firmSlug as fallback if no UUID
-    const resolvedEntityId = entityId || firmSlug;
+    // entityId is optional — firmSlug is the authoritative firm identifier on this table
+    const resolvedEntityId = entityId && /^[0-9a-f-]{36}$/i.test(entityId) ? entityId : null;
 
     // Create onboarding link in database
     const link = await db.transaction((tx) =>

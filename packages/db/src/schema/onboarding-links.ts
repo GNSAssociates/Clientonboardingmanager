@@ -6,7 +6,7 @@ export const onboardingLinks = pgTable(
   "onboarding_links",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id").notNull().references(() => entities.id),
+    entityId: uuid("entity_id").references(() => entities.id),
     clientId: uuid("client_id").references(() => clients.id),
     token: text("token").notNull().unique(),
     companyNumber: text("company_number"),
