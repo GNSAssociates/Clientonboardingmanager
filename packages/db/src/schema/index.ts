@@ -16,3 +16,6 @@ export * from "./documents";
 export * from "./generated-docs";
 export * from "./compliance";
 export * from "./clearance";
+export * from "./integrations";
+export * from "./agent-runs";
+export * from "./reviews";

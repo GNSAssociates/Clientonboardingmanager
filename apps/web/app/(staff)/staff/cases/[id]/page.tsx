@@ -54,6 +54,9 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           <Link href={`/staff/cases/${c.id}/clearance`}>
             <Button variant="outline" size="sm">Clearance</Button>
           </Link>
+          <Link href={`/staff/cases/${c.id}/integrations`}>
+            <Button variant="outline" size="sm">Integrations</Button>
+          </Link>
         </div>
       </div>
 

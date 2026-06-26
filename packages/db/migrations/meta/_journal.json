@@ -85,6 +85,48 @@
       "when": 1782392000000,
       "tag": "0011_rls_clearance",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782457758979,
+      "tag": "0012_misty_photon",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782458000000,
+      "tag": "0013_rls_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782457958654,
+      "tag": "0014_wakeful_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1782458102764,
+      "tag": "0015_funny_silk_fever",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782458200000,
+      "tag": "0016_retention_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782458651846,
+      "tag": "0017_nosy_wolfpack",
+      "breakpoints": true
     }
   ]
 }

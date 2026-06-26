@@ -1,0 +1,285 @@
+{
+  "version": "1.0",
+  "description": "GNS Associates — n8n Automation Workflows (M12)",
+  "workflows": [
+    {
+      "name": "clearance-chaser-cadence",
+      "description": "Chase previous accountant at T+3, T+7, T+14 days after clearance request sent. Escalate to Manager at T+14.",
+      "trigger": {
+        "type": "webhook",
+        "event": "clearance_request.sent",
+        "endpoint": "/webhooks/clearance/sent"
+      },
+      "steps": [
+        {
+          "id": "wait_3d",
+          "type": "wait",
+          "duration": "3 days",
+          "label": "Wait T+3"
+        },
+        {
+          "id": "check_response_3d",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/clearance",
+          "label": "Check clearance status"
+        },
+        {
+          "id": "branch_3d",
+          "type": "if",
+          "condition": "{{clearance.status}} != 'received'",
+          "label": "Still waiting?"
+        },
+        {
+          "id": "chase_1",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/clearance/followup",
+          "body": { "chaseNumber": 1, "note": "T+3 automated chase" },
+          "label": "Send T+3 chase"
+        },
+        {
+          "id": "wait_4d",
+          "type": "wait",
+          "duration": "4 days",
+          "label": "Wait T+7"
+        },
+        {
+          "id": "check_response_7d",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/clearance",
+          "label": "Check clearance status T+7"
+        },
+        {
+          "id": "branch_7d",
+          "type": "if",
+          "condition": "{{clearance.status}} != 'received'",
+          "label": "Still waiting at T+7?"
+        },
+        {
+          "id": "chase_2",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/clearance/followup",
+          "body": { "chaseNumber": 2, "note": "T+7 automated chase" },
+          "label": "Send T+7 chase"
+        },
+        {
+          "id": "wait_7d",
+          "type": "wait",
+          "duration": "7 days",
+          "label": "Wait T+14"
+        },
+        {
+          "id": "check_response_14d",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/clearance",
+          "label": "Check clearance status T+14"
+        },
+        {
+          "id": "branch_14d",
+          "type": "if",
+          "condition": "{{clearance.status}} != 'received'",
+          "label": "Still waiting at T+14?"
+        },
+        {
+          "id": "escalate_manager",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/clearance/followup",
+          "body": { "chaseNumber": 3, "note": "T+14 escalation to Manager" },
+          "label": "Escalate to Manager"
+        }
+      ],
+      "errorHandling": {
+        "retries": 3,
+        "backoff": "exponential",
+        "deadLetter": "events_table"
+      }
+    },
+    {
+      "name": "kyc-chase-workflow",
+      "description": "Chase client for KYC document submission at T+1, T+3, T+7 days.",
+      "trigger": {
+        "type": "webhook",
+        "event": "kyc_check.created",
+        "endpoint": "/webhooks/kyc/created"
+      },
+      "steps": [
+        {
+          "id": "wait_1d",
+          "type": "wait",
+          "duration": "1 day"
+        },
+        {
+          "id": "check_kyc",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/compliance"
+        },
+        {
+          "id": "branch_kyc",
+          "type": "if",
+          "condition": "{{kyc.status}} not in ['passed', 'failed']"
+        },
+        {
+          "id": "notify_client",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/notify-client",
+          "body": { "type": "kyc_reminder", "chaseNumber": 1 }
+        }
+      ],
+      "errorHandling": {
+        "retries": 3,
+        "backoff": "exponential"
+      }
+    },
+    {
+      "name": "esign-reminder-workflow",
+      "description": "Remind client to sign authorisation/engagement letter at T+2, T+5 days.",
+      "trigger": {
+        "type": "webhook",
+        "event": "esign_envelope.sent",
+        "endpoint": "/webhooks/esign/sent"
+      },
+      "steps": [
+        {
+          "id": "wait_2d",
+          "type": "wait",
+          "duration": "2 days"
+        },
+        {
+          "id": "check_esign",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/esign/{{envelopeId}}"
+        },
+        {
+          "id": "branch_signed",
+          "type": "if",
+          "condition": "{{envelope.status}} != 'completed'"
+        },
+        {
+          "id": "send_reminder",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/esign/{{envelopeId}}/resend"
+        },
+        {
+          "id": "wait_3d",
+          "type": "wait",
+          "duration": "3 days"
+        },
+        {
+          "id": "check_esign_2",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/esign/{{envelopeId}}"
+        },
+        {
+          "id": "branch_signed_2",
+          "type": "if",
+          "condition": "{{envelope.status}} != 'completed'"
+        },
+        {
+          "id": "escalate",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/notes",
+          "body": { "note": "E-sign unsigned after 5 days — assigned staff review required." }
+        }
+      ]
+    },
+    {
+      "name": "onboarding-completion-trigger",
+      "description": "When all gates pass, advance case to completed and generate completion report.",
+      "trigger": {
+        "type": "webhook",
+        "event": "case.compliance_passed",
+        "endpoint": "/webhooks/cases/compliance-passed"
+      },
+      "steps": [
+        {
+          "id": "check_all_gates",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}"
+        },
+        {
+          "id": "generate_report",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/report",
+          "body": { "entityId": "{{entityId}}", "clientId": "{{clientId}}", "data": "{{reportData}}" }
+        },
+        {
+          "id": "advance_status",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/transition",
+          "body": { "toStatus": "completed" }
+        },
+        {
+          "id": "notify_staff",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{caseId}}/notify-staff",
+          "body": { "type": "onboarding_completed" }
+        }
+      ]
+    },
+    {
+      "name": "ledger-sync-weekly",
+      "description": "Weekly scheduled pull of Xero/QBO data for active cases with connected integrations.",
+      "trigger": {
+        "type": "schedule",
+        "cron": "0 6 * * 1",
+        "label": "Every Monday at 06:00 UTC"
+      },
+      "steps": [
+        {
+          "id": "fetch_active_connections",
+          "type": "http",
+          "method": "GET",
+          "url": "{{APP_URL}}/api/v1/integrations/active"
+        },
+        {
+          "id": "loop_connections",
+          "type": "forEach",
+          "items": "{{connections}}"
+        },
+        {
+          "id": "pull_snapshot",
+          "type": "http",
+          "method": "POST",
+          "url": "{{APP_URL}}/api/v1/cases/{{item.caseId}}/ledger",
+          "body": {
+            "connectionId": "{{item.id}}",
+            "entityId": "{{item.entityId}}",
+            "kind": "trial_balance",
+            "period": "{{currentPeriod}}"
+          }
+        }
+      ],
+      "errorHandling": {
+        "retries": 2,
+        "backoff": "linear",
+        "deadLetter": "events_table",
+        "alertOnFailure": true
+      }
+    }
+  ],
+  "webhookAuth": {
+    "type": "hmac-sha256",
+    "headerName": "x-gns-signature",
+    "secretEnvVar": "N8N_WEBHOOK_SECRET"
+  },
+  "environment": {
+    "APP_URL": "https://app.gnsassociates.co.uk",
+    "n8nVersion": ">=1.0",
+    "region": "eu-west"
+  }
+}

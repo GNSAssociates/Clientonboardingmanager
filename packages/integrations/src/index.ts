@@ -12,6 +12,8 @@ import { companiesHouseAdapter } from "./adapters/companies-house.stub";
 import { amiqusStubAdapter } from "./adapters/amiqus.stub";
 import { graphMailerAdapter } from "./adapters/mailer-graph.stub";
 import { smtpMailerAdapter } from "./adapters/mailer-smtp.stub";
+import { xeroAdapter } from "./adapters/xero.stub";
+import { qboAdapter } from "./adapters/qbo.stub";
 
 /**
  * Adapter registry (A2 §9). Concrete adapters are registered here per module:
@@ -38,6 +40,7 @@ export const adapters: AdapterRegistry = {
   kyc: amiqusStubAdapter,
   mailer: graphMailerAdapter,
   mailerFallback: smtpMailerAdapter,
+  ledger: { xero: xeroAdapter, qbo: qboAdapter },
 };
 
 export {
@@ -47,4 +50,6 @@ export {
   amiqusStubAdapter,
   graphMailerAdapter,
   smtpMailerAdapter,
+  xeroAdapter,
+  qboAdapter,
 };

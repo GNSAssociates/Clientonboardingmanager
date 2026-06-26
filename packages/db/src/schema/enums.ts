@@ -102,6 +102,7 @@ export const generatedDocTypeEnum = pgEnum("generated_doc_type", [
   "engagement_letter",
   "clearance_request",
   "handover_letter",
+  "completion_report",
   "other",
 ]);
 
@@ -140,6 +141,57 @@ export const classificationSourceEnum = pgEnum("classification_source", [
   "auto",
   "manual",
   "agent",
+]);
+
+// ── M9 review enums ───────────────────────────────────────────────────────────
+export const reviewTypeEnum = pgEnum("review_type", [
+  "bookkeeping",
+  "vat",
+  "paye",
+  "cis",
+  "accounts",
+  "trial_balance",
+  "self_assessment",
+]);
+export const reviewStatusEnum = pgEnum("review_status", [
+  "pending",
+  "in_progress",
+  "findings_raised",
+  "resolved",
+  "signed_off",
+]);
+export const findingSeverityEnum = pgEnum("finding_severity", [
+  "info",
+  "warning",
+  "error",
+  "critical",
+]);
+
+// ── M8 AI/agent enums ─────────────────────────────────────────────────────────
+export const agentRunStatusEnum = pgEnum("agent_run_status", [
+  "pending",
+  "running",
+  "awaiting_hitl",
+  "completed",
+  "failed",
+]);
+export const hitlDecisionEnum = pgEnum("hitl_decision", ["approved", "rejected", "modified"]);
+
+// ── M7 integration enums ──────────────────────────────────────────────────────
+export const integrationProviderEnum = pgEnum("integration_provider", ["xero", "qbo"]);
+export const integrationStatusEnum = pgEnum("integration_status", [
+  "pending",
+  "connected",
+  "expired",
+  "revoked",
+  "error",
+]);
+export const ledgerSnapshotKindEnum = pgEnum("ledger_snapshot_kind", [
+  "trial_balance",
+  "ledgers",
+  "vat",
+  "payroll",
+  "coa",
 ]);
 
 // ── M6 clearance enums ────────────────────────────────────────────────────────
