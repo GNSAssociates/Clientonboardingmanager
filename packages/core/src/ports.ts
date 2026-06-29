@@ -41,7 +41,7 @@ export interface OutboundEmail {
 }
 
 export interface MailerPort {
-  readonly provider: "graph" | "smtp";
+  readonly provider: "graph" | "smtp" | "resend";
   send(message: OutboundEmail): Promise<{ providerRef: string }>;
 }
 

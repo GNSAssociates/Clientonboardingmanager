@@ -10,6 +10,7 @@ import { stubDocExtractionAdapter } from "./adapters/doc-extraction.stub";
 import { dropboxSignStubAdapter } from "./adapters/dropbox-sign.stub";
 import { companiesHouseAdapter } from "./adapters/companies-house.stub";
 import { amiqusStubAdapter } from "./adapters/amiqus.stub";
+import { resendMailerAdapter } from "./adapters/mailer-resend";
 import { graphMailerAdapter } from "./adapters/mailer-graph.stub";
 import { smtpMailerAdapter } from "./adapters/mailer-smtp.stub";
 import { xeroAdapter } from "./adapters/xero.stub";
@@ -38,8 +39,8 @@ export const adapters: AdapterRegistry = {
   esign: dropboxSignStubAdapter,
   companiesHouse: companiesHouseAdapter,
   kyc: amiqusStubAdapter,
-  mailer: graphMailerAdapter,
-  mailerFallback: smtpMailerAdapter,
+  mailer: resendMailerAdapter,
+  mailerFallback: graphMailerAdapter,
   ledger: { xero: xeroAdapter, qbo: qboAdapter },
 };
 
@@ -48,6 +49,7 @@ export {
   dropboxSignStubAdapter,
   companiesHouseAdapter,
   amiqusStubAdapter,
+  resendMailerAdapter,
   graphMailerAdapter,
   smtpMailerAdapter,
   xeroAdapter,
