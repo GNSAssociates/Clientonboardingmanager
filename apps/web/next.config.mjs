@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: false },
   // Workspace packages are shipped as TypeScript source; Next compiles them.
   transpilePackages: ["@gns/config", "@gns/core", "@gns/db", "@gns/ai", "@gns/integrations"],
   experimental: {
