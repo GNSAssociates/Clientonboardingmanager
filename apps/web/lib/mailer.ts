@@ -1,46 +1,60 @@
-import nodemailer from "nodemailer";
+// Email sending via MailerLite Transactional API
+// Docs: https://developers.mailerlite.com/docs/transactional
+// Falls back to console.log when MAILERLITE_API_KEY is not set (dev mode).
 
-interface MailOptions {
+export interface MailOptions {
   to: string;
+  toName?: string;
   subject: string;
   html: string;
   replyTo?: string;
 }
 
-function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) return null;
-
-  return nodemailer.createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT ?? "587"),
-    secure: process.env.SMTP_SECURE === "true",
-    auth: { user, pass },
-  });
+interface MailerLiteResponse {
+  id?: string;
+  status?: string;
+  errors?: Record<string, string[]>;
+  message?: string;
 }
 
 export async function sendMail(opts: MailOptions): Promise<void> {
-  const from = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@gnsassociates.co.uk";
-  const transporter = getTransporter();
+  const apiKey = process.env.MAILERLITE_API_KEY;
+  const fromEmail = process.env.MAILERLITE_FROM_EMAIL ?? "info@gnsassociates.co.uk";
+  const fromName = process.env.MAILERLITE_FROM_NAME ?? "GNS Associates";
 
-  if (!transporter) {
-    // Dev fallback — log to console until SMTP is configured
-    console.log("─────────────────────────────────────────────");
-    console.log(`📧 [EMAIL] To: ${opts.to}`);
+  if (!apiKey) {
+    // Dev fallback — log full details to the console
+    console.log("\n" + "─".repeat(60));
+    console.log(`📧 [EMAIL — dev mode, MAILERLITE_API_KEY not set]`);
+    console.log(`   From   : ${fromName} <${fromEmail}>`);
+    console.log(`   To     : ${opts.toName ? `${opts.toName} <${opts.to}>` : opts.to}`);
     console.log(`   Subject: ${opts.subject}`);
-    console.log(`   (SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASS in .env.local)`);
-    console.log("─────────────────────────────────────────────");
+    if (opts.replyTo) console.log(`   ReplyTo: ${opts.replyTo}`);
+    console.log("─".repeat(60) + "\n");
     return;
   }
 
-  await transporter.sendMail({
-    from,
-    to: opts.to,
+  const body = {
+    from: { email: fromEmail, name: fromName },
+    to: [{ email: opts.to, ...(opts.toName ? { name: opts.toName } : {}) }],
     subject: opts.subject,
     html: opts.html,
-    replyTo: opts.replyTo ?? from,
+    ...(opts.replyTo ? { reply_to: { email: opts.replyTo } } : {}),
+  };
+
+  const res = await fetch("https://connect.mailerlite.com/api/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
   });
+
+  if (!res.ok) {
+    const err = await res.json() as MailerLiteResponse;
+    const detail = err.message ?? JSON.stringify(err.errors ?? err);
+    throw new Error(`MailerLite send failed (${res.status}): ${detail}`);
+  }
 }

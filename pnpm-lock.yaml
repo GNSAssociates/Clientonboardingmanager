@@ -35,9 +35,6 @@ importers:
       '@gns/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
-      '@types/nodemailer':
-        specifier: ^8.0.1
-        version: 8.0.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -50,9 +47,6 @@ importers:
       next:
         specifier: 14.2.18
         version: 14.2.18(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      nodemailer:
-        specifier: ^9.0.1
-        version: 9.0.1
       pino:
         specifier: ^9.5.0
         version: 9.14.0
@@ -1070,9 +1064,6 @@ packages:
 
   '@types/node@22.20.0':
     resolution: {integrity: sha512-QWlFW2wf3nTjC13/DqRnBpR4ZO36VJH/JVBkA/vcnmbTBNQIlnObqyqZE1tUR7+Ni23Lda8R1BxMfbXRpCUx5g==}
-
-  '@types/nodemailer@8.0.1':
-    resolution: {integrity: sha512-PxpaInm8V1JQDd4j0ds5HfvWQk8JupS1C0Picb96QJsrrRDjBH+DlK7L4ZdNSqNULhiZRQHc40nLVShaGxXAMw==}
 
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
@@ -2415,10 +2406,6 @@ packages:
     resolution: {integrity: sha512-J6l92tKHX6w8Jy5nO1Vuc01NoIiRGi/d6qBKVxh+IQ8Cr3b6HbVNfKiF8ZpFKufTwpwxMmce2W3iQZ861ZRyTg==}
     engines: {node: '>=18'}
 
-  nodemailer@9.0.1:
-    resolution: {integrity: sha512-Gwv8SQewT616ZM/URn0H54b8PWo/Wum7md3EW2aWy1lO27+WZCX+Xyak3J+NlmHUjDh5ME+uesJUDRbR3Ye8Bw==}
-    engines: {node: '>=6.0.0'}
-
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
@@ -3673,10 +3660,6 @@ snapshots:
   '@types/node@22.20.0':
     dependencies:
       undici-types: 6.21.0
-
-  '@types/nodemailer@8.0.1':
-    dependencies:
-      '@types/node': 22.20.0
 
   '@types/prop-types@15.7.15': {}
 
@@ -5189,8 +5172,6 @@ snapshots:
       whatwg-url: 5.0.0
 
   node-releases@2.0.50: {}
-
-  nodemailer@9.0.1: {}
 
   normalize-path@3.0.0: {}
 
