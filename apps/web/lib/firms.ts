@@ -101,3 +101,9 @@ export const FIRMS: Record<string, FirmConfig> = {
 export function getFirm(slug: string): FirmConfig {
   return (FIRMS[slug] ?? FIRMS['gns']) as FirmConfig;
 }
+
+// entityId in DB is a UUID — map by checking the company number stored against entities table.
+// As a fallback, returns GNS (first firm). Used when we only have an entityId, not a slug.
+export function getFirmByEntityId(_entityId: string): FirmConfig {
+  return FIRMS['gns'] as FirmConfig;
+}

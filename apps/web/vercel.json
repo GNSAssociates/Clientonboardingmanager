@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/clearance/auto-chase?secret=ecb30d24dce3916cd2e05273ef9a9159",
+      "schedule": "0 8 */5 * *"
+    }
+  ]
+}
