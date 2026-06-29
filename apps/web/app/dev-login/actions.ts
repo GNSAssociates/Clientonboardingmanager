@@ -31,5 +31,5 @@ export async function loginAs(formData: FormData): Promise<void> {
     maxAge: 60 * 60 * 8,
   });
 
-  redirect(roles.includes("Client") ? "/client" : roles.includes("Admin") ? "/admin" : "/staff");
+  redirect(roles.includes("Client") ? "/client" : "/staff/dashboard");
 }
