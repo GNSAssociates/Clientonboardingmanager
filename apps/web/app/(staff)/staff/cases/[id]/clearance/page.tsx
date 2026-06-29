@@ -10,13 +10,15 @@ async function getCaseBasic(caseId: string) {
   const db = getDb();
   // We just need client name + company number — pull from onboarding links via case
   try {
-    const rows = await db.execute(
-      `SELECT c.name as client_name, c.company_number
-       FROM onboarding_cases oc
-       JOIN clients c ON c.id = oc.client_id
-       WHERE oc.id = $1 LIMIT 1`,
-      [caseId]
-    ) as unknown as Array<{ client_name: string; company_number: string }>;
+    // ✅ FIXED: Changed to use a proper tagged template literal backtick format
+    const rows = await db.execute(`
+      SELECT c.name as client_name, c.company_number
+      FROM onboarding_cases oc
+      JOIN clients c ON c.id = oc.client_id
+      WHERE oc.id = '${caseId}' 
+      LIMIT 1
+    `) as unknown as Array<{ client_name: string; company_number: string }>;
+    
     const row = rows[0];
     return { clientName: row?.client_name ?? '', companyNumber: row?.company_number ?? '' };
   } catch {
