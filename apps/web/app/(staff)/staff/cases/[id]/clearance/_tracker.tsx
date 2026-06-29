@@ -264,7 +264,7 @@ function StatusCell({ item, requestId, onChange }: {
                 className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-green-400"
                 placeholder="e.g. Received via email" />
               <div className="flex gap-1.5">
-                <button onClick={() => save('received', localDate, localNotes)}
+                <button onClick={() => save('received', localDate ?? null, localNotes)}
                   className="flex-1 py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700">
                   Mark Received
                 </button>
