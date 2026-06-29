@@ -100,7 +100,10 @@ function CompanyPageInner() {
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to generate engagement link');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to generate engagement link');
+      }
       const result = await res.json();
 
       router.push(

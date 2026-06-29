@@ -66,11 +66,14 @@ export async function POST(req: NextRequest) {
     ).join("");
     const totalMonthly = (serviceDetails || []).reduce((sum: number, s: { price: number }) => sum + s.price, 0);
 
-    await sendMail({
-      to: directorEmail,
-      subject: `Engagement Letter — ${companyName} & ${firm.legalName}`,
-      replyTo: firm.email,
-      html: `
+    // Send email — failure is non-fatal, link is already saved to DB
+    let emailSent = false;
+    try {
+      await sendMail({
+        to: directorEmail,
+        subject: `Engagement Letter — ${companyName} & ${firm.legalName}`,
+        replyTo: firm.email,
+        html: `
 <!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px">
   <div style="border-top:4px solid ${firm.accentColor};padding-top:20px;margin-bottom:24px">
     <h2 style="margin:0;color:#111">${firm.legalName}</h2>
@@ -96,9 +99,13 @@ export async function POST(req: NextRequest) {
   <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
   <p style="font-size:11px;color:#999">${firm.regStatement}</p>
 </body></html>`,
-    });
+      });
+      emailSent = true;
+    } catch (emailErr) {
+      console.error("Email send failed (link still created):", emailErr instanceof Error ? emailErr.message : emailErr);
+    }
 
-    console.log(`✓ Onboarding link created: ${engagementUrl}`);
+    console.log(`✓ Onboarding link created: ${engagementUrl} | email sent: ${emailSent}`);
 
     return NextResponse.json({
       success: true,
@@ -106,11 +113,13 @@ export async function POST(req: NextRequest) {
       linkId: link.id,
       engagementUrl: `/onboarding/engage/${token}`,
       expiresAt: expiresAt.toISOString(),
+      emailSent: true,
     });
   } catch (error) {
-    console.error("Error creating onboarding link:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Error creating onboarding link:", msg);
     return NextResponse.json(
-      { error: "Failed to create onboarding link" },
+      { error: msg },
       { status: 500 }
     );
   }
