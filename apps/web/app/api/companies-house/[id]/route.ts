@@ -13,19 +13,17 @@ const MOCK_COMPANIES: Record<string, {
     address: "Boundary House, Cricket Field Road, Uxbridge, UB8 1QG",
     status: "active",
     officers: [
-      { name: "Gurdeep Singh" },
-      { name: "Navdeep Singh" },
+      { name: "Subash Ghimire" },
     ],
   },
   // GNS Associates Limited — real entry (CH 08086819)
   "08086819": {
     number: "08086819",
     name: "GNS Associates Limited",
-    address: "Devonshire Business Centres, Boundary House, Cricket Field Road, Uxbridge, Middlesex, UB8 1QG",
+    address: "Boundary House, Cricket Field Road, Uxbridge, Middlesex, UB8 1QG",
     status: "active",
     officers: [
-      { name: "Gurdeep Singh" },
-      { name: "Navdeep Singh" },
+      { name: "Lekh Nath Ghimire" },
     ],
   },
   // Test fixtures
