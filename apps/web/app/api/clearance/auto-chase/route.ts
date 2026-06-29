@@ -22,16 +22,16 @@ export async function GET(req: NextRequest) {
      AND next_chase_at <= $1
      AND outcome IS NULL`,
     [now.toISOString()]
-  ) as { rows: Array<{
+  ) as unknown as Array<{
     id: string; entity_id: string; case_id: string;
     prev_firm_name: string; prev_firm_email: string | null;
     response_data: unknown;
-  }> };
+  }>;
 
   let chased = 0;
   const errors: string[] = [];
 
-  for (const row of dueRows.rows) {
+  for (const row of dueRows) {
     try {
       const rd = (row.response_data ?? {}) as { docItems?: DocItem[] };
       const outstanding = (rd.docItems ?? []).filter(i => i.status === "pending");
@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
       const countRows = await db.execute(
         `SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = $1`,
         [row.id]
-      ) as { rows: Array<{ cnt: number }> };
-      const chaseNumber = (countRows.rows[0]?.cnt ?? 0) + 1;
+      ) as unknown as Array<{ cnt: number }>;
+      const chaseNumber = (countRows[0]?.cnt ?? 0) + 1;
       const today = now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -84,5 +84,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed: dueRows.rows.length, chased, errors });
+  return NextResponse.json({ processed: dueRows.length, chased, errors });
 }

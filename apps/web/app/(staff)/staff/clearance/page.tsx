@@ -41,14 +41,14 @@ async function getAllClearanceRequests(): Promise<ClearanceRow[]> {
       WHERE pcr.outcome IS NULL OR pcr.outcome = 'clear'
       ORDER BY pcr.sent_at DESC NULLS LAST
       LIMIT 100
-    `) as { rows: Array<{
+    `) as unknown as Array<{
       id: string; caseId: string; prevFirmName: string; prevFirmEmail: string | null;
       status: string; sentAt: Date | null; nextChaseAt: Date | null;
       responseData: unknown; clientName: string | null; companyNumber: string | null;
       chaseCount: number;
-    }> };
+    }>;
 
-    return rows.rows.map(r => {
+    return rows.map(r => {
       const rd = (r.responseData ?? {}) as { docItems?: Array<{ status: string }> };
       const items = rd.docItems ?? [];
       return {

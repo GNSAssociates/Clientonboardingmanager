@@ -16,8 +16,8 @@ async function getCaseBasic(caseId: string) {
        JOIN clients c ON c.id = oc.client_id
        WHERE oc.id = $1 LIMIT 1`,
       [caseId]
-    ) as { rows: Array<{ client_name: string; company_number: string }> };
-    const row = rows.rows[0];
+    ) as unknown as Array<{ client_name: string; company_number: string }>;
+    const row = rows[0];
     return { clientName: row?.client_name ?? '', companyNumber: row?.company_number ?? '' };
   } catch {
     return { clientName: '', companyNumber: '' };

@@ -38,8 +38,8 @@ export async function POST(
   const rows = await db.execute(
     `SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = $1`,
     [params.id]
-  ) as { rows: Array<{ cnt: number }> };
-  const chaseNumber = (rows.rows[0]?.cnt ?? 0) + 1;
+  ) as unknown as Array<{ cnt: number }>;
+  const chaseNumber = (rows[0]?.cnt ?? 0) + 1;
 
   const nextChaseAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
 

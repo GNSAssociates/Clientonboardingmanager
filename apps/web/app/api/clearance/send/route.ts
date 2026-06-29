@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
     const rows = await db.execute(
       `SELECT client_id FROM onboarding_cases WHERE id = $1 LIMIT 1`,
       [caseId]
-    ) as { rows: Array<{ client_id: string }> };
-    clientId = rows.rows[0]?.client_id ?? caseId;
+    ) as unknown as Array<{ client_id: string }>;
+    clientId = rows[0]?.client_id ?? caseId;
   } catch {
     clientId = caseId;
   }
