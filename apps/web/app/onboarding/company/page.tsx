@@ -68,7 +68,7 @@ function CompanyPageInner() {
         directors,
       });
 
-      if (directors.length > 0) setSelectedDirector(directors[0].name);
+      if (directors.length > 0) setSelectedDirector(directors[0]?.name ?? '');
       setStep('preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to lookup company');
@@ -274,7 +274,7 @@ function CompanyPageInner() {
                         ))}
                       </div>
                     ) : (
-                      <p className="font-medium text-gray-900">{company.directors[0].name}</p>
+                      <p className="font-medium text-gray-900">{company.directors[0]?.name}</p>
                     )}
                   </div>
                 )}

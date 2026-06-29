@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkByToken } from "@gns/db";
+import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 
 export async function GET(
   req: NextRequest,
@@ -62,7 +62,7 @@ export async function POST(
 
     // Update link status to accepted
     await db.transaction((tx) =>
-      db.updateOnboardingLink(tx, link.id, {
+      updateOnboardingLink(tx, link.id, {
         status: "accepted",
         acceptedAt: new Date(),
       })

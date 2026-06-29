@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   try {
     const db = getDb();
 
-    // Get the entity from session (assuming it's set during auth)
-    const entityId = session.entityId || "gns";
+    // Get the entity from session
+    const entityId = session.entityIds?.[0] || "gns";
 
     const stats = await db.transaction((tx) =>
       getOnboardingStats(tx, entityId)

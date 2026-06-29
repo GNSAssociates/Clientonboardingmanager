@@ -3,11 +3,13 @@ import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 
-const FIRM_INFO: Record<string, { name: string; address: string; phone: string }> = {
+interface FirmInfo { name: string; address: string; phone: string }
+const FIRM_INFO: Record<string, FirmInfo> = {
   gns: { name: 'GNS Associates', address: '123 Business St, London', phone: '+44 20 1234 5678' },
   llp: { name: 'GNS Associates LLP', address: '456 Partnership Ave, London', phone: '+44 20 2345 6789' },
   galaxy: { name: 'Galaxy (GXY)', address: '789 Tech Hub, London', phone: '+44 20 3456 7890' },
 };
+const DEFAULT_FIRM: FirmInfo = { name: 'GNS Associates', address: 'Boundary House, London', phone: '+44 20 8426 0820' };
 
 export default function AuthorizationPage() {
   const searchParams = useSearchParams();
@@ -18,7 +20,7 @@ export default function AuthorizationPage() {
 
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const firmData = FIRM_INFO[firm] || FIRM_INFO.gns;
+  const firmData: FirmInfo = FIRM_INFO[firm] ?? DEFAULT_FIRM;
 
   const handleAccept = async () => {
     if (!accepted) return;
