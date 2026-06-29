@@ -1,9 +1,9 @@
 'use client';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { CheckCircle2, Mail, Calendar, FileCheck, Loader2 } from 'lucide-react';
+import { CheckCircle2, Mail, Calendar, FileCheck, Loader2, Copy, Check, ExternalLink } from 'lucide-react';
 import { getFirm } from '@/lib/firms';
 
 const NEXT_STEPS = [
@@ -27,6 +27,29 @@ const NEXT_STEPS = [
   },
 ];
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
+      style={copied
+        ? { background: '#f0fdf4', borderColor: '#86efac', color: '#16a34a' }
+        : { background: '#f8fafc', borderColor: '#e2e8f0', color: '#64748b' }
+      }
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? 'Copied!' : 'Copy link'}
+    </button>
+  );
+}
+
 function SuccessPageInner() {
   const searchParams = useSearchParams();
   const firmSlug = searchParams.get('firm') || 'gns';
@@ -35,6 +58,8 @@ function SuccessPageInner() {
   const token = searchParams.get('token') || '';
 
   const firm = getFirm(firmSlug);
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL ?? '';
+  const engageUrl = token ? `${baseUrl}/onboarding/engage/${token}` : '';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
@@ -55,7 +80,7 @@ function SuccessPageInner() {
         </div>
 
         {/* Summary card */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-8">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-6">
           <div className="h-2" style={{ background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }} />
           <div className="p-6">
             <div className="flex items-center gap-4 mb-5">
@@ -65,20 +90,20 @@ function SuccessPageInner() {
                 <p className="font-bold text-gray-900">{firm.legalName}</p>
               </div>
             </div>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-2 border-b border-gray-100">
+            <div className="space-y-0 text-sm divide-y divide-gray-100">
+              <div className="flex justify-between py-2.5">
                 <span className="text-gray-500">Company</span>
                 <span className="font-semibold text-gray-900">{decodeURIComponent(company)}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-gray-100">
+              <div className="flex justify-between py-2.5">
                 <span className="text-gray-500">Engagement link sent to</span>
                 <span className="font-semibold text-gray-900">{decodeURIComponent(clientEmail)}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-gray-100">
+              <div className="flex justify-between py-2.5">
                 <span className="text-gray-500">Firm notified at</span>
                 <span className="font-semibold text-gray-900">{firm.email}</span>
               </div>
-              <div className="flex justify-between py-2">
+              <div className="flex justify-between py-2.5">
                 <span className="text-gray-500">Link expires</span>
                 <span className="font-semibold text-gray-900">
                   {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {
@@ -90,14 +115,39 @@ function SuccessPageInner() {
           </div>
         </div>
 
+        {/* Shareable link */}
+        {engageUrl && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <p className="text-sm font-semibold text-blue-900">Shareable Engagement Link</p>
+                <p className="text-xs text-blue-600 mt-0.5">Send via WhatsApp, SMS, or any platform if email isn&apos;t received</p>
+              </div>
+              <a
+                href={engageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-shrink-0 p-1.5 text-blue-500 hover:text-blue-700 transition-colors"
+                title="Open link"
+              >
+                <ExternalLink size={15} />
+              </a>
+            </div>
+            <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-2">
+              <p className="flex-1 text-xs font-mono text-gray-600 truncate">{engageUrl}</p>
+              <CopyButton text={engageUrl} />
+            </div>
+          </div>
+        )}
+
         {/* Next steps */}
-        <div className="mb-10">
-          <h2 className="text-xl font-bold text-gray-900 mb-5">What happens next?</h2>
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">What happens next?</h2>
           <div className="space-y-3">
             {NEXT_STEPS.map((step, i) => {
               const Icon = step.icon;
               return (
-                <div key={i} className="flex items-start gap-4 p-5 bg-white border border-gray-200 rounded-xl">
+                <div key={i} className="flex items-start gap-4 p-4 bg-white border border-gray-200 rounded-xl">
                   <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
                     <Icon className="text-purple-600" size={20} />
                   </div>
@@ -113,26 +163,10 @@ function SuccessPageInner() {
           </div>
         </div>
 
-        {/* Questions */}
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8">
-          <p className="font-semibold text-gray-900 mb-2">Need help?</p>
-          <p className="text-sm text-gray-600 mb-3">
-            Contact us if you have any questions about this engagement.
-          </p>
-          <a
-            href={`mailto:${firm.email}`}
-            className="inline-flex items-center gap-2 font-semibold text-sm hover:underline"
-            style={{ color: firm.accentColor }}
-          >
-            <Mail size={15} />
-            {firm.email}
-          </a>
-        </div>
-
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <Link
-            href="/staff/onboarding-dashboard"
+            href="/staff/dashboard"
             className="flex-1 py-3 text-white rounded-xl font-semibold text-center hover:shadow-lg transition-all"
             style={{ background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
           >

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { StaffNav } from "@/components/staff-nav";
+import { StaffNav } from "./_staff-nav";
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
   return (
