@@ -57,8 +57,11 @@ export async function POST(
       `<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0">${s.name}</td><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;text-align:right">£${s.price}/month</td></tr>`
     ).join("");
 
-    // ── EMAIL 1: To Previous Accountant ──────────────────────────────────────
+    // ── EMAIL 1: To Previous Accountant (with clearance response link) ────────
     if (!noPrevAccountant && prevEmail) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const clearanceUrl = `${appUrl}/clearance/respond/${token}`;
+
       await sendMail({
         to: prevEmail,
         subject: `Professional Clearance Request — ${link.companyName}`,
@@ -72,25 +75,27 @@ export async function POST(
   <p style="color:#666;font-size:13px">${today}</p>
   <p>Dear ${prevFirmName || "Previous Accountant"},</p>
   <p>We are writing to inform you that <strong>${link.companyName}</strong> (Company No. ${link.companyNumber ?? "—"}) has appointed <strong>${firm.legalName}</strong> as their new accountants with effect from ${today}.</p>
-  <p>The director, <strong>${link.directorName ?? link.clientEmail}</strong>, has provided their consent and authorised us to contact you to arrange a professional handover of their accounting records.</p>
-  <p>We would be grateful if you could confirm:</p>
-  <ol>
-    <li>Whether you are aware of any reason why we should not accept this appointment</li>
-    <li>Whether there are any outstanding fees owed to your firm</li>
-    <li>Arrange handover of the following records (where held):</li>
-  </ol>
-  <ul>
-    <li>Latest filed statutory accounts and tax computations (CT600)</li>
-    <li>Previous year working papers</li>
+  <p>The director, <strong>${link.directorName ?? link.clientEmail}</strong>, has authorised us to contact you to request professional clearance and the handover of accounting records.</p>
+  <p>Please click the button below to submit your clearance response, note any outstanding fees, and confirm how you will transfer the records:</p>
+  <div style="text-align:center;margin:28px 0">
+    <a href="${clearanceUrl}" style="background:${firm.accentColor};color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;display:inline-block">
+      Respond to Clearance Request →
+    </a>
+  </div>
+  <p style="font-size:13px;color:#666">Or copy this link into your browser:<br>
+  <a href="${clearanceUrl}" style="color:${firm.accentColor};word-break:break-all;font-size:12px">${clearanceUrl}</a></p>
+  <p>Records we require (where held):</p>
+  <ul style="padding-left:20px;color:#555;font-size:14px">
+    <li>Latest filed statutory accounts and corporation tax computations (CT600)</li>
+    <li>Prior year working papers and trial balance</li>
     <li>Payroll records and employee details (if applicable)</li>
     <li>VAT returns history</li>
-    <li>Any correspondence with HMRC</li>
-    <li>Login credentials for accounting software (Xero, QuickBooks, Sage etc.)</li>
+    <li>HMRC correspondence and reference numbers</li>
+    <li>Accounting software access (Xero, QuickBooks, Sage etc.)</li>
   </ul>
-  <p>Please respond to this email within <strong>14 days</strong>. If we do not hear from you we will assume there are no matters to draw to our attention.</p>
-  <p>If you have any queries, please do not hesitate to contact us.</p>
+  <p>Please respond within <strong>14 days</strong>. If we do not hear from you we will assume there are no matters to draw to our attention.</p>
   <p>Yours faithfully,<br><strong>${firm.legalName}</strong><br>
-  <a href="mailto:${firm.email}" style="color:${firm.accentColor}">${firm.email}</a></p>
+  <a href="mailto:${firm.email}" style="color:${firm.accentColor}">${firm.email}</a> · ${firm.phone}</p>
   <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
   <p style="font-size:11px;color:#999">${firm.regStatement}</p>
 </body></html>`,

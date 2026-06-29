@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 const SERVICES = [
   { id: 'bookkeeping', name: 'Bookkeeping', basePrice: 150, description: 'Monthly transaction entry and reconciliation' },
@@ -12,7 +12,7 @@ const SERVICES = [
   { id: 'cis', name: 'CIS Compliance', basePrice: 180, description: 'Construction Industry Scheme support' },
 ];
 
-export default function ServicesPage() {
+function ServicesPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const firm = searchParams.get('firm') || 'gns';
@@ -225,11 +225,24 @@ export default function ServicesPage() {
                 : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:shadow-lg hover:scale-105'
             }`}
           >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : null}
             Continue
             <ChevronRight size={20} />
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-purple-600" size={32} />
+      </div>
+    }>
+      <ServicesPageInner />
+    </Suspense>
   );
 }
