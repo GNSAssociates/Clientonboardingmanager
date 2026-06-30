@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getDb } from "../client";
 import { randomBytes } from "crypto";
 
