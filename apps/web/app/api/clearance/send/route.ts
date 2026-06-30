@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
 import { getDb, insertClearanceRequest } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { sendMail } from "@/lib/mailer";
@@ -38,10 +39,9 @@ export async function POST(req: NextRequest) {
   // Need a clientId — fetch from case
   let clientId: string;
   try {
-    const rows = await db.execute(
-      `SELECT client_id FROM onboarding_cases WHERE id = $1 LIMIT 1`,
-      [caseId]
-    ) as unknown as Array<{ client_id: string }>;
+    const rows = await db.execute(sql`
+      SELECT client_id FROM onboarding_cases WHERE id = ${caseId} LIMIT 1
+    `) as unknown as Array<{ client_id: string }>;
     clientId = rows[0]?.client_id ?? caseId;
   } catch {
     clientId = caseId;

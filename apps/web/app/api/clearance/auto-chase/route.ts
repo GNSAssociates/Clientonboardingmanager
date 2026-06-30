@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
 import { getDb, updateClearanceRequest, insertClearanceFollowup } from "@gns/db";
 import { sendMail } from "@/lib/mailer";
 import { getFirmByEntityId } from "@/lib/firms";
@@ -16,13 +17,12 @@ export async function GET(req: NextRequest) {
   const now = new Date();
 
   // Find all requests due for a chase
-  const dueRows = await db.execute(
-    `SELECT * FROM professional_clearance_requests
-     WHERE status IN ('sent', 'chased')
-     AND next_chase_at <= $1
-     AND outcome IS NULL`,
-    [now.toISOString()]
-  ) as unknown as Array<{
+  const dueRows = await db.execute(sql`
+    SELECT * FROM professional_clearance_requests
+    WHERE status IN ('sent', 'chased')
+    AND next_chase_at <= ${now.toISOString()}
+    AND outcome IS NULL
+  `) as unknown as Array<{
     id: string; entity_id: string; case_id: string;
     prev_firm_name: string; prev_firm_email: string | null;
     response_data: unknown;
@@ -39,10 +39,9 @@ export async function GET(req: NextRequest) {
 
       const firm = getFirmByEntityId(row.entity_id);
 
-      const countRows = await db.execute(
-        `SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = $1`,
-        [row.id]
-      ) as unknown as Array<{ cnt: number }>;
+      const countRows = await db.execute(sql`
+        SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = ${row.id}
+      `) as unknown as Array<{ cnt: number }>;
       const chaseNumber = (countRows[0]?.cnt ?? 0) + 1;
       const today = now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { getDb } from "@gns/db";
 import { getClearanceRequestByCaseId, listFollowupsByCase } from "@gns/db";
@@ -10,15 +11,14 @@ async function getCaseBasic(caseId: string) {
   const db = getDb();
   // We just need client name + company number — pull from onboarding links via case
   try {
-    // ✅ FIXED: Changed to use a proper tagged template literal backtick format
-    const rows = await db.execute(`
+    const rows = await db.execute(sql`
       SELECT c.name as client_name, c.company_number
       FROM onboarding_cases oc
       JOIN clients c ON c.id = oc.client_id
-      WHERE oc.id = '${caseId}' 
+      WHERE oc.id = ${caseId}
       LIMIT 1
     `) as unknown as Array<{ client_name: string; company_number: string }>;
-    
+
     const row = rows[0];
     return { clientName: row?.client_name ?? '', companyNumber: row?.company_number ?? '' };
   } catch {

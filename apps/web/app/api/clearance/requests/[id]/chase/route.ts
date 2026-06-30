@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
 import { getDb, getClearanceRequestById, updateClearanceRequest, insertClearanceFollowup } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { sendMail } from "@/lib/mailer";
@@ -35,10 +36,9 @@ export async function POST(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   // Count previous followups
-  const rows = await db.execute(
-    `SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = $1`,
-    [params.id]
-  ) as unknown as Array<{ cnt: number }>;
+  const rows = await db.execute(sql`
+    SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = ${params.id}
+  `) as unknown as Array<{ cnt: number }>;
   const chaseNumber = (rows[0]?.cnt ?? 0) + 1;
 
   const nextChaseAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);

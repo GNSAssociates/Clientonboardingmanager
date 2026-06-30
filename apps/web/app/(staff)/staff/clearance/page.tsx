@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { sql } from "drizzle-orm";
 import { getDb } from "@gns/db";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
@@ -22,7 +23,7 @@ interface ClearanceRow {
 async function getAllClearanceRequests(): Promise<ClearanceRow[]> {
   const db = getDb();
   try {
-    const rows = await db.execute(`
+    const rows = await db.execute(sql.raw(`
       SELECT
         pcr.id,
         pcr.case_id as "caseId",
@@ -41,7 +42,7 @@ async function getAllClearanceRequests(): Promise<ClearanceRow[]> {
       WHERE pcr.outcome IS NULL OR pcr.outcome = 'clear'
       ORDER BY pcr.sent_at DESC NULLS LAST
       LIMIT 100
-    `) as unknown as Array<{
+    `)) as unknown as Array<{
       id: string; caseId: string; prevFirmName: string; prevFirmEmail: string | null;
       status: string; sentAt: Date | null; nextChaseAt: Date | null;
       responseData: unknown; clientName: string | null; companyNumber: string | null;
