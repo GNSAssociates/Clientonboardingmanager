@@ -43,8 +43,8 @@ function CompanyPageInner() {
     setError('');
 
     try {
-      if (companyNumber.trim().length < 7) {
-        throw new Error('Company number must be at least 7 characters');
+      if (companyNumber.trim().length < 5) {
+        throw new Error('Company number must be at least 5 characters');
       }
 
       const res = await fetch(`/api/companies-house/${companyNumber.trim()}`);
