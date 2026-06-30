@@ -91,22 +91,27 @@ ${d.prevFirmAddress
   we are writing to enquire whether there are any professional reasons why we should not accept this appointment.
 </p>
 
-<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.7">
-  Assuming there are none, we kindly request the following documents and information:
+<p style="margin:0 0 14px;font-size:14px;color:#374151;line-height:1.7">
+  Assuming there are none, we kindly request the following documents and information (whichever are relevant):
 </p>
 
-${relevantItems.length > 0 ? docTable(relevantItems) : ''}
-
-${refsItem ? `
-<div style="background:#f0f4ff;border:1px solid #c7d7f9;border-radius:8px;padding:14px 16px;margin:12px 0">
-  <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1e3a8a">HMRC Reference Numbers</p>
-  <ul style="margin:0;padding-left:18px">
-    <li style="font-size:13px;color:#4b5563;margin-bottom:4px">Company UTR &amp; Companies House Authentication Code</li>
-    <li style="font-size:13px;color:#4b5563;margin-bottom:4px">VAT Certificate &amp; last Box 5 figure</li>
-    <li style="font-size:13px;color:#4b5563;margin-bottom:4px">PAYE Reference &amp; Accounts Office Reference</li>
-    <li style="font-size:13px;color:#4b5563">Director's UTR &amp; National Insurance Number</li>
-  </ul>
-</div>` : ''}
+<ol style="margin:0 0 20px;padding-left:24px">
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Bookkeeping files/working files</strong> for current tax year for the company</li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Previous year P&amp;L and balance sheet</strong> ledgers with detailed breakdown</li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Current Year's YTD Trial Balance</strong> with closing date up until bookkeeping completion</li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Detailed P&amp;L and Balance Sheet</strong> for last 2 tax years (including schedules, capital allowances, director's loan account, s455 tax details)</li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Director's personal tax returns</strong> for last 2 years, plus P60s/P45s for years not yet filed</li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Online access information:</strong>
+    <ul style="margin:6px 0 0;padding-left:24px">
+      <li style="font-size:13px;color:#374151;margin-bottom:4px">MTD Compatible software access (invite to sg@gnsassociates.co.uk)</li>
+      <li style="font-size:13px;color:#374151;margin-bottom:4px">HMRC and Companies House login credentials if created</li>
+      <li style="font-size:13px;color:#374151">NEST Pension: Organization Name: GNS Associates Ltd, Delegate ID: TPA008702283</li>
+    </ul>
+  </li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Tax reference numbers:</strong> Company UTR, Companies House Authentication Code, VAT Certificate (Box 5 figure), PAYE Reference, Accounts Office Reference, Director's UTR &amp; NI Number</li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Payroll RTI &amp; Pensions:</strong> Current year payroll till last RTI filing, last 2 years P60s/P45s, staff details, pension information</li>
+  <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>VAT returns</strong> for last four quarters (if MTD access not provided), plus any HMRC correspondence and outstanding matters</li>
+</ol>
 
 <p style="margin:16px 0 20px;font-size:14px;color:#374151;line-height:1.7">
   Please use the secure button below to confirm your response and indicate how records will be transferred.
@@ -121,7 +126,7 @@ ${refsItem ? `
 
 <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6">
   If we do not receive a response within ${d.deadline} days, we will assume there are no matters to bring to our attention.
-  A reminder will be sent every 5 days for outstanding items.
+  A reminder will be sent every Friday at 10:00 AM for any outstanding items.
 </p>
 
 <p style="margin:24px 0 0;font-size:14px;color:#374151">
