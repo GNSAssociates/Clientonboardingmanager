@@ -9,15 +9,13 @@ export const clearanceRequests = pgTable(
   "professional_clearance_requests",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entities.id),
-    caseId: uuid("case_id")
-      .notNull()
-      .references(() => onboardingCases.id),
-    clientId: uuid("client_id")
-      .notNull()
-      .references(() => clients.id),
+    // entityId/caseId/clientId are nullable to support clearance requests
+    // auto-created directly from onboarding links (before a case exists).
+    entityId: uuid("entity_id").references(() => entities.id),
+    caseId: uuid("case_id").references(() => onboardingCases.id),
+    clientId: uuid("client_id").references(() => clients.id),
+    // linkToken ties back to the onboarding link when created without a case
+    linkToken: text("link_token"),
     prevFirmName: text("prev_firm_name").notNull(),
     prevFirmEmail: text("prev_firm_email"),
     prevFirmAddress: text("prev_firm_address"),

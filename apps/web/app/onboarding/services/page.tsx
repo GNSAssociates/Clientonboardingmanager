@@ -4,12 +4,54 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 const SERVICES = [
-  { id: 'bookkeeping', name: 'Bookkeeping', basePrice: 150, description: 'Monthly transaction entry and reconciliation' },
-  { id: 'vat', name: 'VAT Returns', basePrice: 200, description: 'Quarterly/monthly VAT return filing' },
-  { id: 'paye', name: 'PAYE & NIC', basePrice: 250, description: 'Payroll and HMRC compliance' },
-  { id: 'accounts', name: 'Annual Accounts', basePrice: 500, description: 'Year-end statutory accounts & audit' },
-  { id: 'tax', name: 'Tax Planning', basePrice: 300, description: 'Strategic tax advice and optimization' },
-  { id: 'cis', name: 'CIS Compliance', basePrice: 180, description: 'Construction Industry Scheme support' },
+  {
+    id: 'annual_accounts',
+    name: 'Annual Accounts & Corporation Tax',
+    basePrice: 150,
+    description: 'Statutory accounts, CT600 and Companies House filings',
+    threshold: 'Turnover ≤ £200,000/year',
+    excess: 'To be agreed later',
+  },
+  {
+    id: 'bookkeeping_vat',
+    name: 'Bookkeeping & Quarterly VAT Returns',
+    basePrice: 200,
+    description: 'Monthly bookkeeping and MTD-compliant VAT return filing',
+    threshold: '300 transactions/quarter (bank lines + invoices)',
+    excess: '£0.95 + VAT per extra transaction',
+  },
+  {
+    id: 'paye',
+    name: 'PAYE & Pension',
+    basePrice: 75,
+    description: 'Payroll processing, RTI filings and auto-enrolment',
+    threshold: '2 persons including directors',
+    excess: 'Setup: £10+VAT · Ongoing: £10+VAT per staff per pay run',
+  },
+  {
+    id: 'cis',
+    name: 'CIS Compliance',
+    basePrice: 80,
+    description: 'Construction Industry Scheme monthly returns',
+    threshold: 'N/A',
+    excess: '£10+VAT per subcontractor per month',
+  },
+  {
+    id: 'self_assessment',
+    name: 'Self-Assessment (excl. Buy-to-Let)',
+    basePrice: 50,
+    description: "Director's personal tax return filing",
+    threshold: '2 persons including directors',
+    excess: '£200+VAT per year per additional person',
+  },
+  {
+    id: 'confirmation_statement',
+    name: 'Confirmation Statement',
+    basePrice: 15,
+    description: 'Annual filing to Companies House',
+    threshold: 'Once a year',
+    excess: '£50+VAT for additional filing',
+  },
 ];
 
 function ServicesPageInner() {
@@ -89,10 +131,10 @@ function ServicesPageInner() {
               value={companyNumber}
               onChange={(e) => setCompanyNumber(e.target.value.toUpperCase())}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-              maxLength={8}
+              maxLength={10}
             />
             <p className="text-xs text-gray-500 mt-1">
-              We'll verify this with Companies House automatically
+              We'll verify this with Companies House automatically (e.g. 08086819 or OC428532)
             </p>
           </div>
           <div>
@@ -130,6 +172,7 @@ function ServicesPageInner() {
                     {service.name}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">{service.description}</p>
+                  <p className="text-xs text-purple-600 mt-1 font-medium">Includes: {service.threshold}</p>
                 </div>
 
                 {/* Checkbox */}

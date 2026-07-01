@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { getDb, updateClearanceRequest, insertClearanceFollowup } from "@gns/db";
 import { sendMail } from "@/lib/mailer";
-import { getFirmByEntityId } from "@/lib/firms";
+import { getFirm, getFirmByEntityId } from "@/lib/firms";
 import { buildClearanceChaseEmail } from "@/lib/email-clearance";
 import type { DocItem } from "@/app/(staff)/staff/cases/[id]/clearance/_tracker";
 
@@ -18,12 +18,15 @@ export async function GET(req: NextRequest) {
 
   // Find all requests due for a chase
   const dueRows = await db.execute(sql`
-    SELECT * FROM professional_clearance_requests
+    SELECT id, entity_id, case_id, link_token,
+           prev_firm_name, prev_firm_email, response_data
+    FROM professional_clearance_requests
     WHERE status IN ('sent', 'chased')
     AND next_chase_at <= ${now.toISOString()}
     AND outcome IS NULL
   `) as unknown as Array<{
-    id: string; entity_id: string; case_id: string;
+    id: string; entity_id: string | null; case_id: string | null;
+    link_token: string | null;
     prev_firm_name: string; prev_firm_email: string | null;
     response_data: unknown;
   }>;
@@ -33,11 +36,16 @@ export async function GET(req: NextRequest) {
 
   for (const row of dueRows) {
     try {
-      const rd = (row.response_data ?? {}) as { docItems?: DocItem[] };
+      const rd = (row.response_data ?? {}) as {
+        docItems?: DocItem[];
+        firmSlug?: string;
+        companyName?: string;
+        companyNumber?: string;
+      };
       const outstanding = (rd.docItems ?? []).filter(i => i.status === "pending");
-      if (outstanding.length === 0 || !row.prev_firm_email) continue;
+      if (!row.prev_firm_email) continue;
 
-      const firm = getFirmByEntityId(row.entity_id);
+      const firm = rd.firmSlug ? getFirm(rd.firmSlug) : getFirmByEntityId(row.entity_id);
 
       const countRows = await db.execute(sql`
         SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = ${row.id}
@@ -45,6 +53,11 @@ export async function GET(req: NextRequest) {
       const chaseNumber = (countRows[0]?.cnt ?? 0) + 1;
       const today = now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+      // Use case_id if available, fall back to link_token-based URL
+      const respondUrl = row.case_id
+        ? `${appUrl}/clearance/respond/${row.case_id}`
+        : `${appUrl}/clearance/respond/link/${row.link_token ?? row.id}`;
 
       if (firm) {
         await sendMail({
@@ -57,7 +70,7 @@ export async function GET(req: NextRequest) {
             prevFirmName: row.prev_firm_name,
             chaseNumber,
             outstanding,
-            clearanceUrl: `${appUrl}/clearance/respond/${row.case_id}`,
+            clearanceUrl: respondUrl,
             today,
           }),
         });
@@ -67,14 +80,16 @@ export async function GET(req: NextRequest) {
       await db.transaction(tx =>
         Promise.all([
           updateClearanceRequest(tx, row.id, { status: "chased", nextChaseAt }),
-          insertClearanceFollowup(tx, {
-            requestId: row.id,
-            entityId: row.entity_id,
-            caseId: row.case_id,
-            chaseNumber: String(chaseNumber),
-            sentAt: now,
-            notes: `Auto-chase: ${outstanding.length} items outstanding`,
-          }),
+          ...(row.entity_id && row.case_id ? [
+            insertClearanceFollowup(tx, {
+              requestId: row.id,
+              entityId: row.entity_id,
+              caseId: row.case_id,
+              chaseNumber: String(chaseNumber),
+              sentAt: now,
+              notes: `Auto-chase: ${outstanding.length} items outstanding`,
+            }),
+          ] : []),
         ])
       );
       chased++;

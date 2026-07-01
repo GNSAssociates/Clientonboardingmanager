@@ -126,7 +126,7 @@ ${d.prevFirmAddress
 
 <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6">
   If we do not receive a response within ${d.deadline} days, we will assume there are no matters to bring to our attention.
-  A reminder will be sent every Friday at 10:00 AM for any outstanding items.
+  Automated follow-up reminders will be sent every 5 days for any outstanding items.
 </p>
 
 <p style="margin:24px 0 0;font-size:14px;color:#374151">

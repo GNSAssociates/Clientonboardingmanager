@@ -215,7 +215,7 @@ export default function EngagementPage() {
 
             {link.services && link.services.length > 0 && (
               <div>
-                <p className="font-semibold text-gray-900 mb-3">Agreed Services & Fees:</p>
+                <p className="font-semibold text-gray-900 mb-3">Agreed Services & Monthly Fees:</p>
                 <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
                   <thead>
                     <tr className="bg-purple-50">
@@ -236,20 +236,141 @@ export default function EngagementPage() {
                     </tr>
                   </tbody>
                 </table>
+                <p className="text-xs text-gray-500 mt-2">Note: 20% VAT applies to all fees above. Fees are collected monthly by GoCardless Direct Debit.</p>
               </div>
             )}
+
+            {/* Scope of Services */}
+            <div>
+              <p className="font-semibold text-gray-900 mb-3">Scope of Services & Coverage:</p>
+              <p className="text-xs text-gray-500 mb-2">Services not covered within the scope below are charged as per our Schedule of Service Charges (SSC) in Annex A.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border border-gray-200 rounded-lg overflow-hidden">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-700">
+                      <th className="text-left px-3 py-2 border-b border-gray-200 w-1/3">Scope of Services</th>
+                      <th className="text-left px-3 py-2 border-b border-gray-200 w-1/3">Coverage Threshold (What is included?)</th>
+                      <th className="text-left px-3 py-2 border-b border-gray-200">Fee Exceeding Scope</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-gray-700">
+                    {[
+                      ['Annual Accounts & Corporation Tax', 'Yearly Turnover ≤ £200,000', 'To be agreed later'],
+                      ['Bookkeeping & Quarterly VAT Returns Filing', 'Turnover: As Above · Volume: 300 transactions per quarter (Bank Statement Lines + Purchase Bills + Sales Invoices)', '£0.95 per transaction'],
+                      ['PAYE & Pension', '2 persons including directors', 'One off Setup: £10+VAT per staff · Ongoing: £10+VAT per staff per pay run'],
+                      ['CIS', 'N/A', '£10+VAT per subcontractor per month'],
+                      ['Self-Assessment (Excluding: Buy-to-Let)', '2 persons including directors', '£200+VAT per year for additional person · Rental Property: To be Agreed Later'],
+                      ['Confirmation Statement Filing to Companies House', 'Once a Year', '£50+VAT for additional filing'],
+                      ['References and Letters', '1 Letter or 1 Reference Included', '£75+VAT for additional reference / letter'],
+                    ].map(([service, threshold, excess], i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-3 py-2 border-b border-gray-100 font-medium">{service}</td>
+                        <td className="px-3 py-2 border-b border-gray-100">{threshold}</td>
+                        <td className="px-3 py-2 border-b border-gray-100">{excess}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
             <div>
               <p className="font-semibold text-gray-900 mb-2">Terms of Engagement:</p>
               <ul className="list-disc list-inside space-y-1.5 text-sm">
-                <li>Fees are invoiced monthly in advance and are subject to annual review</li>
-                <li>We are regulated by the <strong>Institute of Chartered Accountants in England and Wales (ICAEW)</strong></li>
+                <li>This letter is effective from the date signed and supersedes any previous engagement letter</li>
+                <li>Fees are invoiced monthly in advance by GoCardless Direct Debit and are subject to annual review</li>
+                <li>We are regulated by <strong>{firm.regBody}</strong> and bound by their ethical guidelines</li>
                 <li>All information you provide will be treated in the strictest confidence in accordance with GDPR and the Data Protection Act 2018</li>
                 <li>We will contact your previous accountant to arrange a professional handover of your records</li>
-                <li>Either party may terminate this engagement with 30 days' written notice</li>
+                <li>Either party may vary or terminate this authority with 30 days' written notice</li>
                 <li>Our liability is limited to the fees paid in the 12 months preceding any claim</li>
+                <li>Work outside the agreed scope will require a separate letter of engagement if the value exceeds £200</li>
                 <li>This engagement is governed by the laws of England and Wales</li>
               </ul>
+            </div>
+
+            {/* Annex A: Schedule of Service Charges */}
+            <div className="border-t border-gray-200 pt-5">
+              <p className="font-bold text-gray-900 mb-1">Annex A: Schedule of Service Charges (SSC)</p>
+              <p className="text-xs text-gray-500 mb-3">Ad-hoc and specialist services not included in your monthly fee are charged as follows:</p>
+
+              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Self-Assessment Tax Return</p>
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
+                  <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b border-gray-200">Service</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Single</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Couple</th></tr></thead>
+                  <tbody className="text-gray-700">
+                    {[
+                      ['Buy to Let SA Filing', '£250+VAT', '£350+VAT'],
+                      ['Director and other SA (Salary, Dividend)', '£200+VAT', '£375+VAT'],
+                      ['Sole Trader (GNS doing bookkeeping)', '£350+VAT', 'N/A'],
+                      ['Change of Beneficial Ownership (Rental)', '£500+VAT (New) / £400+VAT (Existing)', ''],
+                      ['MTD SA — Quarterly', '£75+VAT/quarter', '£150+VAT/quarter'],
+                      ['MTD SA — Annual Summary Filing', 'Free', 'Free'],
+                      ['Total SA Fee when MTD in full force', '£550+VAT', '£850+VAT'],
+                    ].map(([s, a, b], i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-2 py-1.5 border-b border-gray-100">{s}</td>
+                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{a}</td>
+                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{b}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Compliance & Tax Registration Services</p>
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
+                  <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b border-gray-200">Service</th><th className="text-right px-2 py-1.5 border-b border-gray-200">CH Fee</th><th className="text-right px-2 py-1.5 border-b border-gray-200">GNS Fee</th><th className="text-right px-2 py-1.5 border-b border-gray-200">VAT</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Total</th></tr></thead>
+                  <tbody className="text-gray-700">
+                    {[
+                      ['Company Registration', '£100', '£125', '£25', '£250'],
+                      ['Company Registration — Same Day', '£156', '£200', '£40', '£396'],
+                      ['Change of Name', '£20', '£75', '£15', '£110'],
+                      ['Same Day Change of Name', '£85', '£150', '£30', '£265'],
+                      ['Confirmation Statement Filing', '£50', '£50', '£10', '£110'],
+                      ['Voluntary Strike Off DS01', '£14', '£100', '£20', '£134'],
+                      ['Charge Registration', '£15', '£50', '£10', '£75'],
+                      ['Certificate of Good Standing', '£15', '£50', '£10', '£75'],
+                      ['Certificate of Good Standing — Express', '£50', '£75', '£15', '£140'],
+                      ['Shareholding Changes', '—', '£50', '£10', '£60'],
+                      ['Director Appointment / Termination', '—', '£50', '£10', '£60'],
+                      ['Company / Directors Address Changes', '—', '£50', '£10', '£60'],
+                      ['Companies House Identity Verification', '—', '£75', '£15', '£90'],
+                      ['Reference Letters and Forms', '—', '£100', '£20', '£120'],
+                      ['PAYE Registration', '—', '£100', '£20', '£120'],
+                      ['VAT Registration', '—', '£75', '£15', '£90'],
+                      ['Self-Assessment Registration', '—', '£100', '£20', '£120'],
+                    ].map(([s, ch, gns, vat, tot], i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-2 py-1.5 border-b border-gray-100">{s}</td>
+                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{ch}</td>
+                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{gns}</td>
+                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{vat}</td>
+                        <td className="px-2 py-1.5 border-b border-gray-100 text-right font-semibold">{tot}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Subscription Based Services</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
+                  <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b border-gray-200">Service</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Amount</th></tr></thead>
+                  <tbody className="text-gray-700">
+                    {[
+                      ['Registered Office Address', '£20+VAT (Monthly)'],
+                      ['QuickBooks Subscription', '£25+VAT (Monthly)'],
+                    ].map(([s, a], i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-2 py-1.5 border-b border-gray-100">{s}</td>
+                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{a}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <p>

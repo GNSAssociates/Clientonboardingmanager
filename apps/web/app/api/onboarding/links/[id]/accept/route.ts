@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
+import { getDb, getOnboardingLinkByToken, updateOnboardingLink, insertClearanceRequest } from "@gns/db";
 import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
 import {
@@ -65,6 +65,32 @@ export async function POST(
     const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const clearanceUrl = `${appUrl}/clearance/respond/${token}`;
+
+    // Auto-create professional clearance DB row (nullable FKs allow this before a case exists)
+    if (!noPrevAccountant && prevEmail) {
+      try {
+        await db.transaction((tx) =>
+          insertClearanceRequest(tx, {
+            prevFirmName: prevFirmName || "Previous Accountants",
+            prevFirmEmail: prevEmail,
+            status: "sent",
+            sentAt: new Date(),
+            nextChaseAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+            linkToken: token,
+            responseData: {
+              companyName: link.companyName,
+              companyNumber: link.companyNumber,
+              firmSlug: link.firmSlug,
+              directorName: link.directorName,
+              clientEmail: link.clientEmail,
+            },
+          })
+        );
+      } catch (clearanceErr) {
+        console.error("Failed to auto-create clearance request:", clearanceErr);
+        // Non-fatal — email will still be sent below
+      }
+    }
 
     // EMAIL 1: Professional clearance to previous accountant (full LLP format)
     if (!noPrevAccountant && prevEmail) {
