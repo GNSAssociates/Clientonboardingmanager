@@ -148,6 +148,27 @@
       "when": 1782478836071,
       "tag": "0020_high_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782478900000,
+      "tag": "0021_follow_up_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782478950000,
+      "tag": "0022_document_submissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782479000000,
+      "tag": "0023_clearance_optional_case",
+      "breakpoints": true
     }
   ]
 }
