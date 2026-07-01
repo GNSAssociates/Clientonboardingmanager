@@ -1,4 +1,6 @@
 {
+  "framework": "nextjs",
+  "outputDirectory": ".next",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile --prod=false",
   "buildCommand": "pnpm build",
   "crons": [

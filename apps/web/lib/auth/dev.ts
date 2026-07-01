@@ -44,4 +44,5 @@ export function buildDevSession(
   };
 }
 
-export const isDevAuthEnabled = (): boolean => process.env.NODE_ENV !== "production";
+// Provisional auth shim — always enabled until real Entra/Supabase auth is wired
+export const isDevAuthEnabled = (): boolean => true;
