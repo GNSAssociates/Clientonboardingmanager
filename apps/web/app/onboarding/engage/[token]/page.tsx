@@ -36,6 +36,7 @@ export default function EngagementPage() {
   const [link, setLink] = useState<OnboardingLinkData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [pageError, setPageError] = useState('');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
@@ -58,7 +59,7 @@ export default function EngagementPage() {
     fetch(`/api/onboarding/links/${token}`)
       .then((r) => r.json())
       .then((data) => setLink(data))
-      .catch(() => setError('Link not found or invalid'))
+      .catch(() => setPageError('Link not found or invalid'))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -71,7 +72,7 @@ export default function EngagementPage() {
     </div>
   );
 
-  if (error || !link) return (
+  if (pageError || !link) return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-100 px-4">
       <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
         <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />

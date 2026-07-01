@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       const outstanding = (rd.docItems ?? []).filter(i => i.status === "pending");
       if (!row.prev_firm_email) continue;
 
-      const firm = rd.firmSlug ? getFirm(rd.firmSlug) : getFirmByEntityId(row.entity_id);
+      const firm = rd.firmSlug ? getFirm(rd.firmSlug) : getFirmByEntityId(row.entity_id ?? "");
 
       const countRows = await db.execute(sql`
         SELECT COUNT(*)::int as cnt FROM clearance_followups WHERE request_id = ${row.id}

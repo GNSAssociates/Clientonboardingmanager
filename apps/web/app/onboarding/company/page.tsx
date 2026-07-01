@@ -16,6 +16,11 @@ interface CompanyData {
   address: string;
   status: string;
   directors: Director[];
+  incorporationDate: string | null;
+  aaDue: string | null;
+  csDue: string | null;
+  sicCodes: string[];
+  natureOfBusiness: string | null;
 }
 
 function CompanyPageInner() {
@@ -66,6 +71,11 @@ function CompanyPageInner() {
         address: data.address,
         status: data.status,
         directors,
+        incorporationDate: data.incorporationDate ?? null,
+        aaDue: data.aaDue ?? null,
+        csDue: data.csDue ?? null,
+        sicCodes: data.sicCodes ?? [],
+        natureOfBusiness: data.natureOfBusiness ?? null,
       });
 
       if (directors.length > 0) setSelectedDirector(directors[0]?.name ?? '');
@@ -245,6 +255,30 @@ function CompanyPageInner() {
                     <p className="text-gray-500 text-xs uppercase tracking-wide">Registered Address</p>
                     <p className="font-semibold text-gray-900 mt-0.5">{company.address}</p>
                   </div>
+                  {company.incorporationDate && (
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wide">Incorporated</p>
+                      <p className="font-semibold text-gray-900 mt-0.5">{company.incorporationDate}</p>
+                    </div>
+                  )}
+                  {company.natureOfBusiness && (
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wide">Nature of Business (SIC)</p>
+                      <p className="font-semibold text-gray-900 mt-0.5">{company.natureOfBusiness}</p>
+                    </div>
+                  )}
+                  {company.aaDue && (
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wide">Accounts Due</p>
+                      <p className="font-semibold text-gray-900 mt-0.5">{company.aaDue}</p>
+                    </div>
+                  )}
+                  {company.csDue && (
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wide">Confirmation Statement Due</p>
+                      <p className="font-semibold text-gray-900 mt-0.5">{company.csDue}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Director selection */}

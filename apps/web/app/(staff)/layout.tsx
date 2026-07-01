@@ -1,8 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { StaffNav } from "./_staff-nav";
+import { requireSession } from "@/lib/auth/session";
 
-export default function StaffLayout({ children }: { children: React.ReactNode }) {
+export default async function StaffLayout({ children }: { children: React.ReactNode }) {
+  requireSession();
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
