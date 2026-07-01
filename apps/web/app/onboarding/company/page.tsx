@@ -2,7 +2,7 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CheckCircle2, Building2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CheckCircle2, Building2, PenLine } from 'lucide-react';
 import { getFirm } from '@/lib/firms';
 
 interface Director {
@@ -21,6 +21,7 @@ interface CompanyData {
   csDue: string | null;
   sicCodes: string[];
   natureOfBusiness: string | null;
+  manual?: boolean;
 }
 
 function CompanyPageInner() {
@@ -34,13 +35,18 @@ function CompanyPageInner() {
 
   const firm = getFirm(firmSlug);
 
-  const [step, setStep] = useState<'input' | 'preview'>('input');
+  const [step, setStep] = useState<'input' | 'manual' | 'preview'>('input');
   const [companyNumber, setCompanyNumber] = useState(companyNumberParam);
   const [directorEmail, setDirectorEmail] = useState(directorEmailParam);
   const [selectedDirector, setSelectedDirector] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [company, setCompany] = useState<CompanyData | null>(null);
+
+  // Manual entry fields
+  const [manualName, setManualName] = useState('');
+  const [manualAddress, setManualAddress] = useState('');
+  const [manualDirector, setManualDirector] = useState('');
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,15 +59,16 @@ function CompanyPageInner() {
       }
 
       const res = await fetch(`/api/companies-house/${companyNumber.trim()}`);
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data = await res.json().catch(() => ({})) as any;
+
       if (!res.ok) {
-        setError((data.error as string) || 'Failed to lookup company details');
+        setError(data.error || 'Could not look up company');
         return;
       }
-      const directors: Director[] = (data.officers || []).map((o: string | { name: string; email?: string }) =>
-        typeof o === 'string' ? { name: o } : o
+
+      const directors: Director[] = (data.officers || []).map(
+        (o: string | { name: string; email?: string }) => (typeof o === 'string' ? { name: o } : o)
       );
 
       setCompany({
@@ -84,6 +91,25 @@ function CompanyPageInner() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCompany({
+      number: companyNumber.trim().toUpperCase(),
+      name: manualName.trim(),
+      address: manualAddress.trim(),
+      status: 'active',
+      directors: manualDirector.trim() ? [{ name: manualDirector.trim() }] : [],
+      incorporationDate: null,
+      aaDue: null,
+      csDue: null,
+      sicCodes: [],
+      natureOfBusiness: null,
+      manual: true,
+    });
+    setSelectedDirector(manualDirector.trim());
+    setStep('preview');
   };
 
   const handleGenerate = async () => {
@@ -111,9 +137,9 @@ function CompanyPageInner() {
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.error || 'Failed to generate engagement link');
+        throw new Error((errBody as { error?: string }).error || 'Failed to generate engagement link');
       }
-      const result = await res.json();
+      const result = await res.json() as { token: string };
 
       router.push(
         `/onboarding/success?firm=${firmSlug}&company=${encodeURIComponent(company.name)}&email=${encodeURIComponent(directorEmail)}&token=${result.token}`
@@ -148,18 +174,17 @@ function CompanyPageInner() {
           </div>
         </div>
 
-        {step === 'input' ? (
+        {/* ── STEP: CH LOOKUP ── */}
+        {step === 'input' && (
           <>
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Verify Company</h1>
-              <p className="text-gray-600">We'll look up the company details from Companies House automatically.</p>
+              <p className="text-gray-600">Enter the company number to look up details from Companies House.</p>
             </div>
 
             <form onSubmit={handleLookup} className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Company Number *
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Number *</label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input
@@ -171,13 +196,11 @@ function CompanyPageInner() {
                     maxLength={10}
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Found on your Companies House certificate or at beta.companieshouse.gov.uk</p>
+                <p className="text-xs text-gray-500 mt-1">Found on the Companies House certificate or beta.companieshouse.gov.uk</p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Primary Director Email Address *
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Director Email Address *</label>
                 <input
                   type="email"
                   placeholder="director@company.com"
@@ -189,9 +212,19 @@ function CompanyPageInner() {
               </div>
 
               {error && (
-                <div className="flex items-start gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={16} />
-                  <p className="text-sm text-red-700">{error}</p>
+                <div className="flex flex-col gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={16} />
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setError(''); setStep('manual'); }}
+                    className="flex items-center gap-2 text-sm font-semibold text-red-700 hover:text-red-900 underline underline-offset-2"
+                  >
+                    <PenLine size={14} />
+                    Enter company details manually instead
+                  </button>
                 </div>
               )}
 
@@ -214,16 +247,118 @@ function CompanyPageInner() {
                   }`}
                   style={loading || !companyNumber || !directorEmail ? {} : { background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
                 >
-                  {loading ? (
-                    <><Loader2 size={20} className="animate-spin" /> Looking up...</>
-                  ) : (
-                    <>Verify Company <ChevronRight size={20} /></>
-                  )}
+                  {loading ? <><Loader2 size={20} className="animate-spin" /> Looking up...</> : <>Verify Company <ChevronRight size={20} /></>}
+                </button>
+              </div>
+
+              <p className="text-center text-xs text-gray-400">
+                Can&apos;t find the company?{' '}
+                <button type="button" onClick={() => setStep('manual')} className="underline hover:text-gray-600">
+                  Enter details manually
+                </button>
+              </p>
+            </form>
+          </>
+        )}
+
+        {/* ── STEP: MANUAL ENTRY ── */}
+        {step === 'manual' && (
+          <>
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Enter Company Details</h1>
+              <p className="text-gray-600">Fill in the company details manually to continue.</p>
+            </div>
+
+            <form onSubmit={handleManualSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Number *</label>
+                <input
+                  type="text"
+                  value={companyNumber}
+                  onChange={(e) => setCompanyNumber(e.target.value.replace(/\s/g, '').toUpperCase())}
+                  placeholder="e.g., 04863765"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  maxLength={10}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Name *</label>
+                <input
+                  type="text"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder="e.g., Acme Ltd"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Registered Address *</label>
+                <input
+                  type="text"
+                  value={manualAddress}
+                  onChange={(e) => setManualAddress(e.target.value)}
+                  placeholder="e.g., 123 High Street, London, SW1A 1AA"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Director Full Name *</label>
+                <input
+                  type="text"
+                  value={manualDirector}
+                  onChange={(e) => setManualDirector(e.target.value)}
+                  placeholder="e.g., John Smith"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Director Email Address *</label>
+                <input
+                  type="email"
+                  value={directorEmail}
+                  onChange={(e) => setDirectorEmail(e.target.value)}
+                  placeholder="director@company.com"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setStep('input'); setError(''); }}
+                  className="flex items-center gap-2 px-6 py-3 text-gray-700 hover:text-gray-900 font-semibold"
+                >
+                  <ChevronLeft size={20} />
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={!manualName || !manualAddress || !manualDirector || !directorEmail || !companyNumber}
+                  className={`flex items-center gap-2 px-8 py-3 rounded-lg font-semibold transition-all ${
+                    !manualName || !manualAddress || !manualDirector || !directorEmail || !companyNumber
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'text-white hover:shadow-lg hover:scale-[1.02]'
+                  }`}
+                  style={!manualName || !manualAddress || !manualDirector || !directorEmail || !companyNumber ? {} : { background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
+                >
+                  Continue <ChevronRight size={20} />
                 </button>
               </div>
             </form>
           </>
-        ) : company && (
+        )}
+
+        {/* ── STEP: PREVIEW ── */}
+        {step === 'preview' && company && (
           <>
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Confirm Details</h1>
@@ -231,13 +366,14 @@ function CompanyPageInner() {
             </div>
 
             <div className="space-y-5">
-              {/* Company verified card */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-start gap-3 mb-5">
-                  <CheckCircle2 className="text-green-500 flex-shrink-0 mt-0.5" size={22} />
+                  <CheckCircle2 className={`flex-shrink-0 mt-0.5 ${company.manual ? 'text-blue-500' : 'text-green-500'}`} size={22} />
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">{company.name}</h2>
-                    <p className="text-sm text-green-700 font-medium">Verified via Companies House</p>
+                    <p className={`text-sm font-medium ${company.manual ? 'text-blue-700' : 'text-green-700'}`}>
+                      {company.manual ? 'Entered manually' : 'Verified via Companies House'}
+                    </p>
                   </div>
                 </div>
 
@@ -280,7 +416,6 @@ function CompanyPageInner() {
                   )}
                 </div>
 
-                {/* Director selection */}
                 {company.directors.length > 0 && (
                   <div className="mt-5 border-t border-gray-100 pt-5">
                     <p className="text-sm font-semibold text-gray-700 mb-3">
@@ -292,9 +427,7 @@ function CompanyPageInner() {
                           <label
                             key={i}
                             className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                              selectedDirector === d.name
-                                ? 'border-purple-400 bg-purple-50'
-                                : 'border-gray-200 hover:border-gray-300'
+                              selectedDirector === d.name ? 'border-purple-400 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
                             }`}
                           >
                             <input
@@ -316,13 +449,10 @@ function CompanyPageInner() {
                 )}
               </div>
 
-              {/* Where we're sending it */}
               <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5">
                 <p className="text-sm text-purple-900 font-semibold mb-2">Engagement letter will be sent to:</p>
                 <p className="font-bold text-gray-900 text-lg">{directorEmail}</p>
-                <p className="text-xs text-purple-700 mt-2">
-                  The client will receive a 30-day link to read and sign the engagement letter online.
-                </p>
+                <p className="text-xs text-purple-700 mt-2">The client will receive a 30-day link to read and sign the engagement letter online.</p>
               </div>
 
               {error && (
@@ -334,7 +464,7 @@ function CompanyPageInner() {
 
               <div className="flex items-center justify-between gap-4 pt-2">
                 <button
-                  onClick={() => { setStep('input'); setCompany(null); setError(''); }}
+                  onClick={() => { setStep(company.manual ? 'manual' : 'input'); setCompany(null); setError(''); }}
                   className="flex items-center gap-2 px-6 py-3 text-gray-700 hover:text-gray-900 font-semibold"
                 >
                   <ChevronLeft size={20} />
@@ -348,11 +478,7 @@ function CompanyPageInner() {
                   }`}
                   style={loading ? {} : { background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
                 >
-                  {loading ? (
-                    <><Loader2 size={20} className="animate-spin" /> Generating...</>
-                  ) : (
-                    <>Generate & Send Link <ChevronRight size={20} /></>
-                  )}
+                  {loading ? <><Loader2 size={20} className="animate-spin" /> Generating...</> : <>Generate & Send Link <ChevronRight size={20} /></>}
                 </button>
               </div>
             </div>
