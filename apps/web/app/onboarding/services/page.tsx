@@ -1,7 +1,7 @@
 'use client';
 import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 
 const SERVICES = [
   {
@@ -54,21 +54,68 @@ const SERVICES = [
   },
 ];
 
+// One-off / ad-hoc services (Annex A — Schedule of Service Charges).
+// Prices are the total client-facing fee (inc. VAT where applicable).
+const ONEOFF_GROUPS: { group: string; items: { id: string; name: string; basePrice: number; note?: string }[] }[] = [
+  {
+    group: 'Self-Assessment Tax Return',
+    items: [
+      { id: 'sa_btl', name: 'Buy to Let SA Filing', basePrice: 250, note: 'Single (£350 couple) + VAT' },
+      { id: 'sa_director', name: 'Director / other SA (Salary, Dividend)', basePrice: 200, note: 'Single (£375 couple) + VAT' },
+      { id: 'sa_sole_trader', name: 'Sole Trader (GNS bookkeeping)', basePrice: 350, note: '+ VAT' },
+      { id: 'sa_boc', name: 'Change of Beneficial Ownership (Rental)', basePrice: 500, note: 'New £500 / Existing £400 + VAT' },
+      { id: 'sa_mtd_quarterly', name: 'MTD SA — Quarterly', basePrice: 75, note: 'Single (£150 couple) + VAT per quarter' },
+    ],
+  },
+  {
+    group: 'Compliance & Tax Registration',
+    items: [
+      { id: 'reg_company', name: 'Company Registration', basePrice: 250, note: 'inc. CH fee & VAT' },
+      { id: 'reg_company_sameday', name: 'Company Registration — Same Day', basePrice: 396, note: 'inc. CH fee & VAT' },
+      { id: 'reg_change_name', name: 'Change of Name', basePrice: 110, note: 'inc. CH fee & VAT' },
+      { id: 'reg_change_name_sameday', name: 'Same Day Change of Name', basePrice: 265, note: 'inc. CH fee & VAT' },
+      { id: 'reg_conf_stmt', name: 'Confirmation Statement Filing', basePrice: 110, note: 'inc. CH fee & VAT' },
+      { id: 'reg_strike_off', name: 'Voluntary Strike Off (DS01)', basePrice: 134, note: 'inc. CH fee & VAT' },
+      { id: 'reg_charge', name: 'Charge Registration', basePrice: 75, note: 'inc. CH fee & VAT' },
+      { id: 'reg_good_standing', name: 'Certificate of Good Standing', basePrice: 75, note: 'inc. CH fee & VAT' },
+      { id: 'reg_good_standing_express', name: 'Certificate of Good Standing — Express', basePrice: 140, note: 'inc. CH fee & VAT' },
+      { id: 'reg_shareholding', name: 'Shareholding Changes', basePrice: 60, note: 'inc. VAT' },
+      { id: 'reg_director', name: 'Director Appointment / Termination', basePrice: 60, note: 'inc. VAT' },
+      { id: 'reg_address', name: 'Company / Director Address Changes', basePrice: 60, note: 'inc. VAT' },
+      { id: 'reg_id_verification', name: 'Companies House Identity Verification', basePrice: 90, note: 'inc. VAT' },
+      { id: 'reg_reference', name: 'Reference Letters and Forms', basePrice: 120, note: 'inc. VAT' },
+      { id: 'reg_paye', name: 'PAYE Registration', basePrice: 120, note: 'inc. VAT' },
+      { id: 'reg_vat', name: 'VAT Registration', basePrice: 90, note: 'inc. VAT' },
+      { id: 'reg_sa', name: 'Self-Assessment Registration', basePrice: 120, note: 'inc. VAT' },
+    ],
+  },
+];
+
+const ALL_ONEOFF = ONEOFF_GROUPS.flatMap((g) => g.items);
+
 function ServicesPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const firm = searchParams.get('firm') || 'gns';
 
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedOneoff, setSelectedOneoff] = useState<string[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>(
-    Object.fromEntries(SERVICES.map((s) => [s.id, s.basePrice]))
+    Object.fromEntries([...SERVICES, ...ALL_ONEOFF].map((s) => [s.id, s.basePrice]))
   );
   const [companyNumber, setCompanyNumber] = useState('');
   const [directorEmail, setDirectorEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oneoffExpanded, setOneoffExpanded] = useState(false);
 
   const toggleService = (id: string) => {
     setSelected((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+    );
+  };
+
+  const toggleOneoff = (id: string) => {
+    setSelectedOneoff((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     );
   };
@@ -79,15 +126,24 @@ function ServicesPageInner() {
   };
 
   const total = selected.reduce((sum, id) => sum + (prices[id] || 0), 0);
+  const oneoffTotal = selectedOneoff.reduce((sum, id) => sum + (prices[id] || 0), 0);
 
   const handleContinue = async () => {
     if (selected.length === 0 || !companyNumber || !directorEmail) return;
     setLoading(true);
-    const selectedServices = selected.map((id) => ({
+    const monthlyServices = selected.map((id) => ({
       id,
       name: SERVICES.find((s) => s.id === id)?.name || id,
       price: prices[id] || 0,
+      oneoff: false,
     }));
+    const oneoffServices = selectedOneoff.map((id) => ({
+      id,
+      name: ALL_ONEOFF.find((s) => s.id === id)?.name || id,
+      price: prices[id] || 0,
+      oneoff: true,
+    }));
+    const selectedServices = [...monthlyServices, ...oneoffServices];
     setTimeout(() => {
       router.push(
         `/onboarding/company?firm=${firm}&services=${selected.join(',')}&prices=${encodeURIComponent(JSON.stringify(prices))}&serviceDetails=${encodeURIComponent(JSON.stringify(selectedServices))}&companyNumber=${companyNumber}&directorEmail=${encodeURIComponent(directorEmail)}`
@@ -226,25 +282,105 @@ function ServicesPageInner() {
           ))}
         </div>
 
+        {/* One-off / ad-hoc services (Annex A — SSC) */}
+        <div className="mb-8 border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <button
+            type="button"
+            onClick={() => setOneoffExpanded(!oneoffExpanded)}
+            className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
+          >
+            <div>
+              <h3 className="font-semibold text-gray-900">Additional / One-off Services</h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Ad-hoc services from our Schedule of Service Charges (Annex A){selectedOneoff.length > 0 ? ` · ${selectedOneoff.length} added` : ''}
+              </p>
+            </div>
+            {oneoffExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+          </button>
+
+          {oneoffExpanded && (
+            <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-6">
+              {ONEOFF_GROUPS.map((grp) => (
+                <div key={grp.group}>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{grp.group}</p>
+                  <div className="space-y-2">
+                    {grp.items.map((item) => {
+                      const isSel = selectedOneoff.includes(item.id);
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                            isSel ? 'border-purple-400 bg-purple-50' : 'border-gray-200'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleOneoff(item.id)}
+                            className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                              isSel ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
+                            }`}
+                          >
+                            {isSel && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </button>
+                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleOneoff(item.id)}>
+                            <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                            {item.note && <p className="text-xs text-gray-500">{item.note}</p>}
+                          </div>
+                          {isSel ? (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <span className="text-sm text-gray-600">£</span>
+                              <input
+                                type="number"
+                                value={prices[item.id]}
+                                onChange={(e) => updatePrice(item.id, e.target.value)}
+                                className="w-20 px-2 py-1.5 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                min="0"
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-sm font-semibold text-gray-900 flex-shrink-0">£{item.basePrice}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Price summary */}
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6 mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Selected Services</p>
+              <p className="text-sm text-gray-600">Monthly Services</p>
               <p className="text-2xl font-bold text-gray-900">
                 £{total}
                 <span className="text-lg text-gray-500 ml-1">/month</span>
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                {selected.length} service{selected.length !== 1 ? 's' : ''} selected
+                {selected.length} monthly service{selected.length !== 1 ? 's' : ''} selected
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500 mb-2">Annual saving</p>
-              <p className="text-2xl font-bold text-purple-600">
-                £{Math.round(total * 12 * 0.1)}
-              </p>
-              <p className="text-xs text-purple-600">with annual plan</p>
+              {oneoffTotal > 0 ? (
+                <>
+                  <p className="text-xs text-gray-500 mb-2">One-off Services</p>
+                  <p className="text-2xl font-bold text-purple-600">£{oneoffTotal}</p>
+                  <p className="text-xs text-purple-600">{selectedOneoff.length} one-off item{selectedOneoff.length !== 1 ? 's' : ''}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500 mb-2">Annual saving</p>
+                  <p className="text-2xl font-bold text-purple-600">£{Math.round(total * 12 * 0.1)}</p>
+                  <p className="text-xs text-purple-600">with annual plan</p>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -5,9 +5,15 @@ import Image from 'next/image';
 import { AlertCircle, Clock, CheckCircle2, FileText, Lock, ChevronDown, ChevronUp } from 'lucide-react';
 import { getFirm } from '@/lib/firms';
 
-const REQUIRED_DOCS = [
+// Documents the DIRECTOR personally provides (KYC / ID). Collected at signing
+// via a status dropdown — fine if not ready now, we follow up every 2 days.
+const DIRECTOR_DOCS = [
   { id: 'photo_id', label: 'Photo ID', description: 'Passport or driving licence' },
   { id: 'proof_address', label: 'Proof of Address', description: 'Utility bill or bank statement (less than 3 months old)' },
+];
+
+// Documents relating to the COMPANY / accounting records.
+const COMPANY_DOCS = [
   { id: 'companies_house', label: 'Companies House documents', description: 'Certificate of incorporation and latest confirmation statement' },
   { id: 'hmrc_utr', label: 'HMRC UTR Number', description: 'Your Unique Taxpayer Reference' },
   { id: 'vat_reg', label: 'VAT Registration Certificate', description: 'If VAT registered' },
@@ -17,6 +23,12 @@ const REQUIRED_DOCS = [
   { id: 'software_access', label: 'Accounting Software Access', description: 'Login credentials for Xero, QuickBooks, Sage etc.' },
 ];
 
+const DOC_STATUS_OPTIONS = [
+  { value: 'ready', label: 'I have this ready to upload' },
+  { value: 'later', label: "I'll send this within a few days" },
+  { value: 'na', label: 'Not applicable to me' },
+];
+
 interface OnboardingLinkData {
   id: string;
   companyName: string;
@@ -24,7 +36,7 @@ interface OnboardingLinkData {
   clientEmail: string;
   directorName: string;
   firmSlug: string;
-  services: Array<{ id: string; name: string; price: number }>;
+  services: Array<{ id: string; name: string; price: number; oneoff?: boolean }>;
   expiresAt: string;
   status: string;
 }
@@ -46,8 +58,9 @@ export default function EngagementPage() {
   const [prevPhone, setPrevPhone] = useState('');
   const [noPrevAccountant, setNoPrevAccountant] = useState(false);
 
-  // Required docs acknowledgement
-  const [docsChecked, setDocsChecked] = useState<Record<string, boolean>>({});
+  // Document status — director provides ID docs, company records tracked too.
+  // Default everything to 'later' so nothing blocks signing; we chase after.
+  const [docStatus, setDocStatus] = useState<Record<string, string>>({});
 
   // Declaration
   const [authorised, setAuthorised] = useState(false);
@@ -90,8 +103,10 @@ export default function EngagementPage() {
 
   const firm = getFirm(link.firmSlug || 'gns');
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const totalMonthly = (link.services || []).reduce((s, sv) => s + sv.price, 0);
-  const allDocsChecked = REQUIRED_DOCS.every((d) => docsChecked[d.id]);
+  const monthlyServices = (link.services || []).filter((s) => !s.oneoff);
+  const oneoffServices = (link.services || []).filter((s) => s.oneoff);
+  const totalMonthly = monthlyServices.reduce((s, sv) => s + sv.price, 0);
+  const totalOneoff = oneoffServices.reduce((s, sv) => s + sv.price, 0);
 
   const canSubmit = authorised && (noPrevAccountant || (prevFirmName && prevEmail && prevPhone)) && !isExpired;
 
@@ -109,7 +124,8 @@ export default function EngagementPage() {
           prevEmail: noPrevAccountant ? null : prevEmail,
           prevPhone: noPrevAccountant ? null : prevPhone,
           noPrevAccountant,
-          docsAcknowledged: Object.keys(docsChecked).filter((k) => docsChecked[k]),
+          directorDocs: DIRECTOR_DOCS.map((d) => ({ id: d.id, label: d.label, status: docStatus[d.id] || 'later' })),
+          companyDocs: COMPANY_DOCS.map((d) => ({ id: d.id, label: d.label, status: docStatus[d.id] || 'later' })),
           authorised: true,
         }),
       });
@@ -214,7 +230,7 @@ export default function EngagementPage() {
               This letter sets out the terms and conditions upon which we will provide our services. Please read it carefully before accepting.
             </p>
 
-            {link.services && link.services.length > 0 && (
+            {monthlyServices.length > 0 && (
               <div>
                 <p className="font-semibold text-gray-900 mb-3">Agreed Services & Monthly Fees:</p>
                 <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
@@ -225,7 +241,7 @@ export default function EngagementPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {link.services.map((s, i) => (
+                    {monthlyServices.map((s, i) => (
                       <tr key={i} className="border-t border-gray-100">
                         <td className="px-4 py-2">{s.name}</td>
                         <td className="px-4 py-2 text-right font-semibold">£{s.price}</td>
@@ -238,6 +254,33 @@ export default function EngagementPage() {
                   </tbody>
                 </table>
                 <p className="text-xs text-gray-500 mt-2">Note: 20% VAT applies to all fees above. Fees are collected monthly by GoCardless Direct Debit.</p>
+              </div>
+            )}
+
+            {oneoffServices.length > 0 && (
+              <div>
+                <p className="font-semibold text-gray-900 mb-3">Agreed One-off Services:</p>
+                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                  <thead>
+                    <tr className="bg-indigo-50">
+                      <th className="text-left px-4 py-2 text-gray-700">Service</th>
+                      <th className="text-right px-4 py-2 text-gray-700">One-off Fee</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {oneoffServices.map((s, i) => (
+                      <tr key={i} className="border-t border-gray-100">
+                        <td className="px-4 py-2">{s.name}</td>
+                        <td className="px-4 py-2 text-right font-semibold">£{s.price}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-indigo-200 bg-indigo-50">
+                      <td className="px-4 py-2 font-bold text-gray-900">Total One-off</td>
+                      <td className="px-4 py-2 text-right font-bold text-indigo-700">£{totalOneoff}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="text-xs text-gray-500 mt-2">One-off fees are charged as the relevant service is delivered.</p>
               </div>
             )}
 
@@ -450,7 +493,7 @@ export default function EngagementPage() {
               )}
             </div>
 
-            {/* Required Documents */}
+            {/* Required Documents — split into Director (ID) and Company records */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <button
                 type="button"
@@ -461,28 +504,63 @@ export default function EngagementPage() {
                   <FileText className="text-purple-600" size={22} />
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Required Documents</h2>
-                    <p className="text-sm text-gray-500">Please acknowledge the documents we will need from you</p>
+                    <p className="text-sm text-gray-500">Tell us the status of each — you don&apos;t need everything ready to sign.</p>
                   </div>
                 </div>
                 {docsExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
               </button>
 
               {docsExpanded && (
-                <div className="px-6 pb-6 space-y-3 border-t border-gray-100 pt-4">
-                  {REQUIRED_DOCS.map((doc) => (
-                    <label key={doc.id} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={docsChecked[doc.id] || false}
-                        onChange={(e) => setDocsChecked((prev) => ({ ...prev, [doc.id]: e.target.checked }))}
-                        className="w-4 h-4 rounded text-purple-600 mt-0.5"
-                      />
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">{doc.label}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{doc.description}</p>
-                      </div>
-                    </label>
-                  ))}
+                <div className="px-6 pb-6 border-t border-gray-100 pt-4 space-y-6">
+                  {/* Director ID documents */}
+                  <div>
+                    <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-1">Your ID Documents (Director)</p>
+                    <p className="text-xs text-gray-500 mb-3">Required for anti-money-laundering (KYC) checks. We&apos;ll follow up every 2 days for anything outstanding.</p>
+                    <div className="space-y-3">
+                      {DIRECTOR_DOCS.map((doc) => (
+                        <div key={doc.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-gray-100">
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{doc.label}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{doc.description}</p>
+                          </div>
+                          <select
+                            value={docStatus[doc.id] || 'later'}
+                            onChange={(e) => setDocStatus((prev) => ({ ...prev, [doc.id]: e.target.value }))}
+                            className="flex-shrink-0 text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                          >
+                            {DOC_STATUS_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Company / accounting records */}
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-1">Company & Accounting Records</p>
+                    <p className="text-xs text-gray-500 mb-3">Where these sit with your previous accountant, we&apos;ll request them directly as part of professional clearance.</p>
+                    <div className="space-y-3">
+                      {COMPANY_DOCS.map((doc) => (
+                        <div key={doc.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-gray-100">
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{doc.label}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{doc.description}</p>
+                          </div>
+                          <select
+                            value={docStatus[doc.id] || 'later'}
+                            onChange={(e) => setDocStatus((prev) => ({ ...prev, [doc.id]: e.target.value }))}
+                            className="flex-shrink-0 text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                          >
+                            {DOC_STATUS_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

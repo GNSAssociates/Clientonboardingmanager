@@ -20,12 +20,23 @@ export async function POST(
     prevEmail,
     prevPhone,
     noPrevAccountant,
-    docsAcknowledged,
+    directorDocs,
+    companyDocs,
     authorised,
-    bankAccountName,
-    bankAccountNumber,
-    bankSortCode,
-  } = body;
+  } = body as {
+    prevFirmName?: string;
+    prevEmail?: string;
+    prevPhone?: string;
+    noPrevAccountant?: boolean;
+    directorDocs?: Array<{ id: string; label: string; status: string }>;
+    companyDocs?: Array<{ id: string; label: string; status: string }>;
+    authorised?: boolean;
+  };
+
+  // Anything not "ready" is outstanding — drives the 2-day client follow-up.
+  const outstandingDocs = [...(directorDocs ?? []), ...(companyDocs ?? [])]
+    .filter((d) => d.status !== "ready" && d.status !== "na")
+    .map((d) => ({ label: d.label, status: "pending" as const }));
 
   if (!authorised) {
     return NextResponse.json({ error: "Declaration not accepted" }, { status: 400 });
@@ -83,6 +94,9 @@ export async function POST(
               firmSlug: link.firmSlug,
               directorName: link.directorName,
               clientEmail: link.clientEmail,
+              directorDocs: directorDocs ?? [],
+              companyDocs: companyDocs ?? [],
+              docItems: outstandingDocs,
             },
           })
         );
