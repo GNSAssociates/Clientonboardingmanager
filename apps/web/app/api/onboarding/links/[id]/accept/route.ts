@@ -92,61 +92,82 @@ export async function POST(
       }
     }
 
-    // EMAIL 1: Professional clearance to previous accountant (numbered 9-item format from GNS template)
+    const emailErrors: string[] = [];
+
+    // EMAIL 1: Professional clearance to previous accountant
     if (!noPrevAccountant && prevEmail) {
-      await sendMail({
-        to: prevEmail,
-        toName: prevFirmName || "Previous Accountant",
-        subject: `Professional Clearance Request — ${link.companyName} (${link.companyNumber ?? ""})`,
-        replyTo: firm.email,
-        html: buildClearanceRequestEmail({
-          firm,
-          clientName: link.companyName ?? "",
-          companyNumber: link.companyNumber ?? "",
-          directorName: link.directorName ?? "",
-          prevFirmName: prevFirmName || "Previous Accountants",
-          clearanceUrl,
-          today,
-          deadline: 14,
-          docItems: [],
-        }),
-      });
+      try {
+        await sendMail({
+          to: prevEmail,
+          toName: prevFirmName || "Previous Accountant",
+          subject: `Professional Clearance Request — ${link.companyName} (${link.companyNumber ?? ""})`,
+          replyTo: firm.email,
+          html: buildClearanceRequestEmail({
+            firm,
+            clientName: link.companyName ?? "",
+            companyNumber: link.companyNumber ?? "",
+            directorName: link.directorName ?? "",
+            prevFirmName: prevFirmName || "Previous Accountants",
+            clearanceUrl,
+            today,
+            deadline: 14,
+            docItems: [],
+          }),
+        });
+      } catch (e) {
+        emailErrors.push(`clearance: ${e instanceof Error ? e.message : String(e)}`);
+        console.error("Clearance email failed:", e);
+      }
     }
 
     // EMAIL 2: Firm notification
-    await sendMail({
-      to: firm.email,
-      subject: `New Client Onboarded — ${link.companyName}`,
-      html: buildFirmNewClientEmail({
-        firm,
-        companyName: link.companyName ?? "",
-        companyNumber: link.companyNumber ?? "",
-        directorName: link.directorName ?? "",
-        clientEmail: link.clientEmail,
-        services,
-        prevFirmName: prevFirmName || undefined,
-        prevEmail: prevEmail || undefined,
-        noPrevAccountant: !!noPrevAccountant,
-        today,
-      }),
-    });
+    try {
+      await sendMail({
+        to: firm.email,
+        subject: `New Client Onboarded — ${link.companyName}`,
+        html: buildFirmNewClientEmail({
+          firm,
+          companyName: link.companyName ?? "",
+          companyNumber: link.companyNumber ?? "",
+          directorName: link.directorName ?? "",
+          clientEmail: link.clientEmail,
+          services,
+          prevFirmName: prevFirmName || undefined,
+          prevEmail: prevEmail || undefined,
+          noPrevAccountant: !!noPrevAccountant,
+          today,
+        }),
+      });
+    } catch (e) {
+      emailErrors.push(`firm-notify: ${e instanceof Error ? e.message : String(e)}`);
+      console.error("Firm notification email failed:", e);
+    }
 
-    // EMAIL 3: Welcome confirmation to client — includes document upload link
+    // EMAIL 3: Welcome confirmation to client
     const docUploadUrl = `${appUrl}/onboarding/documents/${token}`;
-    await sendMail({
-      to: link.clientEmail,
-      toName: link.directorName || undefined,
-      subject: `Engagement Confirmed — Welcome to ${firm.legalName}`,
-      replyTo: firm.email,
-      html: buildClientWelcomeEmail({
-        firm,
-        companyName: link.companyName ?? "",
-        directorName: link.directorName ?? "",
-        services,
-        docUploadUrl,
-        today,
-      }),
-    });
+    try {
+      await sendMail({
+        to: link.clientEmail,
+        toName: link.directorName || undefined,
+        subject: `Engagement Confirmed — Welcome to ${firm.legalName}`,
+        replyTo: firm.email,
+        html: buildClientWelcomeEmail({
+          firm,
+          companyName: link.companyName ?? "",
+          directorName: link.directorName ?? "",
+          services,
+          docUploadUrl,
+          today,
+        }),
+      });
+    } catch (e) {
+      emailErrors.push(`welcome: ${e instanceof Error ? e.message : String(e)}`);
+      console.error("Welcome email failed:", e);
+    }
+
+    if (emailErrors.length) {
+      console.warn("Some emails failed (engagement still accepted):", emailErrors);
+    }
 
     return NextResponse.json({
       success: true,
