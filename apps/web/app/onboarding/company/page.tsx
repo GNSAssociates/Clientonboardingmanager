@@ -54,13 +54,12 @@ function CompanyPageInner() {
 
       const res = await fetch(`/api/companies-house/${companyNumber.trim()}`);
 
-      if (res.status === 404) {
-        setError('Company not found on Companies House. Please check the number and try again.');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = await res.json().catch(() => ({})) as any;
+      if (!res.ok) {
+        setError((data.error as string) || 'Failed to lookup company details');
         return;
       }
-      if (!res.ok) throw new Error('Failed to lookup company details');
-
-      const data = await res.json();
       const directors: Director[] = (data.officers || []).map((o: string | { name: string; email?: string }) =>
         typeof o === 'string' ? { name: o } : o
       );
