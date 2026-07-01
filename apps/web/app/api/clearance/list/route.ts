@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { getDb } from "@gns/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
-  const db = getDb();
   try {
+    const db = getDb();
     const rows = await db.execute(sql.raw(`
       SELECT
         pcr.id,

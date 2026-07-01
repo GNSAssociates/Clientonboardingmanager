@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getDb, getAllFirmsStats } from "@gns/db";
 import { FIRMS } from "@/lib/firms";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const db = getDb();
