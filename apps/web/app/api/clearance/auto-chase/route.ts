@@ -6,10 +6,12 @@ import { getFirm, getFirmByEntityId } from "@/lib/firms";
 import { buildClearanceChaseEmail } from "@/lib/email-clearance";
 import type { DocItem } from "@/app/(staff)/staff/cases/[id]/clearance/_tracker";
 
-// Called by Vercel Cron or a scheduled job — processes all overdue clearance requests
+// Called by Vercel Cron daily at 10:00 UTC — processes all overdue clearance requests.
+// Vercel automatically sends Authorization: Bearer {CRON_SECRET} on every cron invocation.
 export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get("secret");
-  if (secret !== process.env.N8N_WEBHOOK_SECRET) {
+  const authHeader = req.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
