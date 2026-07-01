@@ -48,6 +48,7 @@ interface ClearanceRequestEmailData {
   firm: FirmConfig;
   clientName: string;
   companyNumber: string;
+  directorName?: string;
   prevFirmName: string;
   prevFirmAddress?: string;
   clearanceUrl: string;
@@ -81,7 +82,7 @@ ${d.prevFirmAddress
   : `<p style="margin:0 0 16px;font-size:13px;font-weight:600;color:#374151">${d.prevFirmName}</p>`}
 
 <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#111">
-  Re: Professional Clearance — ${d.clientName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ''}
+  Re: Professional Clearance — ${d.clientName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ''}${d.directorName ? ` / ${d.directorName}` : ''}
 </p>
 
 <p style="margin:0 0 14px;font-size:14px;color:#374151">Dear Sirs,</p>
@@ -103,9 +104,9 @@ ${d.prevFirmAddress
   <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Director's personal tax returns</strong> for last 2 years, plus P60s/P45s for years not yet filed</li>
   <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Online access information:</strong>
     <ul style="margin:6px 0 0;padding-left:24px">
-      <li style="font-size:13px;color:#374151;margin-bottom:4px">MTD Compatible software access (invite to sg@gnsassociates.co.uk)</li>
-      <li style="font-size:13px;color:#374151;margin-bottom:4px">HMRC and Companies House login credentials if created</li>
-      <li style="font-size:13px;color:#374151">NEST Pension: Organization Name: GNS Associates Ltd, Delegate ID: TPA008702283</li>
+      <li style="font-size:13px;color:#374151;margin-bottom:4px">MTD Compatible software access — please send an invite to <strong>${d.firm.mtdEmail}</strong></li>
+      <li style="font-size:13px;color:#374151;margin-bottom:4px">HMRC and Companies House login credentials (if created for the client)</li>
+      ${d.firm.nestDelegateId ? `<li style="font-size:13px;color:#374151">NEST Pension — Organisation Name: <strong>${d.firm.nestOrgName}</strong>, Delegate Organisation ID: <strong>${d.firm.nestDelegateId}</strong></li>` : `<li style="font-size:13px;color:#374151">NEST Pension login credentials (if applicable)</li>`}
     </ul>
   </li>
   <li style="font-size:13px;color:#374151;margin-bottom:10px;line-height:1.6"><strong>Tax reference numbers:</strong> Company UTR, Companies House Authentication Code, VAT Certificate (Box 5 figure), PAYE Reference, Accounts Office Reference, Director's UTR &amp; NI Number</li>

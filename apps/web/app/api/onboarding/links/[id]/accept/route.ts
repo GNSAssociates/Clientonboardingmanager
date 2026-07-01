@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink, insertClearanceRequest } from "@gns/db";
 import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
+import { buildClearanceRequestEmail } from "@/lib/email-clearance";
 import {
-  buildProfessionalClearanceEmail,
   buildFirmNewClientEmail,
   buildClientWelcomeEmail,
 } from "@/lib/email-constants";
@@ -92,21 +92,23 @@ export async function POST(
       }
     }
 
-    // EMAIL 1: Professional clearance to previous accountant (full LLP format)
+    // EMAIL 1: Professional clearance to previous accountant (numbered 9-item format from GNS template)
     if (!noPrevAccountant && prevEmail) {
       await sendMail({
         to: prevEmail,
         toName: prevFirmName || "Previous Accountant",
         subject: `Professional Clearance Request — ${link.companyName} (${link.companyNumber ?? ""})`,
         replyTo: firm.email,
-        html: buildProfessionalClearanceEmail({
+        html: buildClearanceRequestEmail({
           firm,
-          companyName: link.companyName ?? "",
+          clientName: link.companyName ?? "",
           companyNumber: link.companyNumber ?? "",
           directorName: link.directorName ?? "",
           prevFirmName: prevFirmName || "Previous Accountants",
           clearanceUrl,
           today,
+          deadline: 14,
+          docItems: [],
         }),
       });
     }
