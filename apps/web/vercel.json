@@ -7,6 +7,10 @@
     {
       "path": "/api/clearance/auto-chase",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/documents/auto-chase",
+      "schedule": "0 9 * * *"
     }
   ]
 }

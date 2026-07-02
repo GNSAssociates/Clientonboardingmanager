@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { AlertCircle, Clock, CheckCircle2, FileText, Lock, ChevronDown, ChevronUp } from 'lucide-react';
 import { getFirm } from '@/lib/firms';
+import { LetterTerms, ScheduleOfServices } from './_terms';
 
 // Documents the DIRECTOR personally provides (KYC / ID). Collected at signing
 // via a status dropdown — fine if not ready now, we follow up every 2 days.
@@ -29,6 +30,14 @@ const DOC_STATUS_OPTIONS = [
   { value: 'na', label: 'Not applicable to me' },
 ];
 
+const CONTACT_PREFS = [
+  { id: 'post', label: 'Post' },
+  { id: 'email', label: 'Email' },
+  { id: 'telephone', label: 'Telephone' },
+  { id: 'text', label: 'Text message' },
+  { id: 'automated_call', label: 'Automated call' },
+];
+
 interface OnboardingLinkData {
   id: string;
   companyName: string;
@@ -41,11 +50,26 @@ interface OnboardingLinkData {
   status: string;
 }
 
+interface ChData {
+  number: string;
+  name: string;
+  address: string;
+  status: string;
+  incorporationDate: string | null;
+  aaDue: string | null;
+  csDue: string | null;
+  natureOfBusiness: string | null;
+}
+
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+
 export default function EngagementPage() {
   const params = useParams();
   const token = params.token as string;
 
   const [link, setLink] = useState<OnboardingLinkData | null>(null);
+  const [ch, setCh] = useState<ChData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [pageError, setPageError] = useState('');
@@ -62,22 +86,43 @@ export default function EngagementPage() {
   // Default everything to 'later' so nothing blocks signing; we chase after.
   const [docStatus, setDocStatus] = useState<Record<string, string>>({});
 
-  // Declaration
+  // Declaration + typed signature (contract format)
   const [authorised, setAuthorised] = useState(false);
+  const [signatureName, setSignatureName] = useState('');
+
+  // Direct debit mandate details (optional — GoCardless setup)
+  const [ddName, setDdName] = useState('');
+  const [ddAccountNo, setDdAccountNo] = useState('');
+  const [ddSortCode, setDdSortCode] = useState('');
+  const [ddBankAddress, setDdBankAddress] = useState('');
+
+  // Contact preferences (Data Protection section (c))
+  const [contactPrefs, setContactPrefs] = useState<Record<string, boolean>>({ email: true });
 
   // Sections open/closed
   const [docsExpanded, setDocsExpanded] = useState(false);
+  const [termsExpanded, setTermsExpanded] = useState(true);
 
   useEffect(() => {
     fetch(`/api/onboarding/links/${token}`)
       .then((r) => r.json())
-      .then((data) => setLink(data))
+      .then((data) => {
+        setLink(data);
+        if (data?.directorName) setSignatureName(data.directorName);
+        // Pull live Companies House data for the contract (best-effort)
+        if (data?.companyNumber) {
+          fetch(`/api/companies-house/${data.companyNumber}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((c) => c && !c.error && setCh(c))
+            .catch(() => {});
+        }
+      })
       .catch(() => setPageError('Link not found or invalid'))
       .finally(() => setLoading(false));
   }, [token]);
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4" />
         <p className="text-gray-600">Loading your engagement letter...</p>
@@ -85,8 +130,8 @@ export default function EngagementPage() {
     </div>
   );
 
-  if (pageError || !link) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-100 px-4">
+  if (pageError || !link || !link.companyName) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
         <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Link Not Found</h1>
@@ -108,7 +153,10 @@ export default function EngagementPage() {
   const totalMonthly = monthlyServices.reduce((s, sv) => s + sv.price, 0);
   const totalOneoff = oneoffServices.reduce((s, sv) => s + sv.price, 0);
 
-  const canSubmit = authorised && (noPrevAccountant || (prevFirmName && prevEmail && prevPhone)) && !isExpired;
+  const clientAddress = ch?.address || '';
+
+  const canSubmit = authorised && signatureName.trim().length > 1
+    && (noPrevAccountant || (prevFirmName && prevEmail && prevPhone)) && !isExpired;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,11 +174,17 @@ export default function EngagementPage() {
           noPrevAccountant,
           directorDocs: DIRECTOR_DOCS.map((d) => ({ id: d.id, label: d.label, status: docStatus[d.id] || 'later' })),
           companyDocs: COMPANY_DOCS.map((d) => ({ id: d.id, label: d.label, status: docStatus[d.id] || 'later' })),
+          signatureName: signatureName.trim(),
+          contactPrefs: CONTACT_PREFS.filter((p) => contactPrefs[p.id]).map((p) => p.id),
+          directDebit: (ddName || ddAccountNo || ddSortCode) ? {
+            accountName: ddName, accountNumber: ddAccountNo, sortCode: ddSortCode, bankAddress: ddBankAddress,
+          } : null,
           authorised: true,
         }),
       });
       if (!res.ok) throw new Error('Submission failed');
       setSubmitted(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed');
     } finally {
@@ -139,7 +193,7 @@ export default function EngagementPage() {
   };
 
   if (submitted) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
         <div className="inline-flex mb-6">
           <div className="relative">
@@ -147,14 +201,14 @@ export default function EngagementPage() {
             <CheckCircle2 className="text-green-500 relative" size={72} />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">Engagement Accepted!</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">Engagement Signed!</h1>
         <p className="text-gray-600 mb-6">
-          Thank you, <strong>{link.directorName}</strong>. Your engagement with <strong>{firm.name}</strong> has been confirmed.
+          Thank you, <strong>{signatureName || link.directorName}</strong>. Your contract with <strong>{firm.legalName}</strong> has been signed and confirmed.
         </p>
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 text-left space-y-2 mb-6">
           <p className="text-sm text-gray-700">✅ Confirmation email sent to <strong>{link.clientEmail}</strong></p>
           {!noPrevAccountant && prevEmail && (
-            <p className="text-sm text-gray-700">✅ Records request sent to <strong>{prevEmail}</strong></p>
+            <p className="text-sm text-gray-700">✅ Professional clearance request sent to <strong>{prevEmail}</strong></p>
           )}
           <p className="text-sm text-gray-700">✅ {firm.name} has been notified</p>
         </div>
@@ -164,7 +218,7 @@ export default function EngagementPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-100 py-12 px-4">
+    <div className="min-h-screen bg-gray-200 py-10 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
 
         {/* Expiry banners */}
@@ -187,211 +241,324 @@ export default function EngagementPage() {
           </div>
         )}
 
-        {/* Firm letterhead */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Coloured stripe using firm's accent colour */}
-          <div className="h-2" style={{ background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }} />
-          <div className="p-8 border-b border-gray-100">
+        {/* ═══════════ THE CONTRACT DOCUMENT ═══════════ */}
+        <div className="bg-white shadow-lg border border-gray-300" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+
+          {/* Letterhead */}
+          <div className="px-10 pt-8 pb-5 border-b-2" style={{ borderColor: firm.accentColor }}>
             <div className="flex justify-between items-start gap-4">
-              <div className="flex items-center gap-5">
-                {/* Logo */}
-                <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
-                  <Image
-                    src={firm.logo}
-                    alt={firm.name}
-                    width={80}
-                    height={80}
-                    className="object-contain"
-                  />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">{firm.legalName}</h1>
-                  <p className="text-sm text-gray-500 mt-0.5">{firm.address}</p>
-                  <p className="text-sm text-gray-500">{firm.city}, {firm.postcode}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">{firm.phone} · {firm.email}</p>
-                </div>
+              <Image src={firm.logo} alt={firm.name} width={170} height={90} className="object-contain" priority />
+              <div className="text-right text-[12px] text-gray-600 leading-relaxed">
+                <p className="font-bold text-gray-900 text-[13px]">{firm.legalName}</p>
+                <p>{firm.address}</p>
+                <p>{firm.city}, {firm.postcode}</p>
+                <p>{firm.phone}</p>
+                <p>{firm.email}</p>
               </div>
-              <div className="text-right text-sm text-gray-500 flex-shrink-0">
-                <p className="font-medium">{today}</p>
-                <p className="mt-1 font-mono text-xs text-gray-400">Ref: {token.substring(0, 8).toUpperCase()}</p>
-              </div>
+            </div>
+            <div className="flex justify-between items-end mt-4">
+              <p className="text-[11px] font-bold tracking-widest text-gray-500 uppercase">Private &amp; Confidential</p>
+              <p className="text-[13px] text-gray-700">Date: <strong>{today}</strong></p>
             </div>
           </div>
 
-          {/* Letter body */}
-          <div className="p-8 space-y-5 text-gray-700 leading-relaxed">
-            <p>Dear <strong>{link.directorName || 'Director'}</strong>,</p>
+          <div className="px-10 py-7">
 
-            <p>
-              We are pleased to confirm that <strong>{firm.name}</strong> has been engaged to provide professional accountancy and advisory services to <strong>{link.companyName}</strong> (Company No. {link.companyNumber}).
+            {/* Parties */}
+            <h1 className="text-center text-[17px] font-bold text-gray-900 mb-4">Contract for Services between</h1>
+            <p className="text-center text-[13.5px] text-gray-800 leading-relaxed mb-1">
+              <strong>{firm.legalName.toUpperCase()}</strong>, {firm.address}, {firm.city} {firm.postcode} (&lsquo;The Accountants&rsquo;) &amp;
+            </p>
+            <p className="text-center text-[13.5px] text-gray-800 leading-relaxed mb-3">
+              <strong>{link.companyName.toUpperCase()}</strong>{clientAddress ? `, ${clientAddress}` : ''} (&lsquo;The Client&rsquo;)
+            </p>
+            <p className="text-center text-[12px] italic text-gray-600 mb-6">
+              This Fee Structure and quotation is an integral part of the engagement letter.
             </p>
 
-            <p>
-              This letter sets out the terms and conditions upon which we will provide our services. Please read it carefully before accepting.
-            </p>
-
-            {monthlyServices.length > 0 && (
-              <div>
-                <p className="font-semibold text-gray-900 mb-3">Agreed Services & Monthly Fees:</p>
-                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                  <thead>
-                    <tr className="bg-purple-50">
-                      <th className="text-left px-4 py-2 text-gray-700">Service</th>
-                      <th className="text-right px-4 py-2 text-gray-700">Monthly Fee</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyServices.map((s, i) => (
-                      <tr key={i} className="border-t border-gray-100">
-                        <td className="px-4 py-2">{s.name}</td>
-                        <td className="px-4 py-2 text-right font-semibold">£{s.price}</td>
-                      </tr>
-                    ))}
-                    <tr className="border-t-2 border-purple-200 bg-purple-50">
-                      <td className="px-4 py-2 font-bold text-gray-900">Total Monthly</td>
-                      <td className="px-4 py-2 text-right font-bold text-purple-700">£{totalMonthly}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p className="text-xs text-gray-500 mt-2">Note: 20% VAT applies to all fees above. Fees are collected monthly by GoCardless Direct Debit.</p>
+            {/* Companies House verified details */}
+            {ch && (
+              <div className="border border-gray-300 rounded mb-6 text-[12.5px]">
+                <div className="px-4 py-2 bg-gray-50 border-b border-gray-300 font-bold text-gray-800" style={{ fontFamily: 'Arial, sans-serif' }}>
+                  Company Details — verified with Companies House
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 px-4 py-3 text-gray-700">
+                  <p><span className="text-gray-500">Company No:</span> <strong>{ch.number}</strong></p>
+                  <p><span className="text-gray-500">Status:</span> <strong className="capitalize">{ch.status}</strong></p>
+                  <p className="col-span-2"><span className="text-gray-500">Registered Office:</span> {ch.address}</p>
+                  {ch.incorporationDate && <p><span className="text-gray-500">Incorporated:</span> {fmtDate(ch.incorporationDate)}</p>}
+                  {ch.natureOfBusiness && <p><span className="text-gray-500">SIC Code(s):</span> {ch.natureOfBusiness}</p>}
+                  {ch.aaDue && <p><span className="text-gray-500">Accounts due:</span> {fmtDate(ch.aaDue)}</p>}
+                  {ch.csDue && <p><span className="text-gray-500">Confirmation statement due:</span> {fmtDate(ch.csDue)}</p>}
+                </div>
               </div>
             )}
 
-            {oneoffServices.length > 0 && (
-              <div>
-                <p className="font-semibold text-gray-900 mb-3">Agreed One-off Services:</p>
-                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                  <thead>
-                    <tr className="bg-indigo-50">
-                      <th className="text-left px-4 py-2 text-gray-700">Service</th>
-                      <th className="text-right px-4 py-2 text-gray-700">One-off Fee</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {oneoffServices.map((s, i) => (
-                      <tr key={i} className="border-t border-gray-100">
-                        <td className="px-4 py-2">{s.name}</td>
-                        <td className="px-4 py-2 text-right font-semibold">£{s.price}</td>
-                      </tr>
-                    ))}
-                    <tr className="border-t-2 border-indigo-200 bg-indigo-50">
-                      <td className="px-4 py-2 font-bold text-gray-900">Total One-off</td>
-                      <td className="px-4 py-2 text-right font-bold text-indigo-700">£{totalOneoff}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p className="text-xs text-gray-500 mt-2">One-off fees are charged as the relevant service is delivered.</p>
-              </div>
-            )}
+            {/* ── Fee Structure table (template format) ── */}
+            <table className="w-full border-collapse text-[12.5px] mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
+              <thead>
+                <tr className="text-white" style={{ background: firm.accentColor }}>
+                  <th className="border border-gray-400 px-3 py-2 text-left">Fees</th>
+                  <th className="border border-gray-400 px-3 py-2 text-right w-24">Monthly £</th>
+                  <th className="border border-gray-400 px-3 py-2 text-right w-28">Fees Upfront £</th>
+                  <th className="border border-gray-400 px-3 py-2 text-right w-32">Annual Equivalent £</th>
+                  <th className="border border-gray-400 px-3 py-2 text-left w-28">Payment Mode</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-800">
+                <tr>
+                  <td className="border border-gray-300 px-3 py-2 font-semibold">Fees Agreed</td>
+                  <td className="border border-gray-300 px-3 py-2 text-right font-semibold">£{totalMonthly.toFixed(2)}</td>
+                  <td className="border border-gray-300 px-3 py-2 text-right">—</td>
+                  <td className="border border-gray-300 px-3 py-2 text-right">£{(totalMonthly * 12).toFixed(2)}</td>
+                  <td className="border border-gray-300 px-3 py-2">Monthly DD</td>
+                </tr>
+                {monthlyServices.map((s, i) => (
+                  <tr key={`m-${i}`} className="text-gray-600">
+                    <td className="border border-gray-300 px-3 py-1.5 pl-6 text-[12px]">• {s.name}</td>
+                    <td className="border border-gray-300 px-3 py-1.5 text-right text-[12px]">£{s.price.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-3 py-1.5"></td>
+                    <td className="border border-gray-300 px-3 py-1.5 text-right text-[12px]">£{(s.price * 12).toFixed(2)}</td>
+                    <td className="border border-gray-300 px-3 py-1.5"></td>
+                  </tr>
+                ))}
+                {oneoffServices.length > 0 && (
+                  <tr className="bg-gray-50">
+                    <td colSpan={5} className="border border-gray-300 px-3 py-2 font-semibold">
+                      Fees for any past due filings and ad-hoc work (IF ANY)
+                    </td>
+                  </tr>
+                )}
+                {oneoffServices.map((s, i) => (
+                  <tr key={`o-${i}`}>
+                    <td className="border border-gray-300 px-3 py-1.5 pl-6 text-[12px]">• {s.name}</td>
+                    <td className="border border-gray-300 px-3 py-1.5"></td>
+                    <td className="border border-gray-300 px-3 py-1.5 text-right text-[12px]">£{s.price.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-3 py-1.5"></td>
+                    <td className="border border-gray-300 px-3 py-1.5 text-[12px]">One off upfront</td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-100 font-bold">
+                  <td className="border border-gray-400 px-3 py-2">Final Monthly and One off Fees Agreed</td>
+                  <td className="border border-gray-400 px-3 py-2 text-right">£{totalMonthly.toFixed(2)}</td>
+                  <td className="border border-gray-400 px-3 py-2 text-right">£{totalOneoff.toFixed(2)}</td>
+                  <td className="border border-gray-400 px-3 py-2 text-right">£{(totalMonthly * 12).toFixed(2)}</td>
+                  <td className="border border-gray-400 px-3 py-2 text-[11px] leading-tight">Monthly DD<br />One off Upfront</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="text-[12px] font-semibold text-gray-700 mb-6" style={{ fontFamily: 'Arial, sans-serif' }}>
+              Note: 20% VAT applies to all above
+            </p>
 
-            {/* Scope of Services */}
-            <div>
-              <p className="font-semibold text-gray-900 mb-3">Scope of Services & Coverage:</p>
-              <p className="text-xs text-gray-500 mb-2">Services not covered within the scope below are charged as per our Schedule of Service Charges (SSC) in Annex A.</p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border border-gray-200 rounded-lg overflow-hidden">
-                  <thead>
-                    <tr className="bg-gray-50 text-gray-700">
-                      <th className="text-left px-3 py-2 border-b border-gray-200 w-1/3">Scope of Services</th>
-                      <th className="text-left px-3 py-2 border-b border-gray-200 w-1/3">Coverage Threshold (What is included?)</th>
-                      <th className="text-left px-3 py-2 border-b border-gray-200">Fee Exceeding Scope</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-gray-700">
-                    {[
-                      ['Annual Accounts & Corporation Tax', 'Yearly Turnover ≤ £200,000', 'To be agreed later'],
-                      ['Bookkeeping & Quarterly VAT Returns Filing', 'Turnover: As Above · Volume: 300 transactions per quarter (Bank Statement Lines + Purchase Bills + Sales Invoices)', '£0.95 per transaction'],
-                      ['PAYE & Pension', '2 persons including directors', 'One off Setup: £10+VAT per staff · Ongoing: £10+VAT per staff per pay run'],
-                      ['CIS', 'N/A', '£10+VAT per subcontractor per month'],
-                      ['Self-Assessment (Excluding: Buy-to-Let)', '2 persons including directors', '£200+VAT per year for additional person · Rental Property: To be Agreed Later'],
-                      ['Confirmation Statement Filing to Companies House', 'Once a Year', '£50+VAT for additional filing'],
-                      ['References and Letters', '1 Letter or 1 Reference Included', '£75+VAT for additional reference / letter'],
-                    ].map(([service, threshold, excess], i) => (
-                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-3 py-2 border-b border-gray-100 font-medium">{service}</td>
-                        <td className="px-3 py-2 border-b border-gray-100">{threshold}</td>
-                        <td className="px-3 py-2 border-b border-gray-100">{excess}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* ── Direct Debit mandate (GoCardless) ── */}
+            <div className="border-2 border-gray-400 rounded mb-6" style={{ fontFamily: 'Arial, sans-serif' }}>
+              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
+                <p className="text-[13px] font-bold text-gray-900">Direct Debit Details (GoCardless)</p>
+                <p className="text-[11px] text-gray-500">Optional now — used solely to set up your Direct Debit mandate. You can also provide these later.</p>
               </div>
+              <div className="grid md:grid-cols-2 gap-4 px-4 py-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Account Holder&apos;s Name</label>
+                  <input type="text" value={ddName} onChange={(e) => setDdName(e.target.value)} disabled={isExpired}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Account Number</label>
+                  <input type="text" inputMode="numeric" maxLength={8} value={ddAccountNo} onChange={(e) => setDdAccountNo(e.target.value.replace(/\D/g, ''))} disabled={isExpired}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Sort Code</label>
+                  <input type="text" inputMode="numeric" maxLength={8} placeholder="00-00-00" value={ddSortCode} onChange={(e) => setDdSortCode(e.target.value)} disabled={isExpired}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Address as per Bank</label>
+                  <input type="text" value={ddBankAddress} onChange={(e) => setDdBankAddress(e.target.value)} disabled={isExpired}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+              </div>
+              <p className="px-4 pb-4 text-[12px] text-gray-700 leading-relaxed">
+                I authorise {firm.name} to collect my fees using GoCardless direct debit and I hereby authorise the use of my
+                above bank details for direct debit setup on my behalf. I have read this contract and am fully aware of the
+                terms, including but not limited to fees and scope/exclusions mentioned herein.
+              </p>
             </div>
 
-            <div>
-              <p className="font-semibold text-gray-900 mb-2">Terms of Engagement:</p>
-              <ul className="list-disc list-inside space-y-1.5 text-sm">
-                <li>This letter is effective from the date signed and supersedes any previous engagement letter</li>
-                <li>Fees are invoiced monthly in advance by GoCardless Direct Debit and are subject to annual review</li>
-                <li>We are regulated by <strong>{firm.regBody}</strong> and bound by their ethical guidelines</li>
-                <li>All information you provide will be treated in the strictest confidence in accordance with GDPR and the Data Protection Act 2018</li>
-                <li>We will contact your previous accountant to arrange a professional handover of your records</li>
-                <li>Either party may vary or terminate this authority with 30 days' written notice</li>
-                <li>Our liability is limited to the fees paid in the 12 months preceding any claim</li>
-                <li>Work outside the agreed scope will require a separate letter of engagement if the value exceeds £200</li>
-                <li>This engagement is governed by the laws of England and Wales</li>
-              </ul>
+            {/* Important! */}
+            <div className="border-2 rounded p-4 mb-6" style={{ borderColor: firm.accentColor, background: '#fff8f8', fontFamily: 'Arial, sans-serif' }}>
+              <p className="text-[13px] font-bold mb-1" style={{ color: firm.accentColor }}>Important!</p>
+              <p className="text-[12.5px] text-gray-800 leading-relaxed">
+                Please read the contract to the last page and return to the signature section. <strong>Do not sign unless you
+                have read and understood the contract in its entirety.</strong> The signature section is at the bottom of this page.
+              </p>
             </div>
 
-            {/* Annex A: Schedule of Service Charges */}
-            <div className="border-t border-gray-200 pt-5">
-              <p className="font-bold text-gray-900 mb-1">Annex A: Schedule of Service Charges (SSC)</p>
+            {/* ── Scope of Services table ── */}
+            <p className="text-[12.5px] font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>
+              Services not covered below will be as per our Schedule of Service Charges (SSC) included in Annex A of this contract (last page).
+            </p>
+            <div className="overflow-x-auto mb-8">
+              <table className="w-full border-collapse text-[12px]" style={{ fontFamily: 'Arial, sans-serif' }}>
+                <thead>
+                  <tr className="text-white" style={{ background: '#374151' }}>
+                    <th className="border border-gray-400 px-3 py-2 text-left w-1/3">Scope of Services</th>
+                    <th className="border border-gray-400 px-3 py-2 text-left w-1/3">Coverage Threshold (What is included?)</th>
+                    <th className="border border-gray-400 px-3 py-2 text-left">Fee Exceeding Scope</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-700">
+                  {[
+                    ['Annual Accounts and Corporation Tax', 'Yearly Turnover ≤ £200,000', 'To be agreed later'],
+                    ['Bookkeeping and Quarterly VAT Returns Filing', 'Turnover: As Above · Volume: 300 transactions per quarter (total of Bank Statement Lines + Purchase Bills + Sales Invoices)', '£0.95 per transaction'],
+                    ['PAYE and Pension', '2 persons including directors', 'One off Setup: £10+VAT per staff · Ongoing: £10+VAT per staff per pay run'],
+                    ['CIS', 'NA', '£10+VAT per subcontractor per month'],
+                    ['Self-Assessment (Excluding: Buy-to-Let)', '2 persons including directors', '£200+VAT per year for additional person · Rental Property: To be Agreed Later'],
+                    ['Confirmation Statement Filing to Companies House', 'Once a Year', '£50+VAT for additional filing'],
+                    ['References and Letters', '1 Letter or 1 Reference Included', '£75+VAT for additional reference / letter'],
+                  ].map(([service, threshold, excess], i) => (
+                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="border border-gray-300 px-3 py-2 font-medium">{service}</td>
+                      <td className="border border-gray-300 px-3 py-2">{threshold}</td>
+                      <td className="border border-gray-300 px-3 py-2">{excess}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Full letter body (exact template text) ── */}
+            <div className="border-t-2 border-gray-300 pt-5">
+              <button
+                type="button"
+                onClick={() => setTermsExpanded(!termsExpanded)}
+                className="w-full flex items-center justify-between mb-3 text-left"
+                style={{ fontFamily: 'Arial, sans-serif' }}
+              >
+                <p className="text-[14px] font-bold text-gray-900">Letter of Engagement — Terms &amp; Conditions</p>
+                {termsExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+              </button>
+              {termsExpanded && (
+                <>
+                  <LetterTerms firm={firm} companyName={link.companyName} />
+
+                  {/* (c) Other services — contact preferences (interactive) */}
+                  <div className="border border-gray-300 rounded p-4 my-4" style={{ fontFamily: 'Arial, sans-serif' }}>
+                    <p className="text-[13px] font-bold text-gray-900 mb-1">(c) Other services — contact preferences</p>
+                    <p className="text-[12.5px] text-gray-700 mb-3">
+                      From time to time we would like to contact you with details of other services we provide. If you consent
+                      to us contacting you for this purpose, please confirm by selecting your preferred contact methods:
+                    </p>
+                    <div className="flex flex-wrap gap-x-6 gap-y-2">
+                      {CONTACT_PREFS.map((p) => (
+                        <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!contactPrefs[p.id]}
+                            onChange={(e) => setContactPrefs((prev) => ({ ...prev, [p.id]: e.target.checked }))}
+                            className="w-4 h-4 rounded text-purple-600"
+                          />
+                          <span className="text-[12.5px] text-gray-800">{p.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-300 rounded p-4 my-4 bg-gray-50" style={{ fontFamily: 'Arial, sans-serif' }}>
+                    <p className="text-[13px] font-bold text-gray-900 mb-2">Please confirm your agreement to:</p>
+                    <ul className="list-disc pl-5 space-y-1 text-[12.5px] text-gray-700">
+                      <li>the terms of this letter</li>
+                      <li>the attached schedule(s) of services</li>
+                      <li>the privacy notice and associated data protection matters</li>
+                      <li>the standard terms and conditions</li>
+                    </ul>
+                  </div>
+
+                  <div className="border-t-2 border-gray-300 mt-6 pt-5">
+                    <ScheduleOfServices />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ── Annex A: Schedule of Service Charges ── */}
+            <div className="border-t-2 border-gray-300 pt-5 mt-6" style={{ fontFamily: 'Arial, sans-serif' }}>
+              <p className="font-bold text-gray-900 text-[14px] mb-1">Annex A: Schedule of Service Charges (SSC)</p>
               <p className="text-xs text-gray-500 mb-3">Ad-hoc and specialist services not included in your monthly fee are charged as follows:</p>
 
-              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Self-Assessment Tax Return</p>
+              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Self-Assessment (SA) Tax Return (SATR)</p>
               <div className="overflow-x-auto mb-4">
-                <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
-                  <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b border-gray-200">Service</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Single</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Couple</th></tr></thead>
+                <table className="w-full text-xs border-collapse">
+                  <thead><tr className="bg-gray-100"><th className="text-left px-2 py-1.5 border border-gray-300">Service</th><th className="text-right px-2 py-1.5 border border-gray-300">Single</th><th className="text-right px-2 py-1.5 border border-gray-300">Couple</th></tr></thead>
                   <tbody className="text-gray-700">
                     {[
                       ['Buy to Let SA Filing', '£250+VAT', '£350+VAT'],
                       ['Director and other SA (Salary, Dividend)', '£200+VAT', '£375+VAT'],
-                      ['Sole Trader (GNS doing bookkeeping)', '£350+VAT', 'N/A'],
-                      ['Change of Beneficial Ownership (Rental)', '£500+VAT (New) / £400+VAT (Existing)', ''],
-                      ['MTD SA — Quarterly', '£75+VAT/quarter', '£150+VAT/quarter'],
-                      ['MTD SA — Annual Summary Filing', 'Free', 'Free'],
-                      ['Total SA Fee when MTD in full force', '£550+VAT', '£850+VAT'],
+                      ['Sole Trader (Self Employed with GNS to do bookkeeping)', '£350+VAT', 'NA'],
+                      ['Change of Beneficial Ownership for Rental Property Owners', '£500+VAT (New)', '£400+VAT (Existing)'],
                     ].map(([s, a, b], i) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-2 py-1.5 border-b border-gray-100">{s}</td>
-                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{a}</td>
-                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{b}</td>
+                        <td className="px-2 py-1.5 border border-gray-300">{s}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{a}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{b}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Compliance & Tax Registration Services</p>
+              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">MTD Filing for Self-Assessment and Annual Summary</p>
               <div className="overflow-x-auto mb-4">
-                <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
-                  <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b border-gray-200">Service</th><th className="text-right px-2 py-1.5 border-b border-gray-200">CH Fee</th><th className="text-right px-2 py-1.5 border-b border-gray-200">GNS Fee</th><th className="text-right px-2 py-1.5 border-b border-gray-200">VAT</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Total</th></tr></thead>
+                <table className="w-full text-xs border-collapse">
+                  <thead><tr className="bg-gray-100"><th className="text-left px-2 py-1.5 border border-gray-300">Service</th><th className="text-right px-2 py-1.5 border border-gray-300">Single</th><th className="text-right px-2 py-1.5 border border-gray-300">Couple</th></tr></thead>
                   <tbody className="text-gray-700">
                     {[
-                      ['Company Registration', '£100', '£125', '£25', '£250'],
-                      ['Company Registration — Same Day', '£156', '£200', '£40', '£396'],
-                      ['Change of Name', '£20', '£75', '£15', '£110'],
-                      ['Same Day Change of Name', '£85', '£150', '£30', '£265'],
-                      ['Confirmation Statement Filing', '£50', '£50', '£10', '£110'],
-                      ['Voluntary Strike Off DS01', '£14', '£100', '£20', '£134'],
-                      ['Charge Registration', '£15', '£50', '£10', '£75'],
-                      ['Certificate of Good Standing', '£15', '£50', '£10', '£75'],
-                      ['Certificate of Good Standing — Express', '£50', '£75', '£15', '£140'],
-                      ['Shareholding Changes', '—', '£50', '£10', '£60'],
-                      ['Director Appointment / Termination', '—', '£50', '£10', '£60'],
-                      ['Company / Directors Address Changes', '—', '£50', '£10', '£60'],
-                      ['Companies House Identity Verification', '—', '£75', '£15', '£90'],
-                      ['Reference Letters and Forms', '—', '£100', '£20', '£120'],
-                      ['PAYE Registration', '—', '£100', '£20', '£120'],
-                      ['VAT Registration', '—', '£75', '£15', '£90'],
-                      ['Self-Assessment Registration', '—', '£100', '£20', '£120'],
-                    ].map(([s, ch, gns, vat, tot], i) => (
+                      ['Quarterly', '£75+VAT / quarter', '£150+VAT / quarter'],
+                      ['Annual Summary Filing', 'Free', 'Free'],
+                      ['BTL / SA Filing (same as above)', '£250+VAT', '£350+VAT'],
+                      ['Total Fee for SA Filing when MTD comes to full force', '£550+VAT', '£850+VAT'],
+                    ].map(([s, a, b], i) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-2 py-1.5 border-b border-gray-100">{s}</td>
-                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{ch}</td>
-                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{gns}</td>
-                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{vat}</td>
-                        <td className="px-2 py-1.5 border-b border-gray-100 text-right font-semibold">{tot}</td>
+                        <td className="px-2 py-1.5 border border-gray-300">{s}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{a}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{b}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Compliance &amp; Tax Registration Services</p>
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full text-xs border-collapse">
+                  <thead><tr className="bg-gray-100"><th className="text-left px-2 py-1.5 border border-gray-300">Service</th><th className="text-right px-2 py-1.5 border border-gray-300">Companies House Charges</th><th className="text-right px-2 py-1.5 border border-gray-300">GNS Fee</th><th className="text-right px-2 py-1.5 border border-gray-300">VAT</th><th className="text-right px-2 py-1.5 border border-gray-300">Total</th></tr></thead>
+                  <tbody className="text-gray-700">
+                    {[
+                      ['Company Registration', '£100.00', '£125.00', '£25.00', '£250.00'],
+                      ['Company Registration — Same Day', '£156.00', '£200.00', '£40.00', '£396.00'],
+                      ['Change of Name', '£20.00', '£75.00', '£15.00', '£110.00'],
+                      ['Same Day Change of Name', '£85.00', '£150.00', '£30.00', '£265.00'],
+                      ['Confirmation Statement Filing', '£50.00', '£50.00', '£10.00', '£110.00'],
+                      ['Voluntary Strike Off DS01', '£14.00', '£100.00', '£20.00', '£134.00'],
+                      ['Charge Registration', '£15.00', '£50.00', '£10.00', '£75.00'],
+                      ['Certificate of Good Standing', '£15.00', '£50.00', '£10.00', '£75.00'],
+                      ['Certificate of Good Standing — Express', '£50.00', '£75.00', '£15.00', '£140.00'],
+                      ['Shareholding Changes', '—', '£50.00', '£10.00', '£60.00'],
+                      ['Director Appointment / Termination', '—', '£50.00', '£10.00', '£60.00'],
+                      ['Company / Directors’ Address Changes', '—', '£50.00', '£10.00', '£60.00'],
+                      ['Companies House Identity Verification', '—', '£75.00', '£15.00', '£90.00'],
+                      ['Reference Letters and Forms', '—', '£100.00', '£20.00', '£120.00'],
+                      ['PAYE Registration', '—', '£100.00', '£20.00', '£120.00'],
+                      ['VAT Registration', '—', '£75.00', '£15.00', '£90.00'],
+                      ['Self-Assessment Registration', '—', '£100.00', '£20.00', '£120.00'],
+                    ].map(([s, chf, gns, vat, tot], i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-2 py-1.5 border border-gray-300">{s}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{chf}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{gns}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{vat}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right font-semibold">{tot}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -400,16 +567,16 @@ export default function EngagementPage() {
 
               <p className="text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Subscription Based Services</p>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
-                  <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b border-gray-200">Service</th><th className="text-right px-2 py-1.5 border-b border-gray-200">Amount</th></tr></thead>
+                <table className="w-full text-xs border-collapse">
+                  <thead><tr className="bg-gray-100"><th className="text-left px-2 py-1.5 border border-gray-300">Service</th><th className="text-right px-2 py-1.5 border border-gray-300">Amount</th></tr></thead>
                   <tbody className="text-gray-700">
                     {[
                       ['Registered Office Address', '£20+VAT (Monthly)'],
                       ['QuickBooks Subscription', '£25+VAT (Monthly)'],
                     ].map(([s, a], i) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-2 py-1.5 border-b border-gray-100">{s}</td>
-                        <td className="px-2 py-1.5 border-b border-gray-100 text-right">{a}</td>
+                        <td className="px-2 py-1.5 border border-gray-300">{s}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-right">{a}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -417,29 +584,20 @@ export default function EngagementPage() {
               </div>
             </div>
 
-            <p>
-              We look forward to working with you and are committed to providing the highest standard of professional service. If you have any questions about any aspect of this letter, please do not hesitate to contact us before signing.
-            </p>
-
-            <p className="mt-4">
-              Yours sincerely,<br />
-              <span className="font-semibold">{firm.legalName}</span><br />
-              <span className="text-sm text-gray-500">{firm.email} · {firm.website}</span>
-            </p>
-
-            <p className="text-xs text-gray-400 border-t border-gray-100 pt-4 mt-6">
+            <p className="text-[10.5px] text-gray-400 border-t border-gray-200 pt-4 mt-8" style={{ fontFamily: 'Arial, sans-serif' }}>
               {firm.regStatement}
             </p>
           </div>
         </div>
 
+        {/* ═══════════ ACCEPTANCE / SIGNING ═══════════ */}
         {!isExpired && (
           <form onSubmit={handleSubmit} className="space-y-6">
 
             {/* Previous Accountant */}
             <div className="bg-white rounded-2xl p-8 border border-gray-200">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Previous Accountant Details</h2>
-              <p className="text-sm text-gray-500 mb-5">We need these details to request your records on your behalf.</p>
+              <p className="text-sm text-gray-500 mb-5">We need these details to request professional clearance and your records on your behalf.</p>
 
               <label className="flex items-center gap-3 mb-5 cursor-pointer">
                 <input
@@ -487,7 +645,7 @@ export default function EngagementPage() {
                     />
                   </div>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                    Once you accept, we will automatically contact your previous accountant requesting the professional handover of your accounting records.
+                    Once you sign, we will automatically contact your previous accountant requesting professional clearance and the handover of your accounting records.
                   </div>
                 </div>
               )}
@@ -539,7 +697,7 @@ export default function EngagementPage() {
 
                   {/* Company / accounting records */}
                   <div>
-                    <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-1">Company & Accounting Records</p>
+                    <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-1">Company &amp; Accounting Records</p>
                     <p className="text-xs text-gray-500 mb-3">Where these sit with your previous accountant, we&apos;ll request them directly as part of professional clearance.</p>
                     <div className="space-y-3">
                       {COMPANY_DOCS.map((doc) => (
@@ -565,20 +723,25 @@ export default function EngagementPage() {
               )}
             </div>
 
-            {/* Declaration */}
+            {/* Declaration + Signature */}
             <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-2xl p-8">
               <div className="flex items-center gap-3 mb-4">
                 <Lock className="text-purple-600" size={22} />
-                <h2 className="text-lg font-bold text-gray-900">Client Declaration</h2>
+                <h2 className="text-lg font-bold text-gray-900">Client Declaration &amp; Signature</h2>
               </div>
 
               <div className="bg-white rounded-xl p-5 mb-5 border border-purple-200">
                 <p className="text-gray-800 leading-relaxed text-sm">
-                  I, <strong>{link.directorName || 'the undersigned'}</strong>, being a Director of <strong>{link.companyName}</strong> (Company No. {link.companyNumber}), hereby authorise <strong>{firm.name}</strong> to act as my company's accountants and to take over all accountancy work with effect from the date of this agreement. I confirm that I have read and agree to the terms of engagement set out in this letter.
+                  I, <strong>{signatureName || link.directorName || 'the undersigned'}</strong>, being a Director of{' '}
+                  <strong>{link.companyName}</strong> (Company No. {link.companyNumber}), confirm that I have read this
+                  contract to the last page and I am happy to proceed. I hereby authorise <strong>{firm.legalName}</strong> to
+                  act as the company&apos;s accountants and to take over all accountancy work with effect from the date of this
+                  agreement, and I agree to the terms of this letter, the schedule(s) of services, the privacy notice and the
+                  standard terms and conditions.
                 </p>
               </div>
 
-              <label className="flex items-start gap-3 cursor-pointer">
+              <label className="flex items-start gap-3 cursor-pointer mb-5">
                 <input
                   type="checkbox"
                   checked={authorised}
@@ -587,13 +750,31 @@ export default function EngagementPage() {
                 />
                 <div>
                   <p className="font-bold text-gray-900">
-                    I hereby authorise {firm.name} to take over all my accountancy work
+                    I have read and understood the contract in its entirety and authorise {firm.name} to take over all my accountancy work
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    By checking this box I confirm I have read the engagement letter above and accept the terms on behalf of {link.companyName}.
+                    By checking this box I accept the terms on behalf of {link.companyName}.
                   </p>
                 </div>
               </label>
+
+              <div className="bg-white rounded-xl p-5 border border-purple-200">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Sign here to confirm you have read this contract to the last page and you are happy to proceed *
+                </label>
+                <input
+                  type="text"
+                  value={signatureName}
+                  onChange={(e) => setSignatureName(e.target.value)}
+                  placeholder="Type your full legal name"
+                  className="w-full px-4 py-3 border-b-2 border-gray-400 focus:border-purple-600 focus:outline-none text-2xl text-gray-900 bg-transparent"
+                  style={{ fontFamily: '"Segoe Script", "Brush Script MT", cursive' }}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Signed on behalf of <strong>{link.companyName}</strong> · {today}
+                </p>
+              </div>
             </div>
 
             {error && (
@@ -612,12 +793,13 @@ export default function EngagementPage() {
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
-              {submitting ? 'Submitting...' : 'Accept & Authorise Engagement'}
+              {submitting ? 'Signing...' : 'Sign & Accept Engagement'}
             </button>
 
             {!canSubmit && !isExpired && (
               <p className="text-center text-sm text-gray-500">
-                {!authorised && 'Please check the declaration above to proceed.'}
+                {!authorised && 'Please check the declaration above to proceed. '}
+                {authorised && signatureName.trim().length <= 1 && 'Please type your full name in the signature box. '}
                 {authorised && !noPrevAccountant && (!prevFirmName || !prevEmail || !prevPhone) && 'Please fill in your previous accountant details or confirm you have none.'}
               </p>
             )}

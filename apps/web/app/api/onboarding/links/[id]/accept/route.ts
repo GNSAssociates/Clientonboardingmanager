@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkByToken, updateOnboardingLink, insertClearanceRequest } from "@gns/db";
+import {
+  getDb,
+  getOnboardingLinkByToken,
+  updateOnboardingLink,
+  insertClearanceRequest,
+  initDocumentSubmissions,
+} from "@gns/db";
 import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
 import { buildClearanceRequestEmail } from "@/lib/email-clearance";
@@ -22,6 +28,9 @@ export async function POST(
     noPrevAccountant,
     directorDocs,
     companyDocs,
+    signatureName,
+    contactPrefs,
+    directDebit,
     authorised,
   } = body as {
     prevFirmName?: string;
@@ -30,6 +39,9 @@ export async function POST(
     noPrevAccountant?: boolean;
     directorDocs?: Array<{ id: string; label: string; status: string }>;
     companyDocs?: Array<{ id: string; label: string; status: string }>;
+    signatureName?: string;
+    contactPrefs?: string[];
+    directDebit?: { accountName?: string; accountNumber?: string; sortCode?: string; bankAddress?: string } | null;
     authorised?: boolean;
   };
 
@@ -70,6 +82,43 @@ export async function POST(
         prevAccountantFirmName: noPrevAccountant ? null : (prevFirmName || null),
       })
     );
+
+    // Persist the full acceptance record (signature, contact prefs, DD mandate, doc statuses).
+    // Separate update so a missing column (migration not yet run) can never block signing.
+    try {
+      await db.transaction((tx) =>
+        updateOnboardingLink(tx, link.id, {
+          acceptanceData: {
+            signatureName: signatureName || link.directorName || null,
+            signedAt: new Date().toISOString(),
+            contactPrefs: contactPrefs ?? [],
+            directDebit: directDebit ?? null,
+            directorDocs: directorDocs ?? [],
+            companyDocs: companyDocs ?? [],
+            prevPhone: noPrevAccountant ? null : (prevPhone || null),
+          },
+        })
+      );
+    } catch (e) {
+      console.error("Failed to persist acceptance data (non-fatal):", e);
+    }
+
+    // Register the director's ID documents for the every-2-days follow-up chase.
+    // Maps engage-page doc ids onto the document portal's doc types.
+    const DIRECTOR_DOC_MAP: Record<string, { id: string; label: string }> = {
+      photo_id: { id: "passport_photo_page", label: "Photo ID — Passport or Driving Licence" },
+      proof_address: { id: "proof_of_address", label: "Proof of Address" },
+    };
+    try {
+      const toTrack = (directorDocs ?? [])
+        .filter((d) => d.status !== "na" && DIRECTOR_DOC_MAP[d.id])
+        .map((d) => DIRECTOR_DOC_MAP[d.id]!);
+      if (toTrack.length > 0) {
+        await db.transaction((tx) => initDocumentSubmissions(tx, token, toTrack));
+      }
+    } catch (e) {
+      console.error("Failed to init document submissions (non-fatal):", e);
+    }
 
     const firm = getFirm(link.firmSlug || "gns");
     const services = (link.services as Array<{ id: string; name: string; price: number }> || []);

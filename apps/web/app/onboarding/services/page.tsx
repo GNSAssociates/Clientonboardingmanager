@@ -52,6 +52,23 @@ const SERVICES = [
     threshold: 'Once a year',
     excess: '£50+VAT for additional filing',
   },
+  // Subscription based services (Annex A — SSC)
+  {
+    id: 'registered_office',
+    name: 'Registered Office Address',
+    basePrice: 20,
+    description: 'Use our address as your company registered office',
+    threshold: 'Subscription — £20+VAT monthly',
+    excess: '—',
+  },
+  {
+    id: 'quickbooks_subscription',
+    name: 'QuickBooks Subscription',
+    basePrice: 25,
+    description: 'QuickBooks Online licence managed by us',
+    threshold: 'Subscription — £25+VAT monthly',
+    excess: '—',
+  },
 ];
 
 // One-off / ad-hoc services (Annex A — Schedule of Service Charges).

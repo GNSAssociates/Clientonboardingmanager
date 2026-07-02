@@ -37,6 +37,7 @@ export function buildEngagementEmail(d: EngagementEmailData): string {
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
   <tr><td height="5" style="background:linear-gradient(90deg,${d.firm.accentColor},#1e3a8a);font-size:0">&nbsp;</td></tr>
   <tr><td style="padding:32px 36px">
+    ${(() => { const u = process.env.NEXT_PUBLIC_APP_URL?.trim(); return u && !u.startsWith('http://localhost') ? `<img src="${u}${d.firm.logo}" alt="${d.firm.name}" height="52" style="display:block;margin-bottom:14px">` : ''; })()}
     <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#111">${d.firm.legalName}</p>
     <p style="margin:0 0 2px;font-size:12px;color:#6b7280">${d.firm.address}, ${d.firm.city}, ${d.firm.postcode}</p>
     <p style="margin:0 0 24px;font-size:12px;color:#6b7280">${d.firm.phone} | ${d.firm.email}</p>

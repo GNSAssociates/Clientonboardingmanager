@@ -27,9 +27,17 @@ function emailShell(accentColor: string, content: string, footerText: string): s
 </body></html>`;
 }
 
+// Firm logo as an absolute URL — skipped when the app URL isn't configured
+function logoTag(firm: FirmConfig): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!appUrl || appUrl.startsWith('http://localhost')) return '';
+  return `<img src="${appUrl}${firm.logo}" alt="${firm.name}" height="52" style="display:block;margin-bottom:14px">`;
+}
+
 function letterhead(firm: FirmConfig, dateStr: string): string {
   return `
 <div style="padding:28px 36px 0">
+  ${logoTag(firm)}
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td>

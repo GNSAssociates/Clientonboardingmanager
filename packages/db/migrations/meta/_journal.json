@@ -169,6 +169,13 @@
       "when": 1782479000000,
       "tag": "0023_clearance_optional_case",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782479050000,
+      "tag": "0024_acceptance_data",
+      "breakpoints": true
     }
   ]
 }

@@ -29,6 +29,8 @@ export const onboardingLinks = pgTable(
     prevAccountantFollowUpCount: integer("prev_accountant_follow_up_count").notNull().default(0),
     clientFollowUpSentAt: timestamp("client_follow_up_sent_at", { withTimezone: true }),
     prevAccountantFollowUpSentAt: timestamp("prev_accountant_follow_up_sent_at", { withTimezone: true }),
+    // Captured at signing: typed signature, contact preferences, direct debit details, doc statuses
+    acceptanceData: json("acceptance_data").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -10,6 +10,7 @@ export interface FirmConfig {
   email: string;
   website: string;
   logo: string;
+  signatureImg: string;
   regBody: string;
   regStatement: string;
   // Signing partner
@@ -39,6 +40,7 @@ export const FIRMS: Record<string, FirmConfig> = {
     email: 'info@gnsassociates.co.uk',
     website: 'www.gnsassociates.co.uk',
     logo: '/logos/gns.png',
+    signatureImg: '/logos/gns-signature.png',
     regBody: 'ACCA',
     regStatement: 'GNS Associates Limited is registered in England & Wales (No. 08086819). We are bound by the ethical guidelines of the Association of Chartered Certified Accountants (ACCA). A copy of these guidelines can be found at www.accaglobal.com.',
     partnerName: 'Lekh N Ghimire',
@@ -62,6 +64,7 @@ export const FIRMS: Record<string, FirmConfig> = {
     email: 'info@gnsassociates.co.uk',
     website: 'www.gnsassociates.co.uk',
     logo: '/logos/gns.png',
+    signatureImg: '/logos/gns-signature.png',
     regBody: 'ICAEW',
     regStatement: 'GNS Associates UK LLP is a Limited Liability Partnership registered in England & Wales (No. OC428532). Regulated for a range of investment business activities by the Institute of Chartered Accountants in England and Wales.',
     partnerName: 'Subash Ghimire',
@@ -84,7 +87,8 @@ export const FIRMS: Record<string, FirmConfig> = {
     phone: '+44 1895 239250',
     email: 'info@galaxyaccountants.co.uk',
     website: 'www.galaxyaccountants.co.uk',
-    logo: '/logos/galaxy.png',
+    logo: '/logos/gns.png',
+    signatureImg: '/logos/gns-signature.png',
     regBody: 'ICAEW',
     regStatement: 'Galaxy Accountants Limited is registered in England & Wales. Regulated by the Institute of Chartered Accountants in England and Wales.',
     partnerName: 'Galaxy Director',

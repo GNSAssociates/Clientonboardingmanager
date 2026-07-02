@@ -7,6 +7,14 @@ import type { DocItem } from '@/app/(staff)/staff/cases/[id]/clearance/_tracker'
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
+// Firm logo as an absolute URL (emails need absolute src). Empty string when
+// the app URL isn't configured so we never embed a broken image.
+export function logoImg(firm: FirmConfig): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!appUrl || appUrl.startsWith("http://localhost")) return "";
+  return `<img src="${appUrl}${firm.logo}" alt="${firm.name}" height="52" style="display:block;margin-bottom:16px">`;
+}
+
 function shell(accentColor: string, body: string, footer: string) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f4f5f7;font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e">
@@ -62,6 +70,7 @@ export function buildClearanceRequestEmail(d: ClearanceRequestEmailData): string
   const refsItem = d.docItems.find(i => i.type === 'REFS');
 
   const body = `
+${logoImg(d.firm)}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">
   <tr>
     <td><p style="margin:0;font-size:18px;font-weight:700;color:#111">${d.firm.legalName}</p>
@@ -82,18 +91,20 @@ ${d.prevFirmAddress
   : `<p style="margin:0 0 16px;font-size:13px;font-weight:600;color:#374151">${d.prevFirmName}</p>`}
 
 <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#111">
-  Re: Professional Clearance — ${d.clientName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ''}${d.directorName ? ` / ${d.directorName}` : ''}
+  Re: ${d.directorName ? `${d.directorName} and ` : ''}${d.clientName.toUpperCase()}${d.companyNumber ? ` — Company No. ${d.companyNumber}` : ''}
 </p>
 
 <p style="margin:0 0 14px;font-size:14px;color:#374151">Dear Sirs,</p>
 
 <p style="margin:0 0 14px;font-size:14px;color:#374151;line-height:1.7">
-  We have been appointed as accountants for the above-named company. In accordance with the ICAEW Code of Ethics (R320.7),
-  we are writing to enquire whether there are any professional reasons why we should not accept this appointment.
+  We have been requested to act as accountants for the above (individuals and Company). In connection to this,
+  we are writing to you to enquire if there are any professional reasons why we should not act for the company
+  and its director.
 </p>
 
 <p style="margin:0 0 14px;font-size:14px;color:#374151;line-height:1.7">
-  Assuming there are none, we kindly request the following documents and information (whichever are relevant):
+  Assuming that there are no such matters, we request you to provide us with the following information
+  (whichever are relevant):
 </p>
 
 <ol style="margin:0 0 20px;padding-left:24px">
@@ -130,8 +141,12 @@ ${d.prevFirmAddress
   Automated follow-up reminders will be sent every 5 days for any outstanding items.
 </p>
 
+<p style="margin:16px 0 0;font-size:14px;color:#374151;line-height:1.7">
+  Thank you for your assistance in this matter for a smooth changeover.
+</p>
+
 <p style="margin:24px 0 0;font-size:14px;color:#374151">
-  Yours faithfully,<br>
+  Kind Regards,<br>
   <strong>${d.firm.partnerName}</strong><br>
   <span style="color:#6b7280;font-size:13px">${d.firm.partnerTitle}</span><br>
   <span style="color:#6b7280;font-size:13px">${d.firm.legalName}</span>
@@ -162,6 +177,7 @@ export function buildClearanceChaseEmail(d: ClearanceChaseEmailData): string {
   ).join('');
 
   const body = `
+${logoImg(d.firm)}
 <p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#111">${d.firm.legalName}</p>
 <p style="margin:0 0 20px;font-size:12px;color:#9ca3af">${d.today}</p>
 <div style="height:1px;background:#e5e7eb;margin-bottom:20px"></div>
