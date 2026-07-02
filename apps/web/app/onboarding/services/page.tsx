@@ -1,7 +1,8 @@
 'use client';
 import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { DEFAULT_SCOPE_ROWS, type ScopeRow } from '@/lib/letter-html';
 
 const SERVICES = [
   {
@@ -124,6 +125,16 @@ function ServicesPageInner() {
   const [directorEmail, setDirectorEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [oneoffExpanded, setOneoffExpanded] = useState(false);
+  const [scopeExpanded, setScopeExpanded] = useState(false);
+
+  // Custom catch-up / ad-hoc fee lines (free description + price, numbered)
+  const [customFees, setCustomFees] = useState<Array<{ description: string; price: number }>>([]);
+
+  // Editable Scope of Services table — thresholds/fees adjustable per client
+  const [scopeRows, setScopeRows] = useState<ScopeRow[]>(DEFAULT_SCOPE_ROWS.map((r) => ({ ...r })));
+
+  const updateScope = (i: number, field: keyof ScopeRow, value: string) =>
+    setScopeRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
 
   const toggleService = (id: string) => {
     setSelected((prev) =>
@@ -143,7 +154,8 @@ function ServicesPageInner() {
   };
 
   const total = selected.reduce((sum, id) => sum + (prices[id] || 0), 0);
-  const oneoffTotal = selectedOneoff.reduce((sum, id) => sum + (prices[id] || 0), 0);
+  const customTotal = customFees.reduce((sum, c) => sum + (c.price || 0), 0);
+  const oneoffTotal = selectedOneoff.reduce((sum, id) => sum + (prices[id] || 0), 0) + customTotal;
 
   const handleContinue = async () => {
     if (selected.length === 0 || !companyNumber || !directorEmail) return;
@@ -161,9 +173,12 @@ function ServicesPageInner() {
       oneoff: true,
     }));
     const selectedServices = [...monthlyServices, ...oneoffServices];
+    const cleanCustomFees = customFees.filter((c) => c.description.trim());
+    // Only pass scope rows that were actually changed from the defaults
+    const scopeChanged = JSON.stringify(scopeRows) !== JSON.stringify(DEFAULT_SCOPE_ROWS);
     setTimeout(() => {
       router.push(
-        `/onboarding/company?firm=${firm}&services=${selected.join(',')}&prices=${encodeURIComponent(JSON.stringify(prices))}&serviceDetails=${encodeURIComponent(JSON.stringify(selectedServices))}&companyNumber=${companyNumber}&directorEmail=${encodeURIComponent(directorEmail)}`
+        `/onboarding/company?firm=${firm}&services=${selected.join(',')}&prices=${encodeURIComponent(JSON.stringify(prices))}&serviceDetails=${encodeURIComponent(JSON.stringify(selectedServices))}&companyNumber=${companyNumber}&directorEmail=${encodeURIComponent(directorEmail)}&customFees=${encodeURIComponent(JSON.stringify(cleanCustomFees))}${scopeChanged ? `&scopeRows=${encodeURIComponent(JSON.stringify(scopeRows))}` : ''}`
       );
     }, 500);
   };
@@ -371,6 +386,108 @@ function ServicesPageInner() {
           )}
         </div>
 
+        {/* Custom catch-up / ad-hoc fee lines */}
+        <div className="mb-8 border border-gray-200 rounded-xl bg-white p-5">
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <div>
+              <h3 className="font-semibold text-gray-900">Catch-up &amp; Custom Fees</h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Past due filings, catch-up bookkeeping or any bespoke work — add your own description and price. These appear as numbered one-off lines on the contract.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCustomFees((prev) => [...prev, { description: '', price: 0 }])}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 flex-shrink-0"
+            >
+              <Plus size={15} /> Add line
+            </button>
+          </div>
+          {customFees.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {customFees.map((c, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-400 w-6 text-right flex-shrink-0">{i + 1}.</span>
+                  <input
+                    type="text"
+                    value={c.description}
+                    onChange={(e) => setCustomFees((prev) => prev.map((x, xi) => xi === i ? { ...x, description: e.target.value } : x))}
+                    placeholder="e.g., Catch-up bookkeeping Jan–Jun 2026 / Overdue accounts YE 2025"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="text-sm text-gray-600">£</span>
+                    <input
+                      type="number"
+                      value={c.price || ''}
+                      onChange={(e) => setCustomFees((prev) => prev.map((x, xi) => xi === i ? { ...x, price: Math.max(0, parseInt(e.target.value) || 0) } : x))}
+                      className="w-24 px-2 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      min="0"
+                      placeholder="0"
+                    />
+                  </div>
+                  <button type="button" onClick={() => setCustomFees((prev) => prev.filter((_, xi) => xi !== i))}
+                    className="p-2 text-gray-400 hover:text-red-500 flex-shrink-0">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+              <p className="text-right text-sm font-semibold text-gray-700 pt-1">Custom fees total: £{customTotal}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Editable Scope of Services (coverage thresholds) */}
+        <div className="mb-8 border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <button
+            type="button"
+            onClick={() => setScopeExpanded(!scopeExpanded)}
+            className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
+          >
+            <div>
+              <h3 className="font-semibold text-gray-900">Scope of Services — Coverage Thresholds (editable)</h3>
+              <p className="text-sm text-gray-500 mt-0.5">Adjust turnover limits, volumes and excess fees for this client before the letter is issued</p>
+            </div>
+            {scopeExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+          </button>
+          {scopeExpanded && (
+            <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-3">
+              {scopeRows.map((r, i) => (
+                <div key={i} className="p-3 rounded-lg border border-gray-100 bg-gray-50/50">
+                  <p className="text-sm font-semibold text-gray-800 mb-2">{r.service}</p>
+                  <div className="grid md:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Coverage threshold (what is included?)</label>
+                      <input
+                        type="text"
+                        value={r.threshold}
+                        onChange={(e) => updateScope(i, 'threshold', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Fee exceeding scope</label>
+                      <input
+                        type="text"
+                        value={r.excess}
+                        onChange={(e) => updateScope(i, 'excess', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setScopeRows(DEFAULT_SCOPE_ROWS.map((r) => ({ ...r })))}
+                className="text-xs text-gray-500 underline hover:text-gray-700"
+              >
+                Reset to standard scope
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Price summary */}
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6 mb-8">
           <div className="flex items-center justify-between">
@@ -389,7 +506,9 @@ function ServicesPageInner() {
                 <>
                   <p className="text-xs text-gray-500 mb-2">One-off Services</p>
                   <p className="text-2xl font-bold text-purple-600">£{oneoffTotal}</p>
-                  <p className="text-xs text-purple-600">{selectedOneoff.length} one-off item{selectedOneoff.length !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-purple-600">
+                    {selectedOneoff.length + customFees.filter((c) => c.description.trim()).length} one-off item{(selectedOneoff.length + customFees.filter((c) => c.description.trim()).length) !== 1 ? 's' : ''}
+                  </p>
                 </>
               ) : (
                 <>

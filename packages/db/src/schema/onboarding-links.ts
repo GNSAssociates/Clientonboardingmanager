@@ -31,6 +31,10 @@ export const onboardingLinks = pgTable(
     prevAccountantFollowUpSentAt: timestamp("prev_accountant_follow_up_sent_at", { withTimezone: true }),
     // Captured at signing: typed signature, contact preferences, direct debit details, doc statuses
     acceptanceData: json("acceptance_data").$type<Record<string, unknown>>(),
+    // Letter engine: partner/send-mode/scope/custom-fees config + archived letter copies
+    letterMeta: json("letter_meta").$type<Record<string, unknown>>(),
+    letterHtml: text("letter_html"),
+    signedHtml: text("signed_html"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

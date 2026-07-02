@@ -2,8 +2,9 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CheckCircle2, Building2, PenLine } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CheckCircle2, Building2, PenLine, Eye, X, FileText, UserSearch } from 'lucide-react';
 import { getFirm } from '@/lib/firms';
+import { LETTER_PARTNERS } from '@/lib/letter-html';
 
 interface Director {
   name: string;
@@ -32,6 +33,8 @@ function CompanyPageInner() {
   const companyNumberParam = searchParams.get('companyNumber') || '';
   const directorEmailParam = searchParams.get('directorEmail') || '';
   const serviceDetailsParam = searchParams.get('serviceDetails') || '[]';
+  const customFeesParam = searchParams.get('customFees') || '[]';
+  const scopeRowsParam = searchParams.get('scopeRows') || '';
 
   const firm = getFirm(firmSlug);
 
@@ -42,6 +45,12 @@ function CompanyPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [company, setCompany] = useState<CompanyData | null>(null);
+
+  // Letter options: acting partner, send mode, live preview
+  const [partnerName, setPartnerName] = useState<string>(LETTER_PARTNERS[0]!);
+  const [sendMode, setSendMode] = useState<'engagement' | 'details_only'>('engagement');
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Manual entry fields
   const [manualName, setManualName] = useState('');
@@ -112,27 +121,74 @@ function CompanyPageInner() {
     setStep('preview');
   };
 
+  const parseParams = () => {
+    let serviceDetails: Array<{ id: string; name: string; price: number; oneoff?: boolean }> = [];
+    let customFees: Array<{ description: string; price: number }> = [];
+    let scopeRows: Array<{ service: string; threshold: string; excess: string }> | undefined;
+    try { serviceDetails = JSON.parse(decodeURIComponent(serviceDetailsParam)); } catch {}
+    try { customFees = JSON.parse(decodeURIComponent(customFeesParam)); } catch {}
+    try { if (scopeRowsParam) scopeRows = JSON.parse(decodeURIComponent(scopeRowsParam)); } catch {}
+    return { serviceDetails, customFees, scopeRows };
+  };
+
+  const buildPayload = () => {
+    if (!company) return null;
+    const { serviceDetails, customFees, scopeRows } = parseParams();
+    return {
+      firmSlug,
+      companyName: company.name,
+      companyNumber: company.number,
+      companyAddress: company.address,
+      directorName: selectedDirector || company.directors[0]?.name || '',
+      directorEmail,
+      serviceDetails,
+      partnerName,
+      sendMode,
+      customFees,
+      scopeRows,
+      ch: company.manual ? null : {
+        number: company.number,
+        status: company.status,
+        address: company.address,
+        incorporationDate: company.incorporationDate,
+        aaDue: company.aaDue,
+        csDue: company.csDue,
+        natureOfBusiness: company.natureOfBusiness,
+      },
+    };
+  };
+
+  const handlePreview = async () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    setPreviewLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/onboarding/letter-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, services: payload.serviceDetails }),
+      });
+      if (!res.ok) throw new Error('Could not build letter preview');
+      setPreviewHtml(await res.text());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Preview failed');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const handleGenerate = async () => {
-    if (!company || !directorEmail) return;
+    const payload = buildPayload();
+    if (!payload || !directorEmail) return;
     setLoading(true);
     setError('');
 
     try {
-      let serviceDetails: Array<{ id: string; name: string; price: number }> = [];
-      try { serviceDetails = JSON.parse(decodeURIComponent(serviceDetailsParam)); } catch {}
-
       const res = await fetch('/api/onboarding/links/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firmSlug,
-          companyName: company.name,
-          companyNumber: company.number,
-          companyAddress: company.address,
-          directorName: selectedDirector || company.directors[0]?.name || '',
-          directorEmail,
-          serviceDetails,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -142,7 +198,7 @@ function CompanyPageInner() {
       const result = await res.json() as { token: string };
 
       router.push(
-        `/onboarding/success?firm=${firmSlug}&company=${encodeURIComponent(company.name)}&email=${encodeURIComponent(directorEmail)}&token=${result.token}`
+        `/onboarding/success?firm=${firmSlug}&company=${encodeURIComponent(company!.name)}&email=${encodeURIComponent(directorEmail)}&token=${result.token}&mode=${sendMode}`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate link');
@@ -449,10 +505,50 @@ function CompanyPageInner() {
                 )}
               </div>
 
+              {/* What to send — the key decision before the link goes out */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                <p className="text-sm font-bold text-gray-900 mb-3">What should we send to the client?</p>
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${sendMode === 'engagement' ? 'border-purple-400 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="sendMode" checked={sendMode === 'engagement'} onChange={() => setSendMode('engagement')} className="mt-1 text-purple-600" />
+                    <div>
+                      <p className="font-semibold text-gray-900 flex items-center gap-2"><FileText size={16} className="text-purple-600" /> Full engagement letter + previous accountant details</p>
+                      <p className="text-xs text-gray-500 mt-1">Client reviews and e-signs the contract, provides Direct Debit and previous accountant details. Professional clearance fires automatically on signing.</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${sendMode === 'details_only' ? 'border-purple-400 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="sendMode" checked={sendMode === 'details_only'} onChange={() => setSendMode('details_only')} className="mt-1 text-purple-600" />
+                    <div>
+                      <p className="font-semibold text-gray-900 flex items-center gap-2"><UserSearch size={16} className="text-purple-600" /> Request previous accountant details only</p>
+                      <p className="text-xs text-gray-500 mt-1">No contract yet — the client just provides their previous accountant&apos;s details so clearance can begin. Send the engagement letter later.</p>
+                    </div>
+                  </label>
+                </div>
+
+                {sendMode === 'engagement' && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Acting partner (signs the letter)</label>
+                    <select
+                      value={partnerName}
+                      onChange={(e) => setPartnerName(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      {LETTER_PARTNERS.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
               <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5">
-                <p className="text-sm text-purple-900 font-semibold mb-2">Engagement letter will be sent to:</p>
+                <p className="text-sm text-purple-900 font-semibold mb-2">
+                  {sendMode === 'engagement' ? 'Engagement letter will be sent to:' : 'Details request will be sent to:'}
+                </p>
                 <p className="font-bold text-gray-900 text-lg">{directorEmail}</p>
-                <p className="text-xs text-purple-700 mt-2">The client will receive a 30-day link to read and sign the engagement letter online.</p>
+                <p className="text-xs text-purple-700 mt-2">
+                  {sendMode === 'engagement'
+                    ? 'The client will receive a 30-day link to read and e-sign the engagement letter online. A copy is archived automatically when sent and again when signed.'
+                    : 'The client will receive a 30-day link to a short form asking only for their previous accountant’s details.'}
+                </p>
               </div>
 
               {error && (
@@ -462,7 +558,7 @@ function CompanyPageInner() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between gap-4 pt-2">
+              <div className="flex items-center justify-between gap-4 pt-2 flex-wrap">
                 <button
                   onClick={() => { setStep(company.manual ? 'manual' : 'input'); setCompany(null); setError(''); }}
                   className="flex items-center gap-2 px-6 py-3 text-gray-700 hover:text-gray-900 font-semibold"
@@ -470,18 +566,61 @@ function CompanyPageInner() {
                   <ChevronLeft size={20} />
                   Edit Details
                 </button>
-                <button
-                  onClick={handleGenerate}
-                  disabled={loading}
-                  className={`flex items-center gap-2 px-8 py-3 rounded-lg font-semibold transition-all ${
-                    loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'text-white hover:shadow-xl hover:scale-[1.02]'
-                  }`}
-                  style={loading ? {} : { background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
-                >
-                  {loading ? <><Loader2 size={20} className="animate-spin" /> Generating...</> : <>Generate & Send Link <ChevronRight size={20} /></>}
-                </button>
+                <div className="flex items-center gap-3">
+                  {sendMode === 'engagement' && (
+                    <button
+                      onClick={handlePreview}
+                      disabled={previewLoading}
+                      className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-gray-300 text-gray-700 hover:border-gray-500 transition-all"
+                    >
+                      {previewLoading ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
+                      Preview Letter
+                    </button>
+                  )}
+                  <button
+                    onClick={handleGenerate}
+                    disabled={loading}
+                    className={`flex items-center gap-2 px-8 py-3 rounded-lg font-semibold transition-all ${
+                      loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'text-white hover:shadow-xl hover:scale-[1.02]'
+                    }`}
+                    style={loading ? {} : { background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
+                  >
+                    {loading ? <><Loader2 size={20} className="animate-spin" /> Generating...</> : <>Generate & Send Link <ChevronRight size={20} /></>}
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Letter preview modal — review & adjust before sending */}
+            {previewHtml && (
+              <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                    <div>
+                      <p className="font-bold text-gray-900">Letter Preview — exactly as the client will see it</p>
+                      <p className="text-xs text-gray-500">Signed by {partnerName} · To adjust fees or scope, go back to the Services step</p>
+                    </div>
+                    <button onClick={() => setPreviewHtml(null)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <iframe srcDoc={previewHtml} className="flex-1 w-full border-0" title="Letter preview" />
+                  <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+                    <button onClick={() => setPreviewHtml(null)} className="px-5 py-2.5 rounded-lg font-semibold text-gray-600 hover:bg-gray-100">
+                      Make Changes
+                    </button>
+                    <button
+                      onClick={() => { setPreviewHtml(null); handleGenerate(); }}
+                      disabled={loading}
+                      className="px-6 py-2.5 rounded-lg font-semibold text-white"
+                      style={{ background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
+                    >
+                      Looks Good — Send to Client
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -1,14 +1,17 @@
 'use client';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CheckSquare, ClipboardList, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, CheckSquare, ClipboardList, ShieldCheck, Handshake, UserSearch, FileText } from "lucide-react";
 
 const NAV = [
-  { href: "/staff/dashboard",  label: "Dashboard",  Icon: LayoutDashboard },
-  { href: "/staff",            label: "Cases",       Icon: Users,          exact: true },
-  { href: "/staff/tasks",      label: "Tasks",       Icon: CheckSquare },
-  { href: "/staff/reviews",    label: "Reviews",     Icon: ClipboardList },
-  { href: "/staff/compliance", label: "Compliance",  Icon: ShieldCheck },
+  { href: "/staff/dashboard",   label: "Dashboard",   Icon: LayoutDashboard },
+  { href: "/staff",             label: "Cases",       Icon: Users,          exact: true },
+  { href: "/staff/clearance",   label: "Clearance",   Icon: Handshake },
+  { href: "/staff/letters",     label: "Letters",     Icon: FileText },
+  { href: "/staff/accountants", label: "Accountants", Icon: UserSearch },
+  { href: "/staff/tasks",       label: "Tasks",       Icon: CheckSquare },
+  { href: "/staff/reviews",     label: "Reviews",     Icon: ClipboardList },
+  { href: "/staff/compliance",  label: "Compliance",  Icon: ShieldCheck },
 ];
 
 const FIRMS = [

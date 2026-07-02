@@ -34,7 +34,8 @@ export async function PATCH(
 
   await db.transaction(tx =>
     updateClearanceRequest(tx, params.id, {
-      responseData: { docItems: updated },
+      // Merge — responseData also carries company/firm metadata that must survive
+      responseData: { ...(request.responseData as Record<string, unknown> ?? {}), docItems: updated },
       ...(allReceived ? { status: "received", receivedAt: new Date(), outcome: "clear" } : {}),
     })
   );
