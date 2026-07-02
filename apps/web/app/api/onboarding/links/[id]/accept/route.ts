@@ -16,7 +16,7 @@ import {
 } from "@/lib/email-constants";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { setupDirectDebitMandate } from "@/lib/gocardless";
-import { uploadToClientFolder } from "@/lib/dropbox";
+import { archiveToClientFolder } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -204,12 +204,13 @@ export async function POST(
       console.error("Failed to persist acceptance data (non-fatal):", e);
     }
 
-    // ── Archive signed copy to Dropbox (non-fatal) ────────────────────────────
+    // ── Archive signed copy to OneDrive / Dropbox (non-fatal) ─────────────────
     if (signedHtml) {
-      await uploadToClientFolder({
+      await archiveToClientFolder({
         companyName: link.companyName ?? "client",
         fileName: `SIGNED - Engagement Letter - ${link.companyName} - ${today}.html`,
         content: signedHtml,
+        mimeType: "text/html",
       });
     }
 

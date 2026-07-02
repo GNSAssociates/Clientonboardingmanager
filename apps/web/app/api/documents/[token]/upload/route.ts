@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, upsertDocumentSubmission } from "@gns/db";
 import { getDocType } from "@/lib/document-types";
+import { archiveToClientFolder } from "@/lib/storage";
 
 // Supabase Storage REST upload (no SDK needed)
 async function uploadToSupabase(
@@ -76,6 +77,14 @@ export async function POST(
     const path = `${params.token}/${docType}_${Date.now()}_${safeName}`;
 
     const fileUrl = await uploadToSupabase(path, arrayBuffer, file.type);
+
+    // Mirror into the client's OneDrive folder (non-fatal, no-op until configured)
+    await archiveToClientFolder({
+      companyName: link.companyName ?? params.token.substring(0, 8),
+      fileName: `${docTypeDef.label} - ${safeName}`,
+      content: arrayBuffer,
+      mimeType: file.type,
+    });
 
     // Persist to DB
     const row = await db.transaction((tx) =>

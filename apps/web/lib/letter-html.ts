@@ -124,55 +124,105 @@ export function buildLetterHtml(d: LetterData): string {
 <meta charset="UTF-8">
 <title>Engagement Letter — ${esc(d.companyName)} — ${esc(f.legalName)}</title>
 <style>
-  @page { size: A4; margin: 18mm 20mm; }
+  @page { size: A4; margin: 20mm 22mm; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #fff; color: #1f2430; font-family: Georgia, 'Times New Roman', serif;
-         font-size: 13px; line-height: 1.65; }
-  .page { max-width: 794px; margin: 0 auto; padding: 48px 64px; }
-  @media (max-width: 700px) { .page { padding: 24px 20px; } }
-  @media print { .page { padding: 0; max-width: none; } }
-  .sans { font-family: Arial, Helvetica, sans-serif; }
-  h1 { font-size: 17px; text-align: center; margin: 26px 0 14px; }
-  h2 { font-size: 14.5px; margin: 26px 0 8px; }
-  h3 { font-size: 13.5px; margin: 18px 0 6px; }
-  p { margin: 0 0 10px; text-align: justify; }
-  ul { margin: 0 0 10px; padding-left: 26px; }
+  body { margin: 0; background: #fff; color: #24292f; font-family: Georgia, 'Times New Roman', serif;
+         font-size: 12.5px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 780px; margin: 0 auto; padding: 56px 72px 44px; }
+  @media (max-width: 700px) { .page { padding: 28px 22px; } }
+  @media print {
+    .page { padding: 0; max-width: none; }
+    table, .imp, .dd, .chbox, .sig { page-break-inside: avoid; }
+    h1, h2, h3 { page-break-after: avoid; }
+  }
+  .sans { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; }
+
+  h1 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; text-align: center;
+       letter-spacing: 2.5px; text-transform: uppercase; color: #1a1f2b; margin: 30px 0 16px; font-weight: 600; }
+  h2 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase;
+       color: ${f.accentColor}; margin: 30px 0 10px; padding-bottom: 5px; border-bottom: 1px solid #e3e6ea; font-weight: 700; }
+  h3 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1f2b; margin: 18px 0 6px; font-weight: 700; }
+  p { margin: 0 0 11px; text-align: justify; }
+  ul { margin: 0 0 11px; padding-left: 24px; }
   li { margin-bottom: 4px; }
-  .lh { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
-        border-bottom: 3px solid ${f.accentColor}; padding-bottom: 18px; }
-  .lh img { height: 74px; }
-  .lh .fd { text-align: right; font-size: 11.5px; color: #4b5563; line-height: 1.5; }
-  .lh .fd .n { font-weight: bold; color: #111; font-size: 12.5px; }
-  .meta { display: flex; justify-content: space-between; margin-top: 12px; font-size: 11px; }
-  .meta .pc { letter-spacing: 2px; font-weight: bold; color: #6b7280; text-transform: uppercase; }
-  .parties { text-align: center; margin-bottom: 4px; }
-  .integral { text-align: center; font-style: italic; color: #4b5563; font-size: 12px; margin-bottom: 20px; }
-  table { width: 100%; border-collapse: collapse; margin: 0 0 8px; }
-  .fees th { background: ${f.accentColor}; color: #fff; font-size: 11.5px; padding: 7px 9px; border: 1px solid #9ca3af; text-align: left; }
-  .fees td { border: 1px solid #c5cad3; padding: 6px 9px; font-size: 12px; }
-  .fees .r { text-align: right; }
-  .fees .sub td { color: #4b5563; font-size: 11.5px; }
-  .fees .sect td { background: #f3f4f6; font-weight: bold; }
-  .fees .total td { background: #e9ebf0; font-weight: bold; border-color: #9ca3af; }
-  .vatnote { font-weight: bold; font-size: 11.5px; margin-bottom: 22px; }
-  .imp { border: 2px solid ${f.accentColor}; background: #fff7f7; padding: 12px 16px; margin: 0 0 22px; }
-  .imp .t { color: ${f.accentColor}; font-weight: bold; margin-bottom: 4px; }
-  .scope th { background: #374151; color: #fff; font-size: 11.5px; padding: 7px 9px; border: 1px solid #9ca3af; text-align: left; }
-  .scope td { border: 1px solid #c5cad3; padding: 6px 9px; font-size: 11.5px; vertical-align: top; }
-  .scope .alt td { background: #f8f9fb; }
-  .ssc th { background: #eceef2; font-size: 11px; padding: 6px 8px; border: 1px solid #c5cad3; text-align: left; }
-  .ssc td { border: 1px solid #c5cad3; padding: 5px 8px; font-size: 11px; }
-  .ssc .r { text-align: right; }
-  .ssc .alt td { background: #f8f9fb; }
-  .ssc-h { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.6px; color: #374151; margin: 14px 0 5px; }
-  .dd { border: 2px solid #6b7280; padding: 12px 16px; margin: 0 0 22px; font-size: 12px; }
-  .dd .t { font-weight: bold; margin-bottom: 6px; }
-  .sig { margin: 18px 0; }
-  .sig img { height: 64px; display: block; }
-  .sig .n { font-weight: bold; margin-top: 4px; }
-  .sig .r { color: #4b5563; font-size: 12px; }
-  .divider { border: 0; border-top: 2px solid #d1d5db; margin: 30px 0 22px; }
-  .foot { border-top: 1px solid #e5e7eb; margin-top: 34px; padding-top: 12px; font-size: 10px; color: #9ca3af; }
+
+  /* Letterhead */
+  .lh { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-bottom: 20px; }
+  .lh img { height: 68px; }
+  .lh .fd { text-align: right; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5px; color: #5b6472; line-height: 1.7; }
+  .lh .fd .n { font-weight: 700; color: #1a1f2b; font-size: 12px; letter-spacing: 0.8px; text-transform: uppercase; }
+  .rule { height: 3px; background: ${f.accentColor}; }
+  .rule2 { height: 1px; background: #d7dbe0; margin-top: 2px; }
+  .meta { display: flex; justify-content: space-between; margin-top: 14px; font-size: 10px;
+          font-family: 'Segoe UI', Arial, sans-serif; color: #6b7280; }
+  .meta .pc { letter-spacing: 2.5px; font-weight: 700; text-transform: uppercase; }
+
+  /* Parties panel */
+  .doc-title { text-align: center; margin-top: 34px; }
+  .doc-title .kicker { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; letter-spacing: 4px;
+                       text-transform: uppercase; color: ${f.accentColor}; font-weight: 700; }
+  .doc-title .main { font-family: Georgia, serif; font-size: 21px; color: #1a1f2b; margin: 6px 0 0; }
+  .parties-panel { border: 1px solid #d7dbe0; border-top: 3px solid ${f.accentColor}; padding: 18px 26px 14px; margin: 20px 0 8px; }
+  .parties-panel .lbl { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5px; letter-spacing: 2.5px;
+                        color: #9aa1ab; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; text-align: left; }
+  .parties-panel .pty { font-size: 13px; margin: 0 0 12px; text-align: left; line-height: 1.55; }
+  .integral { text-align: center; font-style: italic; color: #6b7280; font-size: 11px; margin: 10px 0 24px; }
+
+  /* Companies House verification panel */
+  .chbox { border: 1px solid #d7dbe0; margin: 0 0 24px; }
+  .chbox-h { font-family: 'Segoe UI', Arial, sans-serif; padding: 8px 16px; background: #f6f7f9; border-bottom: 1px solid #e3e6ea;
+             font-weight: 700; font-size: 10px; color: #3b4453; letter-spacing: 1.5px; text-transform: uppercase; }
+  .chbox-b { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 26px; padding: 12px 16px;
+             font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #374151; }
+  .chbox-b p { margin: 0; text-align: left; }
+  .chbox-b span { color: #8a919c; }
+  .chbox-b .w { grid-column: 1 / -1; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 0 0 8px; font-family: 'Segoe UI', Arial, sans-serif; }
+  .fees th { background: #1a1f2b; color: #fff; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+             padding: 9px 11px; text-align: left; font-weight: 600; }
+  .fees td { border-bottom: 1px solid #e8eaee; padding: 8px 11px; font-size: 11.5px; color: #24292f; }
+  .fees .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .fees .sub td { color: #5b6472; font-size: 11px; border-bottom: 1px solid #f1f2f5; }
+  .fees .sect td { background: #f6f7f9; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; color: #3b4453; }
+  .fees .total td { background: #f6f7f9; font-weight: 700; border-top: 2px solid #1a1f2b; border-bottom: 2px solid #1a1f2b; font-size: 12px; }
+  .vatnote { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 600; font-size: 10.5px; color: #5b6472;
+             margin: 4px 0 26px; text-align: right; }
+
+  /* Callouts */
+  .imp { border-left: 4px solid ${f.accentColor}; background: #fbf7f7; padding: 12px 18px; margin: 0 0 26px;
+         font-family: 'Segoe UI', Arial, sans-serif; font-size: 11.5px; }
+  .imp .t { color: ${f.accentColor}; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; font-size: 10.5px; margin-bottom: 4px; }
+  .imp p, .dd p { text-align: left; margin: 0; line-height: 1.65; }
+  .dd { border-left: 4px solid #3b4453; background: #f6f7f9; padding: 12px 18px; margin: 0 0 26px;
+        font-family: 'Segoe UI', Arial, sans-serif; font-size: 11.5px; }
+  .dd .t { font-weight: 700; letter-spacing: 1px; text-transform: uppercase; font-size: 10.5px; color: #3b4453; margin-bottom: 4px; }
+
+  .scope th { background: #1a1f2b; color: #fff; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+              padding: 9px 11px; text-align: left; font-weight: 600; }
+  .scope td { border-bottom: 1px solid #e8eaee; padding: 8px 11px; font-size: 11px; vertical-align: top; color: #374151; }
+  .scope .alt td { background: #fafbfc; }
+  .scope strong { color: #1a1f2b; }
+
+  .ssc th { background: #f6f7f9; font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; color: #3b4453;
+            padding: 7px 10px; border-bottom: 2px solid #d7dbe0; text-align: left; font-weight: 700; }
+  .ssc td { border-bottom: 1px solid #eceef1; padding: 6px 10px; font-size: 10.5px; color: #374151; }
+  .ssc .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .ssc .alt td { background: #fafbfc; }
+  .ssc-h { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 1.2px; color: ${f.accentColor}; margin: 20px 0 6px; }
+
+  /* Signature */
+  .sig { margin: 22px 0; }
+  .sig img { height: 62px; display: block; margin-bottom: 2px; }
+  .sig .line { width: 240px; border-top: 1px solid #9aa1ab; margin: 4px 0 6px; }
+  .sig .n { font-weight: bold; font-size: 13px; }
+  .sig .r { color: #5b6472; font-size: 11px; font-family: 'Segoe UI', Arial, sans-serif; }
+
+  .divider { border: 0; border-top: 1px solid #d7dbe0; margin: 36px 0 26px; position: relative; }
+  .foot { border-top: 1px solid #e3e6ea; margin-top: 40px; padding-top: 14px; font-size: 9px; color: #9aa1ab;
+          font-family: 'Segoe UI', Arial, sans-serif; text-align: center; line-height: 1.7; }
   .center { text-align: center; }
 </style>
 </head>
@@ -183,18 +233,30 @@ export function buildLetterHtml(d: LetterData): string {
     <img src="${base}${f.logo}" alt="${esc(f.name)}">
     <div class="fd">
       <div class="n">${esc(f.legalName)}</div>
-      ${esc(f.address)}<br>${esc(f.city)}, ${esc(f.postcode)}<br>${esc(f.phone)}<br>${esc(f.email)}
+      ${esc(f.address)} · ${esc(f.city)} ${esc(f.postcode)}<br>
+      ${esc(f.phone)} · ${esc(f.email)}<br>
+      ${esc(f.website)}
     </div>
   </div>
-  <div class="meta sans">
+  <div class="rule"></div>
+  <div class="rule2"></div>
+  <div class="meta">
     <span class="pc">Private &amp; Confidential</span>
     <span>Date: <strong>${esc(d.dateStr)}</strong></span>
   </div>
 
-  <h1>Contract for Services between</h1>
-  <p class="parties"><strong>${esc(f.legalName.toUpperCase())}</strong>, ${esc(f.address)}, ${esc(f.city)} ${esc(f.postcode)} (‘The Accountants’) &amp;</p>
-  <p class="parties"><strong>${esc(d.companyName.toUpperCase())}</strong>${d.clientAddress ? `, ${esc(d.clientAddress)}` : ''}${d.companyNumber ? ` (Company No. ${esc(d.companyNumber)})` : ''} (‘The Client’)</p>
-  <p class="integral">This Fee Structure and quotation is an integral part of the engagement letter.</p>
+  <div class="doc-title">
+    <div class="kicker">Letter of Engagement</div>
+    <div class="main">Contract for Services</div>
+  </div>
+
+  <div class="parties-panel">
+    <p class="lbl">Between</p>
+    <p class="pty"><strong>${esc(f.legalName.toUpperCase())}</strong> of ${esc(f.address)}, ${esc(f.city)} ${esc(f.postcode)} (‘The Accountants’)</p>
+    <p class="lbl">And</p>
+    <p class="pty" style="margin-bottom:2px"><strong>${esc(d.companyName.toUpperCase())}</strong>${d.clientAddress ? ` of ${esc(d.clientAddress)}` : ''}${d.companyNumber ? ` (Company No. ${esc(d.companyNumber)})` : ''} (‘The Client’)</p>
+  </div>
+  <p class="integral">This fee structure and quotation is an integral part of the engagement letter.</p>
 
   ${chBox}
 
@@ -333,8 +395,9 @@ export function buildLetterHtml(d: LetterData): string {
   <p>Yours sincerely,</p>
   <div class="sig">
     <img src="${base}${f.signatureImg}" alt="">
+    <div class="line"></div>
     <div class="n">${esc(partner)}</div>
-    <div class="r">For and on behalf of, ${esc(f.legalName)}</div>
+    <div class="r">For and on behalf of ${esc(f.legalName)}</div>
   </div>
   <p>I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.</p>
 

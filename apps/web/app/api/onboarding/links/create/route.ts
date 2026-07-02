@@ -5,7 +5,7 @@ import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
 import { buildEngagementLetterEmail } from "@/lib/email-constants";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
-import { uploadToClientFolder } from "@/lib/dropbox";
+import { archiveToClientFolder } from "@/lib/storage";
 import { logoImg } from "@/lib/email-clearance";
 
 export const dynamic = "force-dynamic";
@@ -101,14 +101,16 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    // Archive to Dropbox (non-fatal, no-op until DROPBOX_ACCESS_TOKEN is set)
-    let dropboxPath: string | null = null;
+    // Archive to OneDrive (or Dropbox fallback) — non-fatal, no-op until configured
+    let archivePath: string | null = null;
     if (letterHtml) {
-      dropboxPath = await uploadToClientFolder({
+      const archived = await archiveToClientFolder({
         companyName,
         fileName: `Engagement Letter - ${companyName} - ${today}.html`,
         content: letterHtml,
+        mimeType: "text/html",
       });
+      archivePath = archived ? `${archived.provider}:${archived.path}` : null;
     }
 
     const engagementUrl = `${appUrl}/onboarding/engage/${token}`;
@@ -159,7 +161,7 @@ export async function POST(req: NextRequest) {
       console.error("Email send failed (link still created):", emailErr instanceof Error ? emailErr.message : emailErr);
     }
 
-    console.log(`✓ Onboarding link created (${mode}): ${engagementUrl} | email sent: ${emailSent} | dropbox: ${dropboxPath ?? "off"}`);
+    console.log(`✓ Onboarding link created (${mode}): ${engagementUrl} | email sent: ${emailSent} | archive: ${archivePath ?? "off"}`);
 
     return NextResponse.json({
       success: true,
@@ -169,7 +171,7 @@ export async function POST(req: NextRequest) {
       engagementUrl: `/onboarding/engage/${token}`,
       expiresAt: expiresAt.toISOString(),
       emailSent,
-      dropboxPath,
+      archivePath,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

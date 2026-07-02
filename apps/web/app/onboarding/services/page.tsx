@@ -111,6 +111,16 @@ const ONEOFF_GROUPS: { group: string; items: { id: string; name: string; basePri
 
 const ALL_ONEOFF = ONEOFF_GROUPS.flatMap((g) => g.items);
 
+// Which contract Scope-of-Services row each monthly service edits (index into DEFAULT_SCOPE_ROWS)
+const SCOPE_MAP: Record<string, number> = {
+  annual_accounts: 0,
+  bookkeeping_vat: 1,
+  paye: 2,
+  cis: 3,
+  self_assessment: 4,
+  confirmation_statement: 5,
+};
+
 function ServicesPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -125,12 +135,11 @@ function ServicesPageInner() {
   const [directorEmail, setDirectorEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [oneoffExpanded, setOneoffExpanded] = useState(false);
-  const [scopeExpanded, setScopeExpanded] = useState(false);
 
   // Custom catch-up / ad-hoc fee lines (free description + price, numbered)
   const [customFees, setCustomFees] = useState<Array<{ description: string; price: number }>>([]);
 
-  // Editable Scope of Services table — thresholds/fees adjustable per client
+  // Contract Scope-of-Services rows — edited inline within each service card
   const [scopeRows, setScopeRows] = useState<ScopeRow[]>(DEFAULT_SCOPE_ROWS.map((r) => ({ ...r })));
 
   const updateScope = (i: number, field: keyof ScopeRow, value: string) =>
@@ -245,10 +254,10 @@ function ServicesPageInner() {
         {/* Services grid */}
         <div className="grid md:grid-cols-2 gap-4 mb-8">
           {SERVICES.map((service) => (
-            <button
+            <div
               key={service.id}
               onClick={() => toggleService(service.id)}
-              className={`p-6 rounded-xl border-2 transition-all text-left group ${
+              className={`p-6 rounded-xl border-2 transition-all text-left group cursor-pointer ${
                 selected.includes(service.id)
                   ? 'border-purple-500 bg-purple-50'
                   : 'border-gray-200 bg-white hover:border-purple-300'
@@ -287,19 +296,46 @@ function ServicesPageInner() {
                 </div>
               </div>
 
-              {/* Price input - only show if selected */}
+              {/* Price + scope inputs - only show if selected */}
               {selected.includes(service.id) && (
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="text-sm text-gray-600">£</span>
-                  <input
-                    type="number"
-                    value={prices[service.id]}
-                    onChange={(e) => updatePrice(service.id, e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-20 px-3 py-2 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    min="0"
-                  />
-                  <span className="text-sm text-gray-600">/month</span>
+                <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">£</span>
+                    <input
+                      type="number"
+                      value={prices[service.id]}
+                      onChange={(e) => updatePrice(service.id, e.target.value)}
+                      className="w-20 px-3 py-2 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      min="0"
+                    />
+                    <span className="text-sm text-gray-600">/month</span>
+                  </div>
+                  {SCOPE_MAP[service.id] !== undefined && (
+                    <div className="space-y-2 border-t border-purple-100 pt-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-purple-600 uppercase tracking-wide mb-1">
+                          Included in scope (shown on contract)
+                        </label>
+                        <input
+                          type="text"
+                          value={scopeRows[SCOPE_MAP[service.id]!]!.threshold}
+                          onChange={(e) => updateScope(SCOPE_MAP[service.id]!, 'threshold', e.target.value)}
+                          className="w-full px-3 py-1.5 border border-purple-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-purple-600 uppercase tracking-wide mb-1">
+                          Fee exceeding scope
+                        </label>
+                        <input
+                          type="text"
+                          value={scopeRows[SCOPE_MAP[service.id]!]!.excess}
+                          onChange={(e) => updateScope(SCOPE_MAP[service.id]!, 'excess', e.target.value)}
+                          className="w-full px-3 py-1.5 border border-purple-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -310,7 +346,7 @@ function ServicesPageInner() {
                   <span className="text-gray-500">/month</span>
                 </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
 
@@ -433,57 +469,6 @@ function ServicesPageInner() {
                 </div>
               ))}
               <p className="text-right text-sm font-semibold text-gray-700 pt-1">Custom fees total: £{customTotal}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Editable Scope of Services (coverage thresholds) */}
-        <div className="mb-8 border border-gray-200 rounded-xl overflow-hidden bg-white">
-          <button
-            type="button"
-            onClick={() => setScopeExpanded(!scopeExpanded)}
-            className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
-          >
-            <div>
-              <h3 className="font-semibold text-gray-900">Scope of Services — Coverage Thresholds (editable)</h3>
-              <p className="text-sm text-gray-500 mt-0.5">Adjust turnover limits, volumes and excess fees for this client before the letter is issued</p>
-            </div>
-            {scopeExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
-          </button>
-          {scopeExpanded && (
-            <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-3">
-              {scopeRows.map((r, i) => (
-                <div key={i} className="p-3 rounded-lg border border-gray-100 bg-gray-50/50">
-                  <p className="text-sm font-semibold text-gray-800 mb-2">{r.service}</p>
-                  <div className="grid md:grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Coverage threshold (what is included?)</label>
-                      <input
-                        type="text"
-                        value={r.threshold}
-                        onChange={(e) => updateScope(i, 'threshold', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1">Fee exceeding scope</label>
-                      <input
-                        type="text"
-                        value={r.excess}
-                        onChange={(e) => updateScope(i, 'excess', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setScopeRows(DEFAULT_SCOPE_ROWS.map((r) => ({ ...r })))}
-                className="text-xs text-gray-500 underline hover:text-gray-700"
-              >
-                Reset to standard scope
-              </button>
             </div>
           )}
         </div>
