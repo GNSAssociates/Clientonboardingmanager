@@ -13,9 +13,10 @@ import { generateToken } from "@/lib/auth/passwords";
 import { signSession } from "@/lib/auth/cookie";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import type { AuthSession } from "@gns/core";
-import { getDb } from "@gns/db";
-import { users } from "@gns/db/tables";
+import { getDb, tables } from "@gns/db";
 import { eq } from "drizzle-orm";
+
+const { users } = tables;
 
 export async function POST(req: NextRequest) {
   try {
