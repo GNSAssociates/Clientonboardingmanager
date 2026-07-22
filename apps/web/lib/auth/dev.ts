@@ -44,5 +44,7 @@ export function buildDevSession(
   };
 }
 
-// Provisional auth shim — always enabled until real Entra/Supabase auth is wired
-export const isDevAuthEnabled = (): boolean => true;
+// Dev role-picker login. Disabled in production now that real email/password
+// auth with 2FA is live — set DEV_AUTH=1 explicitly to re-enable for debugging.
+export const isDevAuthEnabled = (): boolean =>
+  process.env.DEV_AUTH === "1" || process.env.NODE_ENV !== "production";
