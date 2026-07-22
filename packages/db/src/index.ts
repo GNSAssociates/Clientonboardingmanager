@@ -1,0 +1,18 @@
+export { getDb, closeDb, withSession, schema } from "./client";
+export type { Database, Tx, SessionContext } from "./client";
+export * as tables from "./schema/index";
+export * from "./repositories/entities";
+export * from "./repositories/audit";
+export * from "./repositories/onboarding";
+export * from "./repositories/documents";
+export * from "./repositories/generated-docs";
+export * from "./repositories/compliance";
+export * from "./repositories/clearance";
+export * from "./repositories/integrations";
+export * from "./repositories/agent-runs";
+export * from "./repositories/reviews";
+export * from "./repositories/onboarding-links";
+export * from "./repositories/document-submissions";
+export * from "./repositories/email-templates";
+export * from "./repositories/email-log";
+export * from "./repositories/auth";

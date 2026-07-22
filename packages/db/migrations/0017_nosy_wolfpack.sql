@@ -1,0 +1,1 @@
+ALTER TYPE "public"."generated_doc_type" ADD VALUE 'completion_report' BEFORE 'other';

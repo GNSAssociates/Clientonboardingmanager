@@ -1,0 +1,9 @@
+---
+deployment:
+  tasks:
+    - export HOME=/home2/practiceagents
+    - export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:$PATH"
+    - npm install -g pnpm@9.15.9 --prefix=$HOME/.local
+    - cd $DEPLOY_PATH
+    - $HOME/.local/bin/pnpm install --frozen-lockfile
+    - $HOME/.local/bin/pnpm build

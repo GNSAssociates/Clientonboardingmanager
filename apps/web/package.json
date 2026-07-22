@@ -1,0 +1,47 @@
+{
+  "name": "@gns/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build:cpanel": "CPANEL_BUILD=1 next build && node scripts/cpanel-postbuild.mjs",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gns/ai": "workspace:*",
+    "@gns/config": "workspace:*",
+    "@gns/core": "workspace:*",
+    "@gns/db": "workspace:*",
+    "@gns/integrations": "workspace:*",
+    "@react-pdf/renderer": "4.1.6",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.36.4",
+    "lucide-react": "^1.21.0",
+    "next": "14.2.18",
+    "nodemailer": "^9.0.3",
+    "pdf-lib": "1.17.1",
+    "pino": "^9.5.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^2.5.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.18",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.6.3"
+  }
+}

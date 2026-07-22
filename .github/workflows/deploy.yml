@@ -1,0 +1,22 @@
+name: Deploy to cPanel via FTP
+
+on:
+  push:
+    branches:
+      - main # Change to 'master' if your default branch is named master
+
+jobs:
+  web-deploy:
+    name: Deploy Website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest code
+        uses: actions/checkout@v4
+
+      - name: Sync files to server
+uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /public_html/ # Adjust if deploying to a subfolder or subdomain 
