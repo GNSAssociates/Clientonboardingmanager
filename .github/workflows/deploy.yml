@@ -1,22 +1,44 @@
-name: Deploy to cPanel via FTP
+name: Build and deploy to cPanel
 
+# Builds the self-contained standalone bundle on GitHub's servers (so cPanel
+# never has to build anything) and syncs it to the cPanel account via FTP.
+# Requires three repository secrets: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD.
 on:
   push:
     branches:
-      - main # Change to 'master' if your default branch is named master
+      - main
+  workflow_dispatch: {}
 
 jobs:
-  web-deploy:
-    name: Deploy Website
+  build-and-deploy:
+    name: Build standalone bundle and FTP to cPanel
     runs-on: ubuntu-latest
     steps:
       - name: Get latest code
         uses: actions/checkout@v4
 
-      - name: Sync files to server
-uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build cPanel standalone bundle
+        run: pnpm --filter @gns/web build:cpanel
+
+      - name: Sync bundle to cPanel via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: /public_html/ # Adjust if deploying to a subfolder or subdomain 
+          local-dir: apps/web/.next/standalone/
+          server-dir: gns-app/
