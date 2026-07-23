@@ -29,10 +29,17 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        # hoisted node-linker: flat real directories instead of pnpm's symlink
+        # store — symlinks do not survive FTP and produce a broken node_modules
+        # on the server.
         run: pnpm install --frozen-lockfile
+        env:
+          NPM_CONFIG_NODE_LINKER: hoisted
 
       - name: Build cPanel standalone bundle
         run: pnpm --filter @gns/web build:cpanel
+        env:
+          NPM_CONFIG_NODE_LINKER: hoisted
 
       - name: Sync bundle to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5

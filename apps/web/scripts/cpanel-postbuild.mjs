@@ -45,5 +45,15 @@ writeFileSync(
 );
 console.log("Wrote loader.cjs (cPanel Passenger entry shim)");
 
+// Touching tmp/restart.txt tells Passenger/LiteSpeed to restart the app on the
+// next request — so an FTP deploy that updates this file restarts the app
+// automatically, no cPanel clicks needed. A fresh timestamp per build makes
+// the FTP sync always see it as changed.
+import { mkdirSync } from "node:fs";
+const tmpDir = path.join(standaloneAppDir, "tmp");
+mkdirSync(tmpDir, { recursive: true });
+writeFileSync(path.join(tmpDir, "restart.txt"), `deployed ${new Date().toISOString()}\n`);
+console.log("Wrote tmp/restart.txt (auto-restart trigger)");
+
 console.log("\ncPanel build ready. Startup file for cPanel's Node.js App:");
 console.log(`  ${path.relative(process.cwd(), path.join(standaloneAppDir, "server.js"))}`);
