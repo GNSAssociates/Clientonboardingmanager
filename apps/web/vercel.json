@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/onboarding/scheduled-send",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
