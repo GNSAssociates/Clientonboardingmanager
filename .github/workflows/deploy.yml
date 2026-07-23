@@ -9,6 +9,12 @@ on:
       - main
   workflow_dispatch: {}
 
+# One delivery at a time: a new push cancels any in-flight deploy so two FTP
+# syncs never write to the server simultaneously.
+concurrency:
+  group: cpanel-deploy
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     name: Build standalone bundle and FTP to cPanel
