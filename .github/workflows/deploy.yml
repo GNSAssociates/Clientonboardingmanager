@@ -42,3 +42,9 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: apps/web/.next/standalone/
           server-dir: gns-app/
+          # The action's DEFAULT exclude list skips **/node_modules/** — but the
+          # standalone bundle's node_modules IS the app's runtime. Override the
+          # excludes so the pruned node_modules ships with the bundle.
+          exclude: |
+            **/.git*
+            **/.git*/**
