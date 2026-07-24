@@ -258,10 +258,23 @@ export async function updateUserStatus(userId: string, status: "active" | "disab
 }
 
 export async function deleteUser(userId: string) {
+  // Remove all access (roles, credentials, sessions, 2FA codes) and FREE THE
+  // EMAIL by renaming the row to a unique tombstone. The row is kept (not hard
+  // deleted) so any historical references stay valid, but the original email
+  // becomes immediately reusable — a re-added staff member with the same email
+  // no longer hits "already exists".
+  await db().delete(userRoles).where(eq(userRoles.userId, userId));
+  await db().delete(twoFactorCodes).where(eq(twoFactorCodes.userId, userId));
+  await db().delete(userCredentials).where(eq(userCredentials.userId, userId));
+  await deleteUserSessions(userId);
   await db()
     .update(users)
-    .set({ deletedAt: new Date() })
+    .set({
+      deletedAt: new Date(),
+      status: "disabled",
+      email: `deleted+${userId}@deleted.local`,
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, userId));
-  await deleteUserSessions(userId);
 }
 
