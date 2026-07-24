@@ -53,8 +53,10 @@ const MATRIX: Record<Capability, Role[]> = {
   view_audit_log: ["Admin", "Partner", "Manager", "ComplianceOfficer"],
   manage_retention: ["Admin", "Partner", "ComplianceOfficer"],
   complete_onboarding: ["Admin", "Partner", "Manager", "ComplianceOfficer"],
-  access_onboarding: ["Admin", "Partner", "Manager", "HR", "OnboardingStaff", "ComplianceOfficer"],
-  access_invoices: ["Admin", "Partner", "Manager", "OnboardingStaff", "Reviewer"],
+  // Onboarding (client intake, engagement, clearance) is a senior function.
+  access_onboarding: ["Admin", "Partner", "Manager"],
+  // The Invoice Summarizer is available to every staff role.
+  access_invoices: ["Admin", "Partner", "Manager", "HR", "OnboardingStaff", "Reviewer", "ComplianceOfficer"],
 };
 
 export function can(session: AuthSession, capability: Capability): boolean {

@@ -24,8 +24,9 @@ const ROLE_LABELS: Record<string, string> = {
   Client: 'Client',
 };
 
-const CAN_ACCESS_ONBOARDING = ['Admin', 'Partner', 'Manager', 'HR', 'OnboardingStaff', 'ComplianceOfficer'];
-const CAN_ACCESS_INVOICES = ['Admin', 'Partner', 'Manager', 'OnboardingStaff', 'Reviewer'];
+// Onboarding is a senior function; the Invoice Summarizer is open to all staff.
+const CAN_ACCESS_ONBOARDING = ['Admin', 'Partner', 'Manager'];
+const CAN_ACCESS_INVOICES = ['Admin', 'Partner', 'Manager', 'HR', 'OnboardingStaff', 'Reviewer', 'ComplianceOfficer'];
 const CAN_MANAGE_STAFF = ['Admin', 'Partner', 'HR'];
 
 export default function DashboardPage() {
