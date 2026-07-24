@@ -12,6 +12,10 @@ const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   // Workspace packages are shipped as TypeScript source; Next compiles them.
   transpilePackages: ["@gns/config", "@gns/core", "@gns/db", "@gns/ai", "@gns/integrations"],
+  // The cPanel standalone host has no `sharp`, so Next's image optimizer errors
+  // on every <Image>. Serve images unoptimized — they still display, and this
+  // clears the flood of "sharp is required" errors and any related 500s.
+  images: { unoptimized: true },
   // Self-contained server build (server.js + a pruned node_modules) for
   // non-Vercel Node.js hosts (e.g. cPanel). Only enabled for that build (via
   // CPANEL_BUILD=1) — Vercel has its own optimized output and this is left

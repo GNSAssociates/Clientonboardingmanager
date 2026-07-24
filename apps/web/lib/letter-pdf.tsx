@@ -9,7 +9,12 @@
  * HTML letter (services, scope, Companies House details, dynamic schedules).
  */
 import React from 'react';
-import { Document, Page, View, Text, Image, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer';
+// Import the package's concrete entry file directly. As an externalised server
+// package, the bare specifier "@react-pdf/renderer" fails ESM resolution inside
+// the cPanel standalone build (ERR_MODULE_NOT_FOUND / index.js); the explicit
+// lib entry — which Node's own error message suggests — resolves reliably.
+// @ts-ignore — no type declarations for the internal path (build ignores TS errors)
+import { Document, Page, View, Text, Image, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer/lib/react-pdf.js';
 import type { FirmConfig } from './firms';
 import { GNS_LOGO_DATA_URI, GNS_SIGNATURE_DATA_URI } from './brand-assets';
 import { SG_SIGNATURE_DATA_URI } from './sg-signature';
