@@ -30,7 +30,25 @@ const nextConfig = {
     // Monorepo: trace from the workspace root so hoisted/workspace deps
     // (packages/db, packages/core, etc.) resolve and are included in the
     // standalone output. In Next 14 this lives under `experimental`.
-    ...(isCpanelBuild ? { outputFileTracingRoot: path.join(__dirname, "../../") } : {}),
+    ...(isCpanelBuild
+      ? {
+          outputFileTracingRoot: path.join(__dirname, "../../"),
+          // @react-pdf/renderer is externalised, so Next's tracer must be told
+          // to physically copy the whole @react-pdf + fontkit tree (and their
+          // font metrics) into the standalone bundle for the letter routes;
+          // otherwise the runtime import fails with ERR_MODULE_NOT_FOUND.
+          outputFileTracingIncludes: {
+            "/api/onboarding/links/**": [
+              "./node_modules/@react-pdf/**/*",
+              "./node_modules/fontkit/**/*",
+              "./node_modules/restructure/**/*",
+              "../../node_modules/@react-pdf/**/*",
+              "../../node_modules/fontkit/**/*",
+              "../../node_modules/restructure/**/*",
+            ],
+          },
+        }
+      : {}),
   },
 };
 
