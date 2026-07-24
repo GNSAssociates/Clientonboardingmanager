@@ -61,12 +61,22 @@ export async function sendTemplatedMail(args: {
     return { ok: false, provider: "none", error: `Unknown template: ${args.key}` };
   }
 
+  // Per-event CC policy (BR: info@ is copied only on these specific events).
+  // Other emails (OTP, welcome, proposal, reminders) carry no CC.
+  const INFO_CC = process.env.MAIL_INFO_CC ?? "info@gnsassociates.co.uk";
+  const AUTO_CC: Record<string, string> = {
+    client_engagement: INFO_CC, // engagement letter sent to the client
+    prev_clearance_request: INFO_CC, // clearance request to the previous accountant
+    prev_clearance_chase: INFO_CC, // clearance reminder to the previous accountant
+  };
+  const mergedCc = [args.cc, AUTO_CC[args.key]].filter(Boolean).join(",") || undefined;
+
   const result = await sendMailResult({
     to: args.to,
     toName: args.toName,
     subject: rendered.subject,
     html: rendered.html,
-    cc: args.cc,
+    cc: mergedCc,
     noGlobalCc: args.noGlobalCc,
     replyTo: args.replyTo,
   });
