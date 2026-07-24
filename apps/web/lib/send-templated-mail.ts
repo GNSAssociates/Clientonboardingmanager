@@ -66,6 +66,7 @@ export async function sendTemplatedMail(args: {
   const INFO_CC = process.env.MAIL_INFO_CC ?? "info@gnsassociates.co.uk";
   const AUTO_CC: Record<string, string> = {
     client_engagement: INFO_CC, // engagement letter sent to the client
+    client_welcome: INFO_CC, // engagement accepted/signed — client confirmation
     prev_clearance_request: INFO_CC, // clearance request to the previous accountant
     prev_clearance_chase: INFO_CC, // clearance reminder to the previous accountant
   };

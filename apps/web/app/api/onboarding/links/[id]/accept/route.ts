@@ -359,10 +359,9 @@ export async function POST(
           toName: prevFirmName || "Previous Accountant",
           replyTo: firm.email,
           actionUrl: clearanceUrl,
-          // Privacy: the clearance request lists sensitive references (UTR, CH
-          // auth code, VAT/PAYE refs, etc.). It must go only to the previous
-          // accountant — never CC'd to the firm's shared inbox. Staff track it
-          // via the clearance dashboard instead.
+          // Firm policy: CC the client and info@ (info@ added centrally by the
+          // template CC map) on the clearance request. No other shared inbox.
+          cc: link.clientEmail || undefined,
           noGlobalCc: true,
           vars: {
             companyName: link.companyName ?? "",

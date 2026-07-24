@@ -62,6 +62,19 @@ export async function POST(req: NextRequest) {
     })
   );
 
+  // Client email (for CC on the clearance request) — first contact on the case.
+  let clientEmail: string | undefined;
+  try {
+    const rows = await db.execute(sql`
+      SELECT email FROM client_contacts
+      WHERE client_id = ${clientId} AND email IS NOT NULL
+      ORDER BY created_at LIMIT 1
+    `) as unknown as Array<{ email: string }>;
+    clientEmail = rows[0]?.email ?? undefined;
+  } catch {
+    clientEmail = undefined;
+  }
+
   // Send email (editable template)
   if (firm) {
     const clearanceUrl = `${appUrl}/clearance/respond/${caseId}`;
@@ -73,7 +86,9 @@ export async function POST(req: NextRequest) {
         toName: prevFirmName,
         replyTo: firm.email,
         actionUrl: clearanceUrl,
-        // Clearance correspondence must not be CC'd to the firm's shared inbox.
+        // Firm policy: CC the client and info@ (info@ added centrally by the
+        // template CC map). No other shared inbox.
+        cc: clientEmail,
         noGlobalCc: true,
         vars: {
           companyName: clientName,
