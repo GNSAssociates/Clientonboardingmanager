@@ -4,6 +4,9 @@ import { getDb, insertClearanceRequest } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { getFirmByEntityId } from "@/lib/firms";
+import { buildClearanceDocx, clearanceDocFilename } from "@/lib/clearance-doc";
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export async function POST(req: NextRequest) {
   const session = getSession();
@@ -75,9 +78,20 @@ export async function POST(req: NextRequest) {
     clientEmail = undefined;
   }
 
-  // Send email (editable template)
+  // Send email with the formal clearance letter attached as a Word document.
+  // No portal link — the previous accountant just replies with the records.
   if (firm) {
-    const clearanceUrl = `${appUrl}/clearance/respond/${caseId}`;
+    void appUrl;
+    let attachments;
+    try {
+      const buffer = await buildClearanceDocx({
+        firm, clientName, companyNumber, prevFirmName, prevFirmAddress: prevFirmAddress || undefined,
+        docItems, today,
+      });
+      attachments = [{ filename: clearanceDocFilename(clientName), content: buffer, contentType: DOCX_MIME }];
+    } catch (e) {
+      console.error("Clearance .docx generation failed (sending without attachment):", e);
+    }
     try {
       await sendTemplatedMail({
         key: "prev_clearance_request",
@@ -85,11 +99,11 @@ export async function POST(req: NextRequest) {
         to: prevFirmEmail,
         toName: prevFirmName,
         replyTo: firm.email,
-        actionUrl: clearanceUrl,
         // Firm policy: CC the client and info@ (info@ added centrally by the
         // template CC map). No other shared inbox.
         cc: clientEmail,
         noGlobalCc: true,
+        attachments,
         vars: {
           companyName: clientName,
           companyNumber,

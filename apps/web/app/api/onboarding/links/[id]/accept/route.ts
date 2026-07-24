@@ -10,6 +10,7 @@ import {
 import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
+import { buildClearanceDocx, clearanceDocFilename } from "@/lib/clearance-doc";
 import { buildFirmNewClientEmail } from "@/lib/email-constants";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { setupDirectDebitMandate } from "@/lib/gocardless";
@@ -350,6 +351,25 @@ export async function POST(
 
     // EMAIL → PREVIOUS ACCOUNTANT: professional clearance request (editable template)
     if (!noPrevAccountant && prevEmail) {
+      void clearanceUrl;
+      let clearanceAttachments;
+      try {
+        const buffer = await buildClearanceDocx({
+          firm,
+          clientName: link.companyName ?? "",
+          companyNumber: link.companyNumber ?? undefined,
+          directorName: link.directorName ?? undefined,
+          prevFirmName: prevFirmName || "Previous Accountants",
+          today,
+        });
+        clearanceAttachments = [{
+          filename: clearanceDocFilename(link.companyName ?? "Client"),
+          content: buffer,
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }];
+      } catch (e) {
+        console.error("Clearance .docx generation failed (sending without attachment):", e);
+      }
       try {
         const r = await sendTemplatedMail({
           key: "prev_clearance_request",
@@ -358,7 +378,7 @@ export async function POST(
           to: prevEmail,
           toName: prevFirmName || "Previous Accountant",
           replyTo: firm.email,
-          actionUrl: clearanceUrl,
+          attachments: clearanceAttachments,
           // Firm policy: CC the client and info@ (info@ added centrally by the
           // template CC map) on the clearance request. No other shared inbox.
           cc: link.clientEmail || undefined,

@@ -94,9 +94,9 @@ export const EMAIL_TEMPLATES: TemplateDef[] = [
     defaultSubject: 'Professional Clearance Request — {companyName} ({companyNumber})',
     defaultBody:
       `<p>Dear Sirs,</p>
-       <p>We have been requested to act as accountants for {companyName} (Company No. {companyNumber}) and its director {directorName}. In connection with this, we are writing to enquire whether there are any professional reasons why we should not act.</p>
-       <p>Assuming there are none, we should be grateful if you would provide the books, records, tax information and online access relevant to the company (whichever are relevant), and confirm how the records will be transferred.</p>
-       <p>Thank you for your assistance in this matter for a smooth changeover.</p>`,
+       <p>We have been requested to act as accountants for {companyName} (Company No. {companyNumber}) and its director {directorName}, and are writing to enquire whether there are any professional reasons why we should not act.</p>
+       <p>Please find <strong>attached a letter</strong> setting out the information and records we require to ensure a smooth changeover. We should be grateful if you would simply reply to this email with the requested items at your convenience — there is no portal to log in to.</p>
+       <p>Thank you for your assistance in this matter.</p>`,
   },
   {
     key: 'prev_clearance_chase',

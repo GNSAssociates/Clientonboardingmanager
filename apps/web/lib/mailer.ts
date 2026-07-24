@@ -1,5 +1,11 @@
 import nodemailer from "nodemailer";
 
+export interface MailAttachment {
+  filename: string;
+  content: Buffer | string; // raw bytes (Buffer) or a string
+  contentType?: string;
+}
+
 export interface MailOptions {
   to: string;
   toName?: string;
@@ -8,6 +14,7 @@ export interface MailOptions {
   replyTo?: string;
   cc?: string;       // per-call CC (added alongside the global CC)
   noGlobalCc?: boolean; // suppress the firm-wide CC (e.g. internal notifications)
+  attachments?: MailAttachment[]; // e.g. the clearance .docx
 }
 
 export interface MailResult {
@@ -69,6 +76,9 @@ async function trySmtp(opts: MailOptions): Promise<void> {
     html: opts.html,
     ...(cc ? { cc } : {}),
     ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+    ...(opts.attachments?.length
+      ? { attachments: opts.attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
+      : {}),
   });
 }
 

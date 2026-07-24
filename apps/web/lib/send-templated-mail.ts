@@ -1,7 +1,7 @@
 import { getDb, getEmailTemplate, insertEmailLog } from "@gns/db";
 import { renderEmailTemplate, templateDef } from "@/lib/email-templates-lib";
 import { getFirm, type FirmConfig } from "@/lib/firms";
-import { sendMailResult, type MailResult } from "@/lib/mailer";
+import { sendMailResult, type MailResult, type MailAttachment } from "@/lib/mailer";
 
 /**
  * Send one of the editable transactional emails.
@@ -23,6 +23,8 @@ export async function sendTemplatedMail(args: {
   cc?: string;
   noGlobalCc?: boolean;
   replyTo?: string;
+  /** File attachments (e.g. the clearance .docx). */
+  attachments?: MailAttachment[];
   /** Onboarding link token — when given, the send is recorded in the email log
    * so staff can see exactly what was sent to this client and when. */
   token?: string;
@@ -80,6 +82,7 @@ export async function sendTemplatedMail(args: {
     cc: mergedCc,
     noGlobalCc: args.noGlobalCc,
     replyTo: args.replyTo,
+    attachments: args.attachments,
   });
 
   // Record what was actually sent, so staff can see the client's email history.
