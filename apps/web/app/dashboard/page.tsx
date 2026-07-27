@@ -11,6 +11,8 @@ interface UserInfo {
   displayName: string;
   roles: string[];
   isAdmin: boolean;
+  canManagePermissions?: boolean;
+  access?: { onboarding: boolean; invoice: boolean };
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -58,9 +60,11 @@ export default function DashboardPage() {
     );
   }
 
-  const canOnboard = user.isAdmin || user.roles.some((r) => CAN_ACCESS_ONBOARDING.includes(r));
-  const canInvoice = user.isAdmin || user.roles.some((r) => CAN_ACCESS_INVOICES.includes(r));
+  // Prefer the server-computed access (Partner panel); fall back to role rules.
+  const canOnboard = user.access ? user.access.onboarding : (user.isAdmin || user.roles.some((r) => CAN_ACCESS_ONBOARDING.includes(r)));
+  const canInvoice = user.access ? user.access.invoice : (user.isAdmin || user.roles.some((r) => CAN_ACCESS_INVOICES.includes(r)));
   const canManageStaff = user.isAdmin || user.roles.some((r) => CAN_MANAGE_STAFF.includes(r));
+  const canManagePermissions = user.canManagePermissions ?? (user.isAdmin || user.roles.includes('Partner'));
   const roleLabel = user.roles.map((r) => ROLE_LABELS[r] || r).join(', ') || 'Staff';
 
   return (
@@ -76,6 +80,18 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            {canManagePermissions && (
+              <Link
+                href="/dashboard/permissions"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg>
+                Permissions
+              </Link>
+            )}
             {canManageStaff && (
               <Link
                 href="/dashboard/staff"

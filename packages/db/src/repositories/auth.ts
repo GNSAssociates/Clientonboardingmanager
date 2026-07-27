@@ -7,6 +7,44 @@ import { roles } from "../schema/tenancy";
 
 const db = () => getDb();
 
+// ── Module access (Partner permissions panel) ─────────────────────────────────
+// A per-role toggle for which modules (Onboarding / Invoice Summarizer) a role
+// can reach. Stored in the `module_access` table. The app always falls back to
+// hard-coded role rules if this table is empty or unreadable, so it can never
+// lock anyone out.
+
+export async function getModuleAccessMap(): Promise<
+  Record<string, { onboarding: boolean; invoice: boolean }>
+> {
+  const rows = (await db().execute(sql`
+    SELECT role_name, can_onboarding, can_invoice FROM module_access
+  `)) as unknown as Array<{
+    role_name: string;
+    can_onboarding: boolean;
+    can_invoice: boolean;
+  }>;
+  const map: Record<string, { onboarding: boolean; invoice: boolean }> = {};
+  for (const r of rows) {
+    map[r.role_name] = { onboarding: !!r.can_onboarding, invoice: !!r.can_invoice };
+  }
+  return map;
+}
+
+export async function upsertModuleAccess(
+  entries: Array<{ role: string; onboarding: boolean; invoice: boolean }>,
+): Promise<void> {
+  for (const e of entries) {
+    await db().execute(sql`
+      INSERT INTO module_access (role_name, can_onboarding, can_invoice, updated_at)
+      VALUES (${e.role}, ${e.onboarding}, ${e.invoice}, now())
+      ON CONFLICT (role_name) DO UPDATE SET
+        can_onboarding = EXCLUDED.can_onboarding,
+        can_invoice = EXCLUDED.can_invoice,
+        updated_at = now()
+    `);
+  }
+}
+
 // ── User + credential operations ──────────────────────────────────────────────
 
 export async function findUserByEmail(email: string) {

@@ -1,16 +1,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { can } from "@gns/core";
 import { StaffNav } from "./_staff-nav";
 import { getSession } from "@/lib/auth/session";
+import { resolveModuleAccess } from "@/lib/auth/module-access";
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const session = getSession();
   if (!session) redirect("/login");
-  // Onboarding is senior-only. Junior staff are sent to the Invoice Summarizer,
+  // Onboarding access is governed by the Partner permissions panel (with a safe
+  // fallback to role rules). Anyone without it is sent to the Invoice Summarizer,
   // so they cannot reach the onboarding area even by typing the URL.
-  if (!can(session, "access_onboarding")) redirect("/invoices");
+  const access = await resolveModuleAccess(session);
+  if (!access.onboarding) redirect("/invoices");
 
   return (
     <div className="flex min-h-screen bg-gray-50">
