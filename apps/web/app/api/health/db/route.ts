@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import postgres from "postgres";
+import { createConnection } from "@gns/db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,8 +38,7 @@ function describe(url: string): string {
   }
 }
 
-const connect = (url: string) =>
-  postgres(url, { prepare: false, max: 1, idle_timeout: 5, connect_timeout: 10 });
+const connect = (url: string) => createConnection(url);
 
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -89,7 +88,7 @@ export async function GET(req: NextRequest) {
   const dst = connect(TARGET);
   try {
     const [v] = await dst`select version()`;
-    const versionText = String(v?.version ?? "").split(",")[0];
+    const versionText = String(v?.version ?? "").split(",")[0] ?? "";
     target.version = versionText;
     target.majorVersion = parseInt((versionText.match(/PostgreSQL (\d+)/) ?? [])[1] ?? "0", 10);
 

@@ -25,6 +25,20 @@ export function getDb(connectionString = process.env.DATABASE_URL): Database {
   return db;
 }
 
+/**
+ * A one-off connection to an arbitrary database, for migration tooling that has
+ * to talk to two databases at once (the live one and a new destination). Kept
+ * separate from the shared pool above; the caller must end() it.
+ */
+export function createConnection(connectionString: string) {
+  return postgres(connectionString, {
+    prepare: false,
+    max: 1,
+    idle_timeout: 5,
+    connect_timeout: 10,
+  });
+}
+
 export async function closeDb(): Promise<void> {
   if (client) {
     await client.end({ timeout: 5 });
