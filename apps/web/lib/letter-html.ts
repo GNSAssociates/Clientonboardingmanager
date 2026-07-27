@@ -232,22 +232,31 @@ export function buildLetterHtml(d: LetterData): string {
      Edge honour position:fixed on each page when printing / saving to PDF. */
   .print-header, .print-footer { display: none; }
   @media print {
+    /* Chrome and Edge drop every background colour unless this is set (their
+       "Background graphics" option is off by default), which silently removed
+       the accent rule, table fills and the highlight panels from the PDF. */
+    html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 0 !important; max-width: none !important; }
     table, .imp, .dd, .chbox, .sig, .parties-panel { page-break-inside: avoid; }
     h1, h2, h3 { page-break-after: avoid; }
-    .lh, .rule, .rule2, .meta { display: none !important; } /* replaced by running header */
+    /* Branding moves into the running header, but the date and the
+       confidentiality marking belong to the document and must stay visible. */
+    .lh, .rule, .rule2 { display: none !important; }
+    .meta { display: flex !important; margin-top: 0 !important; }
+    /* Both bands stay clear of the outer 10mm of the sheet, where the browser
+       prints its own page title / URL / page numbers. */
     .print-header {
-      display: flex; position: fixed; top: -18mm; left: 0; right: 0; height: 15mm;
+      display: flex; position: fixed; top: -13mm; left: 0; right: 0; height: 10mm;
       justify-content: space-between; align-items: center;
-      border-bottom: 2px solid ${f.accentColor}; padding-bottom: 4px;
+      border-bottom: 2px solid ${f.accentColor}; padding-bottom: 3px;
       font-family: 'Segoe UI', Arial, sans-serif;
     }
-    .print-header img { height: 12mm; }
+    .print-header img { height: 8mm; }
     .print-header .n { font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #1a1f2b; }
     .print-footer {
-      display: flex; position: fixed; bottom: -14mm; left: 0; right: 0; height: 10mm;
+      display: flex; position: fixed; bottom: -7mm; left: 0; right: 0; height: 7mm;
       justify-content: space-between; align-items: center;
-      border-top: 1px solid #d7dbe0; padding-top: 4px;
+      border-top: 1px solid #d7dbe0; padding-top: 3px;
       font-family: 'Segoe UI', Arial, sans-serif; font-size: 7.5px; color: #8a919c;
     }
   }

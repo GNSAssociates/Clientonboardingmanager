@@ -61,7 +61,21 @@ export async function GET(
   // ?pdf=1 → print-ready page: name the document (so the saved file is sensible)
   // and auto-open the browser's Save-as-PDF dialog on load.
   if (wantPdf) {
+    // Letters issued before the print fixes are stored in the database with the
+    // old stylesheet, so the corrections are re-applied here as a late override
+    // (last rule wins) — every letter prints correctly, not just new ones.
+    const printFix =
+      `<style>@media print{` +
+      `html,body{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}` +
+      `.lh,.rule,.rule2{display:none !important;}` +
+      `.meta{display:flex !important;margin-top:0 !important;}` +
+      `.print-header{top:-13mm !important;height:10mm !important;padding-bottom:3px !important;` +
+      `border-bottom:2px solid ${firm.accentColor} !important;}` +
+      `.print-header img{height:8mm !important;}` +
+      `.print-footer{bottom:-7mm !important;height:7mm !important;padding-top:3px !important;}` +
+      `}</style>`;
     const inject =
+      printFix +
       `<script>document.title=${JSON.stringify(baseName)};` +
       `window.addEventListener('load',function(){setTimeout(function(){try{window.print();}catch(e){}},400);});</script>`;
     const printHtml = html.includes("</body>") ? html.replace("</body>", `${inject}</body>`) : html + inject;
