@@ -473,8 +473,17 @@ export default function LoginPage() {
         input::placeholder { color: #b0a6c4; }
 
         .code-input {
-          font-size: 1.8rem !important; letter-spacing: 10px; text-align: center;
-          font-weight: 800; font-variant-numeric: tabular-nums;
+          font-size: 1.9rem !important; letter-spacing: 14px; text-align: center;
+          font-weight: 800; font-variant-numeric: tabular-nums; color: #4c1d95;
+          padding-left: 14px !important; min-height: 64px !important;
+          background: #f1ecfb !important; border: 0 !important; border-radius: 16px !important;
+          box-shadow: inset 5px 5px 11px rgba(160,142,205,0.55),
+                      inset -5px -5px 11px rgba(255,255,255,0.92) !important;
+        }
+        .code-input:focus {
+          box-shadow: inset 5px 5px 11px rgba(160,142,205,0.6),
+                      inset -5px -5px 11px rgba(255,255,255,0.96),
+                      0 0 0 3px rgba(139,91,224,0.18) !important;
         }
 
         .pw-wrap { position: relative; }
@@ -493,14 +502,36 @@ export default function LoginPage() {
         .row-check input { width: 16px; height: 16px; accent-color: #8b5cf6; }
         .row-check label { margin: 0; font-weight: 500; }
 
+        /* Glossy "liquid" button */
         .btn-primary {
-          width: 100%; min-height: 50px; margin-top: 18px; border: 0; border-radius: 12px;
-          color: #fff; font-weight: 800; font-size: 1rem; cursor: pointer;
-          background: linear-gradient(135deg, #6d5be0, #8b5cf6, #c026a8);
-          transition: opacity 200ms, transform 100ms;
-          box-shadow: 0 4px 16px rgba(109,91,224,0.3);
+          position: relative; overflow: hidden; isolation: isolate;
+          width: 100%; min-height: 52px; margin-top: 18px; border: 0; border-radius: 16px;
+          color: #fff; font-weight: 800; font-size: 1rem; cursor: pointer; letter-spacing: 0.2px;
+          background: linear-gradient(135deg, #7c6bf0 0%, #8b5cf6 45%, #c026a8 100%);
+          -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+          box-shadow: 0 8px 22px rgba(109,91,224,0.38),
+                      inset 0 1px 0 rgba(255,255,255,0.55),
+                      inset 0 -6px 14px rgba(76,29,149,0.35);
+          transition: transform 140ms ease, box-shadow 220ms ease, filter 220ms ease;
         }
-        .btn-primary:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+        /* the bright top sheen that gives the liquid-glass look */
+        .btn-primary::before {
+          content: ""; position: absolute; left: 6px; right: 6px; top: 4px; height: 44%;
+          border-radius: 14px 14px 40px 40px / 14px 14px 24px 24px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.05));
+          pointer-events: none; z-index: -1;
+        }
+        .btn-primary:hover:not(:disabled) {
+          transform: translateY(-2px); filter: saturate(1.08);
+          box-shadow: 0 12px 30px rgba(109,91,224,0.5),
+                      inset 0 1px 0 rgba(255,255,255,0.7),
+                      inset 0 -6px 14px rgba(76,29,149,0.4);
+        }
+        .btn-primary:active:not(:disabled) {
+          transform: translateY(0);
+          box-shadow: 0 4px 12px rgba(109,91,224,0.35),
+                      inset 0 2px 9px rgba(76,29,149,0.45);
+        }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .links { display: flex; justify-content: center; margin-top: 16px; }
