@@ -4,9 +4,9 @@ import { getDb, insertClearanceRequest } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { getFirmByEntityId } from "@/lib/firms";
-import { buildClearanceDocx, clearanceDocFilename } from "@/lib/clearance-doc";
+import { buildClearancePdf, clearancePdfFilename } from "@/lib/clearance-pdf";
 
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PDF_MIME = "application/pdf";
 
 export async function POST(req: NextRequest) {
   const session = getSession();
@@ -65,6 +65,25 @@ export async function POST(req: NextRequest) {
     })
   );
 
+  // The clearance letter is signed by the partner who issued this client's
+  // engagement letter, so both documents come from the same named partner.
+  // Falls back to the firm's default partner when no engagement is on file.
+  let actingPartner: string | undefined;
+  let engagementDirector: string | undefined;
+  try {
+    const rows = (await db.execute(sql`
+      SELECT letter_meta->>'partnerName' AS partner_name, director_name
+      FROM onboarding_links
+      WHERE client_id = ${clientId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `)) as unknown as Array<{ partner_name: string | null; director_name: string | null }>;
+    actingPartner = rows[0]?.partner_name ?? undefined;
+    engagementDirector = rows[0]?.director_name ?? undefined;
+  } catch {
+    actingPartner = undefined;
+  }
+
   // Client email (for CC on the clearance request) — first contact on the case.
   let clientEmail: string | undefined;
   try {
@@ -84,13 +103,13 @@ export async function POST(req: NextRequest) {
     void appUrl;
     let attachments;
     try {
-      const buffer = await buildClearanceDocx({
+      const buffer = await buildClearancePdf({
         firm, clientName, companyNumber, prevFirmName, prevFirmAddress: prevFirmAddress || undefined,
-        docItems, today,
+        directorName: engagementDirector, partnerName: actingPartner, docItems, today,
       });
-      attachments = [{ filename: clearanceDocFilename(clientName), content: buffer, contentType: DOCX_MIME }];
+      attachments = [{ filename: clearancePdfFilename(clientName), content: buffer, contentType: PDF_MIME }];
     } catch (e) {
-      console.error("Clearance .docx generation failed (sending without attachment):", e);
+      console.error("Clearance PDF generation failed (sending without attachment):", e);
     }
     try {
       await sendTemplatedMail({

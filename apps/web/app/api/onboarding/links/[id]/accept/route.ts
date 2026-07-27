@@ -10,7 +10,7 @@ import {
 import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
-import { buildClearanceDocx, clearanceDocFilename } from "@/lib/clearance-doc";
+import { buildClearancePdf, clearancePdfFilename } from "@/lib/clearance-pdf";
 import { buildFirmNewClientEmail } from "@/lib/email-constants";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { setupDirectDebitMandate } from "@/lib/gocardless";
@@ -354,21 +354,23 @@ export async function POST(
       void clearanceUrl;
       let clearanceAttachments;
       try {
-        const buffer = await buildClearanceDocx({
+        const buffer = await buildClearancePdf({
           firm,
           clientName: link.companyName ?? "",
           companyNumber: link.companyNumber ?? undefined,
           directorName: link.directorName ?? undefined,
           prevFirmName: prevFirmName || "Previous Accountants",
+          // Signed by the partner who issued this client's engagement letter.
+          partnerName: meta.partnerName,
           today,
         });
         clearanceAttachments = [{
-          filename: clearanceDocFilename(link.companyName ?? "Client"),
+          filename: clearancePdfFilename(link.companyName ?? "Client"),
           content: buffer,
-          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          contentType: "application/pdf",
         }];
       } catch (e) {
-        console.error("Clearance .docx generation failed (sending without attachment):", e);
+        console.error("Clearance PDF generation failed (sending without attachment):", e);
       }
       try {
         const r = await sendTemplatedMail({

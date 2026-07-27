@@ -17,6 +17,10 @@ export interface FirmConfig {
   regBody: string;
   regBodies: string[];
   regStatement: string;
+  /** Letterhead strap-line (defaults to "Truly Professional"). */
+  tagline?: string;
+  /** Practising registration number shown in the letterhead, e.g. ACCA 5371891. */
+  regNumber?: string;
   partnerName: string;
   partnerName2?: string;
   partnerTitle: string;
@@ -79,6 +83,8 @@ export const FIRMS: Record<string, FirmConfig> = {
     regBody: 'ACCA',
     regBodies: ['ACCA'],
     regStatement: 'GNS Associates UK LLP, Chartered Certified Accountants (ACCA). A Limited Liability Partnership registered in England and Wales, Registration No: OC428532.',
+    tagline: 'Truly Professional',
+    regNumber: '5371891',
     partnerName: 'Subash Ghimire',
     partnerDesignation: 'ACCA, MBA',
     partnerName2: 'Mahesh Giri',
