@@ -8,21 +8,32 @@
  * Built with pdf-lib (pure JS, no native binaries) so it runs on the cPanel /
  * Passenger host, where the React-PDF renderer could not be loaded.
  *
- * Layout follows the firm's letterhead: logo + tagline header and the practice
- * details footer repeated on every page, and the acting partner's own scanned
- * signature — the partner who issued the engagement letter to that client.
+ * Each firm gets its own letterhead — accent colour, legal name, practising
+ * registration and the professional-body badges it is entitled to — and the
+ * letter is signed by the partner who issued that client's engagement letter,
+ * using their own scanned signature.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
 import type { FirmConfig } from "./firms";
 import { GNS_LOGO_DATA_URI, GNS_SIGNATURE_DATA_URI } from "./brand-assets";
 import { SG_SIGNATURE_DATA_URI } from "./sg-signature";
 import { MG_SIGNATURE_DATA_URI } from "./mg-signature";
+import { ACCA_LOGO_DATA_URI } from "./acca-logo";
+import { ICAEW_LOGO_DATA_URI } from "./icaew-logo";
+import { CIOT_LOGO_DATA_URI } from "./ciot-logo";
 
 /** Each partner signs with their own signature (same map as the engagement letter). */
 const PARTNER_SIGNATURES: Record<string, string> = {
   "Lekh Nath Ghimire": GNS_SIGNATURE_DATA_URI,
   "Subash Ghimire": SG_SIGNATURE_DATA_URI,
   "Mahesh Giri": MG_SIGNATURE_DATA_URI,
+};
+
+/** Badges shown in the footer, driven by each firm's regBodies. */
+const BODY_BADGES: Record<string, string> = {
+  ACCA: ACCA_LOGO_DATA_URI,
+  ICAEW: ICAEW_LOGO_DATA_URI,
+  CIOT: CIOT_LOGO_DATA_URI,
 };
 
 export interface ClearancePdfInput {
@@ -43,24 +54,35 @@ export interface ClearancePdfInput {
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN_X = 56;
-const HEADER_TOP = PAGE_H - 34;
-const HEADER_H = 54;
-const BODY_TOP = PAGE_H - HEADER_H - 40;
-const FOOTER_H = 56;
-const BODY_BOTTOM = FOOTER_H + 16;
 const CONTENT_W = PAGE_W - MARGIN_X * 2;
+
+// Header: logo and strap-line sit above the rule, never across it.
+const LOGO_TOP = PAGE_H - 28;
+const LOGO_H = 32;
+const TAGLINE_Y = PAGE_H - 44;
+const REGLINE_Y = PAGE_H - 57;
+const HEADER_RULE_Y = PAGE_H - 70;
+const BODY_TOP = PAGE_H - 98;
+
+// Footer: separator, professional-body badges, then the practice details.
+const FOOTER_RULE_Y = 70;
+const BADGE_Y = 50;
+const BADGE_H = 14;
+const FOOTER_TEXT_Y = 39;
+const BODY_BOTTOM = FOOTER_RULE_Y + 16;
 
 const BODY_SIZE = 10.5;
 const LINE = 14;
 const GREY = rgb(0.42, 0.45, 0.5);
 const INK = rgb(0.11, 0.13, 0.17);
+const HAIRLINE = rgb(0.84, 0.86, 0.88);
 
 const DEFAULT_RECORDS = [
-  "Copies of the bookkeeping files / working papers for the current tax year for the company.",
-  "Previous year profit and loss and balance sheet ledgers with a detailed breakdown.",
-  "Current year's year-to-date trial balance, up to the date you have completed bookkeeping for the client.",
-  "Detailed profit and loss and balance sheet, schedules, capital allowances record, director's loan account and details of s455 tax (if relevant) for the last 2 tax years as filed with HMRC and Companies House.",
-  "Copies of the director's last 2 years' personal tax returns, together with any P60s / P45s relevant to a return not yet filed.",
+  "Copies of the bookkeeping files and working papers for the current tax year.",
+  "Previous year profit and loss and balance sheet ledgers, with a detailed breakdown.",
+  "Current year's year-to-date trial balance, up to the date bookkeeping was completed.",
+  "Detailed profit and loss and balance sheet, schedules, capital allowances record, director's loan account and details of s455 tax where relevant, for the last two tax years as filed with HMRC and Companies House.",
+  "Copies of the director's last two years' personal tax returns, together with any P60s or P45s relevant to a return not yet filed.",
 ];
 
 const TAX_REFERENCES = [
@@ -72,10 +94,10 @@ const TAX_REFERENCES = [
 ];
 
 const PAYROLL_ITEMS = [
-  "Current year payroll up to the last filed RTI period, showing gross, tax, NI, employer NI and pension (staff details, P11 deductions workings and RTI filings).",
-  "Copies of the previous 2 years' P60s / P45s and a complete payroll report showing gross, tax, NI, employer NI and pension, as required for preparing the year-end accounts.",
+  "Current year payroll up to the last filed RTI period, showing gross, tax, NI, employer NI and pension, together with staff details, P11 deductions workings and RTI filings.",
+  "Copies of the previous two years' P60s and P45s, and a complete payroll report showing gross, tax, NI, employer NI and pension, as required for preparing the year-end accounts.",
   "Details of statutory payments such as SSP and SMP paid to employees.",
-  "VAT returns submitted for the last four quarters with a detailed breakdown of input and output VAT and the respective net figures (if online software access is not provided).",
+  "VAT returns submitted for the last four quarters, with a breakdown of input and output VAT and the respective net figures, where online software access is not provided.",
   "Copies of recent correspondence with HM Revenue & Customs and details of any outstanding matters.",
 ];
 
@@ -86,7 +108,7 @@ function sanitize(text: string): string {
     .replace(/[“”]/g, '"')
     .replace(/[–—]/g, "-")
     .replace(/…/g, "...")
-    .replace(/ /g, " ")
+    .replace(/ /g, " ")
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
 }
 
@@ -129,7 +151,6 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
       continue;
     }
     if (line) lines.push(line);
-    // A single word longer than the column: hard-break it.
     if (font.widthOfTextAtSize(word, size) > maxWidth) {
       let chunk = "";
       for (const ch of word) {
@@ -174,54 +195,67 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
   const logo = await embedDataUri(pdf, GNS_LOGO_DATA_URI);
   const signature = await embedDataUri(pdf, PARTNER_SIGNATURES[partner] ?? GNS_SIGNATURE_DATA_URI);
 
+  // Only the bodies this firm is registered with.
+  const badges: PDFImage[] = [];
+  for (const body of firm.regBodies ?? []) {
+    const uri = BODY_BADGES[body.toUpperCase()];
+    if (!uri) continue;
+    const img = await embedDataUri(pdf, uri);
+    if (img) badges.push(img);
+  }
+
   let page!: PDFPage;
   let y = 0;
 
   const drawFurniture = (p: PDFPage) => {
-    // Header — logo left, tagline and registration right.
+    // ── Header ────────────────────────────────────────────────────────────────
     if (logo) {
-      const h = 34;
-      const w = (logo.width / logo.height) * h;
-      p.drawImage(logo, { x: MARGIN_X, y: HEADER_TOP - h, width: w, height: h });
+      const w = (logo.width / logo.height) * LOGO_H;
+      p.drawImage(logo, { x: MARGIN_X, y: LOGO_TOP - LOGO_H, width: w, height: LOGO_H });
     }
-    const tagline = firm.tagline ?? "Truly Professional";
-    p.drawText(sanitize(tagline), {
-      x: PAGE_W - MARGIN_X - italic.widthOfTextAtSize(sanitize(tagline), 11),
-      y: HEADER_TOP - 14,
+    const tagline = sanitize(firm.tagline ?? "Truly Professional");
+    p.drawText(tagline, {
+      x: PAGE_W - MARGIN_X - italic.widthOfTextAtSize(tagline, 11),
+      y: TAGLINE_Y,
       size: 11,
       font: italic,
       color: accent,
     });
-    if (firm.regNumber) {
-      const reg = `(${firm.regBody} Registration No. ${firm.regNumber})`;
-      p.drawText(sanitize(reg), {
-        x: PAGE_W - MARGIN_X - font.widthOfTextAtSize(sanitize(reg), 7.5),
-        y: HEADER_TOP - 27,
-        size: 7.5,
-        font,
-        color: GREY,
-      });
-    }
-    p.drawRectangle({
-      x: MARGIN_X,
-      y: PAGE_H - HEADER_H - 6,
-      width: CONTENT_W,
-      height: 1.6,
-      color: accent,
+    // Practising registration, when the firm has one on file.
+    const reg = firm.regNumber
+      ? `${firm.regBody} Registration No. ${firm.regNumber}`
+      : `Registered in England and Wales No. ${firm.companyNumber}`;
+    p.drawText(sanitize(reg), {
+      x: PAGE_W - MARGIN_X - font.widthOfTextAtSize(sanitize(reg), 7.5),
+      y: REGLINE_Y,
+      size: 7.5,
+      font,
+      color: GREY,
     });
+    p.drawRectangle({ x: MARGIN_X, y: HEADER_RULE_Y, width: CONTENT_W, height: 1.6, color: accent });
 
-    // Footer — practice details, centred.
+    // ── Footer ────────────────────────────────────────────────────────────────
+    p.drawRectangle({ x: MARGIN_X, y: FOOTER_RULE_Y, width: CONTENT_W, height: 0.6, color: HAIRLINE });
+    if (badges.length) {
+      const gap = 14;
+      const sizes = badges.map((b) => ({ img: b, w: (b.width / b.height) * BADGE_H }));
+      const total = sizes.reduce((sum, s) => sum + s.w, 0) + gap * (sizes.length - 1);
+      let x = (PAGE_W - total) / 2;
+      for (const s of sizes) {
+        p.drawImage(s.img, { x, y: BADGE_Y, width: s.w, height: BADGE_H });
+        x += s.w + gap;
+      }
+    }
     const lines = [
       `${firm.legalName}, Registered in England and Wales, Company Registration No: ${firm.companyNumber}`,
       `${firm.address}, ${firm.city}, ${firm.postcode}`,
       `t: ${firm.footerTel} | m: ${firm.footerMobile} | ${firm.email} | ${firm.website}`,
     ];
-    p.drawRectangle({ x: MARGIN_X, y: FOOTER_H + 2, width: CONTENT_W, height: 0.6, color: rgb(0.84, 0.86, 0.88) });
     lines.forEach((line, i) => {
       const t = sanitize(line);
       p.drawText(t, {
         x: (PAGE_W - font.widthOfTextAtSize(t, 7.2)) / 2,
-        y: FOOTER_H - 10 - i * 9.5,
+        y: FOOTER_TEXT_Y - i * 9.5,
         size: 7.2,
         font,
         color: GREY,
@@ -235,20 +269,18 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
     y = BODY_TOP;
   };
 
-  /** Reserve vertical space, breaking to a new page when the block will not fit. */
   const need = (height: number) => {
     if (y - height < BODY_BOTTOM) newPage();
   };
 
   const text = (
     value: string,
-    opts: { font?: PDFFont; size?: number; color?: RGB; indent?: number; gap?: number; width?: number } = {},
+    opts: { font?: PDFFont; size?: number; color?: RGB; indent?: number; gap?: number } = {},
   ) => {
     const f = opts.font ?? font;
     const size = opts.size ?? BODY_SIZE;
     const indent = opts.indent ?? 0;
-    const lines = wrap(value, f, size, (opts.width ?? CONTENT_W) - indent);
-    for (const line of lines) {
+    for (const line of wrap(value, f, size, CONTENT_W - indent)) {
       need(LINE);
       page.drawText(line, { x: MARGIN_X + indent, y, size, font: f, color: opts.color ?? INK });
       y -= LINE;
@@ -256,38 +288,47 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
     y -= opts.gap ?? 0;
   };
 
-  const bullet = (value: string) => {
-    const label = sanitize(value);
-    if (!label) return;
-    const lines = wrap(label, font, BODY_SIZE, CONTENT_W - 16);
-    need(LINE * Math.min(lines.length, 3));
-    lines.forEach((line, i) => {
-      need(LINE);
-      if (i === 0) page.drawText("•", { x: MARGIN_X + 3, y, size: BODY_SIZE, font, color: accent });
-      page.drawText(line, { x: MARGIN_X + 16, y, size: BODY_SIZE, font, color: INK });
-      y -= LINE;
-    });
+  // Numbered so the previous accountant can reply item by item ("re. 2.3").
+  let sectionNo = 0;
+  const section = (title: string) => {
+    sectionNo += 1;
+    need(LINE * 3);
+    y -= 8;
+    const label = `${sectionNo}.`;
+    page.drawText(label, { x: MARGIN_X, y, size: 10.5, font: bold, color: accent });
+    page.drawText(sanitize(title), { x: MARGIN_X + 18, y, size: 10.5, font: bold, color: accent });
+    y -= 4;
+    page.drawRectangle({ x: MARGIN_X, y: y + 2, width: CONTENT_W, height: 0.5, color: HAIRLINE });
+    y -= LINE - 2;
+    return 0;
   };
 
-  const heading = (value: string) => {
-    need(LINE * 3);
-    y -= 6;
-    page.drawText(sanitize(value), { x: MARGIN_X, y, size: 10.5, font: bold, color: accent });
-    y -= LINE;
+  const numbered = (items: string[]) => {
+    items.forEach((item, i) => {
+      const label = `${sectionNo}.${i + 1}`;
+      const lines = wrap(item, font, BODY_SIZE, CONTENT_W - 34);
+      need(LINE * Math.min(lines.length, 3));
+      lines.forEach((line, li) => {
+        need(LINE);
+        if (li === 0) page.drawText(label, { x: MARGIN_X + 4, y, size: BODY_SIZE, font, color: accent });
+        page.drawText(line, { x: MARGIN_X + 34, y, size: BODY_SIZE, font, color: INK });
+        y -= LINE;
+      });
+    });
   };
 
   newPage();
 
   // ── Recipient ───────────────────────────────────────────────────────────────
-  text("PRIVATE & CONFIDENTIAL", { font: bold, size: 9.5, color: accent, gap: 8 });
+  text("PRIVATE & CONFIDENTIAL", { font: bold, size: 9.5, color: accent, gap: 10 });
   text(prevFirmName, { font: bold });
   if (prevFirmAddress) {
     for (const line of prevFirmAddress.split(/\r?\n|,\s*/).map((s) => s.trim()).filter(Boolean)) {
       text(line);
     }
   }
-  y -= 8;
-  text(today, { color: GREY, gap: 10 });
+  y -= 10;
+  text(today, { color: GREY, gap: 12 });
 
   // ── Subject ─────────────────────────────────────────────────────────────────
   const subject = [
@@ -303,54 +344,71 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
   // ── Body ────────────────────────────────────────────────────────────────────
   text("Dear Sirs,", { gap: 8 });
   text(
-    `We have been requested to act as accountants for the above${directorName ? " (individual and company)" : ""}. In connection with this, we are writing to enquire whether there are any professional reasons why we should not accept the appointment.`,
+    `We have been requested to act as accountants for the above${directorName ? " individual and company" : ""}. In connection with this, we are writing to enquire whether there are any professional reasons why we should not accept the appointment.`,
     { gap: 8 },
   );
   text(
-    "Assuming there are no such matters, we should be grateful if you would provide us with the following information, whichever are relevant:",
-    { gap: 4 },
+    "Assuming there are no such matters, we should be grateful if you would provide the following information, whichever are relevant. Please quote the item number when replying.",
+    { gap: 2 },
   );
 
   const selected = (docItems ?? []).map(itemLabel).filter(Boolean);
 
-  heading("Records and working papers");
-  (selected.length ? selected : DEFAULT_RECORDS).forEach(bullet);
+  section("Records and working papers");
+  numbered(selected.length ? selected : DEFAULT_RECORDS);
 
-  heading("Online access and software");
-  bullet(`MTD-compatible software - please send an invitation to ${firm.mtdEmail}.`);
-  bullet("HMRC and Companies House login details, if created on the client's behalf.");
-  bullet(
+  section("Online access and software");
+  numbered([
+    `MTD-compatible software - please send an invitation to ${firm.mtdEmail}.`,
+    "HMRC and Companies House login details, if created on the client's behalf.",
     `NEST pension - please delegate access using Organisation Name: ${firm.nestOrgName}, Delegate Organisation ID: ${firm.nestDelegateId}.`,
-  );
+  ]);
 
-  heading("Tax reference numbers and codes");
-  TAX_REFERENCES.forEach(bullet);
+  section("Tax reference numbers and codes");
+  numbered(TAX_REFERENCES);
 
-  heading("Payroll, RTI and pensions");
-  PAYROLL_ITEMS.forEach(bullet);
+  section("Payroll, RTI and pensions");
+  numbered(PAYROLL_ITEMS);
 
-  y -= 10;
-  text("Thank you for your assistance in this matter, which will allow a smooth changeover.", { gap: 10 });
+  y -= 12;
+  text("Thank you for your assistance in this matter, which will allow a smooth changeover.", { gap: 12 });
 
   // ── Signature ───────────────────────────────────────────────────────────────
-  const signatureBlock = 96;
-  need(signatureBlock);
-  text("Kind regards,", { gap: 4 });
+  need(112);
+  text("Yours faithfully,", { gap: 6 });
   if (signature) {
-    const h = 42;
-    const w = Math.min((signature.width / signature.height) * h, 190);
-    need(h + 6);
+    const h = 40;
+    const w = Math.min((signature.width / signature.height) * h, 180);
+    need(h + 8);
     y -= h;
     page.drawImage(signature, { x: MARGIN_X, y, width: w, height: h });
-    y -= 8;
+    y -= 6;
   } else {
-    y -= 26;
+    y -= 28;
   }
-  text(partner, { font: bold, size: 11 });
+  page.drawRectangle({ x: MARGIN_X, y: y + 6, width: 150, height: 0.6, color: HAIRLINE });
+  y -= 4;
+  text(partner, { font: bold, size: 11.5 });
   const designation = partner === firm.partnerName ? firm.partnerDesignation : firm.partnerDesignation2;
-  if (designation) text(designation, { size: 8.5, color: GREY });
-  text(firm.partnerTitle && firm.partnerTitle !== "Partner" ? firm.partnerTitle : "Partner", { size: 9.5, color: GREY });
-  text(firm.legalName, { size: 9.5, color: GREY });
+  if (designation) text(designation, { font: italic, size: 8.5, color: accent });
+  y -= 2;
+  text("Partner", { size: 9.5, color: INK });
+  text(`For and on behalf of ${firm.legalName}`, { font: italic, size: 9, color: GREY });
+
+  // Page numbers, once the total is known.
+  const pages = pdf.getPages();
+  if (pages.length > 1) {
+    pages.forEach((p, i) => {
+      const label = sanitize(`Page ${i + 1} of ${pages.length}`);
+      p.drawText(label, {
+        x: PAGE_W - MARGIN_X - font.widthOfTextAtSize(label, 7),
+        y: FOOTER_RULE_Y + 6,
+        size: 7,
+        font,
+        color: GREY,
+      });
+    });
+  }
 
   const bytes = await pdf.save();
   return Buffer.from(bytes);
