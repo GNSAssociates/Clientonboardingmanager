@@ -45,7 +45,9 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!can(session, "manage_permissions")) {
+  // Same gate as GET: Admin or Partner. (Admin could previously VIEW the panel
+  // but not save — inconsistent, and the firm's admin account runs the demo.)
+  if (!(session.isAdmin || can(session, "manage_permissions"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
