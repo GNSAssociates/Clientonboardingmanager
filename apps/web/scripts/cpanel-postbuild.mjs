@@ -3,7 +3,7 @@
 // output doesn't include on its own (per Next.js docs): the static assets
 // folder and the public folder. Run this once, right after the build,
 // before pointing cPanel's Node.js App at the standalone server.js.
-import { cpSync, existsSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,6 +44,29 @@ writeFileSync(
   ].join("\n"),
 );
 console.log("Wrote loader.cjs (cPanel Passenger entry shim)");
+
+// Operator scripts (database probe / migration). They ship inside the bundle and
+// are registered as npm scripts so they can be launched from cPanel's Node.js
+// App screen with "Run JS script" — no SSH needed, and they run on the server,
+// where the cPanel PostgreSQL host is reachable on localhost.
+const opsDir = path.join(appDir, "scripts/cpanel");
+const opsScripts = {};
+if (existsSync(opsDir)) {
+  for (const file of readdirSync(opsDir).filter((f) => f.endsWith(".cjs"))) {
+    cpSync(path.join(opsDir, file), path.join(standaloneAppDir, file));
+    opsScripts[`db:${path.basename(file, ".cjs").replace(/^db-/, "")}`] = `node ${file}`;
+    console.log(`Copied scripts/cpanel/${file} -> standalone/${file}`);
+  }
+}
+if (Object.keys(opsScripts).length) {
+  // Next writes a minimal package.json for the standalone server; merge the
+  // operator scripts into it so cPanel lists them.
+  const pkgPath = path.join(standaloneAppDir, "package.json");
+  const pkg = existsSync(pkgPath) ? JSON.parse(readFileSync(pkgPath, "utf8")) : {};
+  pkg.scripts = { ...(pkg.scripts ?? {}), ...opsScripts };
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+  console.log(`Registered npm scripts: ${Object.keys(opsScripts).join(", ")}`);
+}
 
 // Touching tmp/restart.txt tells Passenger/LiteSpeed to restart the app on the
 // next request — so an FTP deploy that updates this file restarts the app
