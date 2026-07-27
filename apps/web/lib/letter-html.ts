@@ -267,6 +267,13 @@ export function buildLetterHtml(d: LetterData): string {
   h2 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase;
        color: ${f.accentColor}; margin: 30px 0 10px; padding-bottom: 5px; border-bottom: 1px solid #e3e6ea; font-weight: 700; }
   h3 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1f2b; margin: 18px 0 6px; font-weight: 700; }
+
+  /* Number the main clauses so they can be cross-referenced ("clause 5, Data
+     Protection"). The annex and the signed-copy panels carry inline styling and
+     are excluded; the terms of business keep their own 1-16 numbering. */
+  .page { counter-reset: clause-section; }
+  h2:not([style]):not(.sans) { counter-increment: clause-section; }
+  h2:not([style]):not(.sans)::before { content: counter(clause-section) ". "; }
   p { margin: 0 0 11px; text-align: justify; }
 
   /* Auto-numbered paragraphs within schedule sections */
