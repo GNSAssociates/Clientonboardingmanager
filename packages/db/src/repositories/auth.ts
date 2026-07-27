@@ -123,6 +123,7 @@ export async function createUserWithCredentials(data: {
       status: "active",
     })
     .returning();
+  if (!user) throw new Error("Failed to create user");
   await db().insert(userCredentials).values({
     userId: user.id,
     passwordHash: data.passwordHash,
@@ -229,11 +230,12 @@ export async function verify2FACode(userId: string, code: string) {
       ),
     )
     .limit(1);
-  if (rows.length === 0) return false;
+  const row = rows[0];
+  if (!row) return false;
   await db()
     .update(twoFactorCodes)
     .set({ used: true, updatedAt: new Date() })
-    .where(eq(twoFactorCodes.id, rows[0].id));
+    .where(eq(twoFactorCodes.id, row.id));
   return true;
 }
 

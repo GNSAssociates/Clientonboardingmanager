@@ -28,7 +28,7 @@ const fromEmail = process.env.MAIL_FROM_EMAIL ?? "info@gnsassociates.co.uk";
 // Blanket CC is DISABLED — the practice does not want every email copied to a
 // shared inbox. CC is now applied per-event only (see send-templated-mail.ts),
 // e.g. info@ on engagement-sent and previous-accountant clearance emails.
-const globalCc = "";
+const globalCc: string = "";
 
 // Build the CC list for a send: the global CC plus any per-call CC, de-duped,
 // excluding the recipient to avoid an obvious double.

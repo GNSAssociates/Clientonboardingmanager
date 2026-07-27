@@ -19,7 +19,7 @@ function shuffled<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
 }
@@ -164,8 +164,8 @@ export default function LoginPage() {
             {lit ? 'Light on — pull again to switch off' : 'Pull the cord to sign in ↑'}
           </div>
           <div className="quote" style={{ opacity: quoteFade ? 1 : 0 }}>
-            <p>&ldquo;{quotes[quoteIdx][0]}&rdquo;</p>
-            <span>&mdash; {quotes[quoteIdx][1]}</span>
+            <p>&ldquo;{quotes[quoteIdx]?.[0]}&rdquo;</p>
+            <span>&mdash; {quotes[quoteIdx]?.[1]}</span>
           </div>
         </div>
 

@@ -244,7 +244,7 @@ export default function StaffManagementPage() {
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
                         s.status === 'active' ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white' : 'bg-gray-200 text-gray-500'
                       }`}>
-                        {(s.displayName || s.email)[0].toUpperCase()}
+                        {(s.displayName || s.email).charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{s.displayName || s.email}</p>
