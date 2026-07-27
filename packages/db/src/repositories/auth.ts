@@ -47,6 +47,16 @@ export async function upsertModuleAccess(
 
 // ── User + credential operations ──────────────────────────────────────────────
 
+/** Look up just the email for a user id (used to build the invoice-app SSO token). */
+export async function getUserEmailById(userId: string): Promise<string | null> {
+  const rows = await db()
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0]?.email ?? null;
+}
+
 export async function findUserByEmail(email: string) {
   const rows = await db()
     .select({

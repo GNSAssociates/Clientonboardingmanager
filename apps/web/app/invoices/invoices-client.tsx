@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 
-export default function InvoicesClient({ serviceUrl }: { serviceUrl: string }) {
+export default function InvoicesClient({ serviceUrl, embedUrl }: { serviceUrl: string; embedUrl?: string }) {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,9 @@ export default function InvoicesClient({ serviceUrl }: { serviceUrl: string }) {
     );
   }
 
-  const invoiceUrl = serviceUrl || null;
+  // Presence of serviceUrl decides whether the app is configured; embedUrl (with
+  // the SSO token) is what the iframe actually loads.
+  const invoiceUrl = serviceUrl ? (embedUrl || serviceUrl) : null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
