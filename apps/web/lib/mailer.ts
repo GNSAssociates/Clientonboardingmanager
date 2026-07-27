@@ -25,6 +25,9 @@ export interface MailResult {
 
 const fromName = process.env.MAIL_FROM_NAME ?? "GNS Associates";
 const fromEmail = process.env.MAIL_FROM_EMAIL ?? "info@gnsassociates.co.uk";
+// When sending via the host mailbox (noreply@practiceagents.co.uk), replies
+// should still reach the practice inbox. Applied when a send sets no replyTo.
+const defaultReplyTo = process.env.MAIL_REPLY_TO ?? "info@gnsassociates.co.uk";
 // Blanket CC is DISABLED — the practice does not want every email copied to a
 // shared inbox. CC is now applied per-event only (see send-templated-mail.ts),
 // e.g. info@ on engagement-sent and previous-accountant clearance emails.
@@ -168,6 +171,8 @@ async function tryResend(opts: MailOptions): Promise<void> {
  * for diagnostics. Set MAIL_PROVIDER_ORDER (comma-separated) to change order.
  */
 export async function sendMailResult(opts: MailOptions): Promise<MailResult> {
+  // Every send replies to the practice inbox unless a caller overrides it.
+  opts = { ...opts, replyTo: opts.replyTo ?? defaultReplyTo };
   const smtp2goKey = process.env.SMTP2GO_API_KEY?.trim();
   const smtpHost = process.env.SMTP_HOST?.trim();
   const brevoKey = process.env.BREVO_API_KEY?.trim();
