@@ -34,6 +34,10 @@ export async function GET(req: NextRequest) {
   }
 
   const cfg = {
+    graph: {
+      ready: !!(process.env.ENTRA_TENANT_ID?.trim() && process.env.ENTRA_CLIENT_ID?.trim() && process.env.ENTRA_CLIENT_SECRET?.trim()),
+      sender: process.env.GRAPH_MAIL_SENDER ?? process.env.MAIL_FROM_EMAIL ?? "info@gnsassociates.co.uk",
+    },
     smtp: {
       host: !!process.env.SMTP_HOST?.trim(),
       port: process.env.SMTP_PORT ?? "(default 587)",

@@ -28,7 +28,7 @@ export function isOneDriveConfigured(): boolean {
   );
 }
 
-async function getGraphToken(): Promise<string | null> {
+export async function getGraphToken(): Promise<string | null> {
   const tenant = process.env.ENTRA_TENANT_ID?.trim();
   const clientId = process.env.ENTRA_CLIENT_ID?.trim();
   const secret = process.env.ENTRA_CLIENT_SECRET?.trim();

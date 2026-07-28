@@ -19,7 +19,7 @@ export interface MailOptions {
 
 export interface MailResult {
   ok: boolean;
-  provider: "smtp2go" | "smtp" | "brevo" | "resend" | "none";
+  provider: "graph" | "smtp2go" | "smtp" | "brevo" | "resend" | "none";
   error?: string;
 }
 
@@ -42,6 +42,53 @@ function ccFor(opts: MailOptions): string | undefined {
   if (opts.cc) opts.cc.split(",").forEach((c) => c.trim() && set.add(c.trim().toLowerCase()));
   set.delete(opts.to.trim().toLowerCase());
   return set.size ? [...set].join(", ") : undefined;
+}
+
+// Microsoft Graph sendMail (HTTPS). Sends AS the mailbox (info@gnsassociates.co.uk)
+// through Microsoft's own servers, so it sidesteps the host's outbound-SMTP block
+// AND is fully SPF/DKIM authenticated by the M365 tenant — mail lands in the inbox,
+// not junk. Reuses the Entra app registration already set up for OneDrive; that
+// registration needs the Application permission **Mail.Send** (admin-consented).
+async function tryGraph(opts: MailOptions): Promise<void> {
+  const { getGraphToken } = await import("@/lib/onedrive");
+  const token = await getGraphToken();
+  if (!token) throw new Error("Graph token unavailable (check ENTRA_* env)");
+
+  const sender = (process.env.GRAPH_MAIL_SENDER || fromEmail).trim();
+  const cc = ccFor(opts);
+  const message: Record<string, unknown> = {
+    subject: opts.subject,
+    body: { contentType: "HTML", content: opts.html },
+    toRecipients: [{ emailAddress: { address: opts.to, ...(opts.toName ? { name: opts.toName } : {}) } }],
+    ...(cc ? { ccRecipients: cc.split(",").map((a) => ({ emailAddress: { address: a.trim() } })) } : {}),
+    ...(opts.replyTo ? { replyTo: [{ emailAddress: { address: opts.replyTo } }] } : {}),
+    ...(opts.attachments?.length
+      ? {
+          attachments: opts.attachments.map((a) => ({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            name: a.filename,
+            ...(a.contentType ? { contentType: a.contentType } : {}),
+            contentBytes: Buffer.isBuffer(a.content)
+              ? a.content.toString("base64")
+              : Buffer.from(a.content).toString("base64"),
+          })),
+        }
+      : {}),
+  };
+
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message, saveToSentItems: true }),
+    },
+  );
+  // Graph returns 202 Accepted with an empty body on success.
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Graph ${res.status}: ${body.slice(0, 300) || "sendMail failed"}`);
+  }
 }
 
 async function trySmtp(opts: MailOptions): Promise<void> {
@@ -173,21 +220,24 @@ async function tryResend(opts: MailOptions): Promise<void> {
 export async function sendMailResult(opts: MailOptions): Promise<MailResult> {
   // Every send replies to the practice inbox unless a caller overrides it.
   opts = { ...opts, replyTo: opts.replyTo ?? defaultReplyTo };
+  const graphReady = !!(process.env.ENTRA_TENANT_ID?.trim() && process.env.ENTRA_CLIENT_ID?.trim() && process.env.ENTRA_CLIENT_SECRET?.trim());
   const smtp2goKey = process.env.SMTP2GO_API_KEY?.trim();
   const smtpHost = process.env.SMTP_HOST?.trim();
   const brevoKey = process.env.BREVO_API_KEY?.trim();
   const resendKey = process.env.RESEND_API_KEY?.trim();
 
   const available: Record<string, { enabled: boolean; run: () => Promise<void> }> = {
+    graph: { enabled: graphReady, run: () => tryGraph(opts) },
     smtp2go: { enabled: !!smtp2goKey, run: () => trySmtp2go(opts) },
     smtp: { enabled: !!smtpHost, run: () => trySmtp(opts) },
     brevo: { enabled: !!brevoKey, run: () => tryBrevo(opts) },
     resend: { enabled: !!resendKey, run: () => tryResend(opts) },
   };
 
+  // Graph first (authenticated info@ sender, lands in inbox), SMTP as fallback.
   const order = (process.env.MAIL_PROVIDER_ORDER?.trim().split(",").map((s) => s.trim()).filter(Boolean))
-    ?? ["smtp2go", "smtp", "brevo", "resend"];
-  const chain = order.filter((p) => available[p]?.enabled) as Array<"smtp2go" | "smtp" | "brevo" | "resend">;
+    ?? ["graph", "smtp2go", "smtp", "brevo", "resend"];
+  const chain = order.filter((p) => available[p]?.enabled) as Array<"graph" | "smtp2go" | "smtp" | "brevo" | "resend">;
 
   if (chain.length === 0) {
     console.log(`[EMAIL] No provider configured — would have sent "${opts.subject}" to ${opts.to}`);
