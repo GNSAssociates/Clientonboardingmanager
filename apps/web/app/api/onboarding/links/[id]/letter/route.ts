@@ -85,8 +85,47 @@ export async function GET(
     `table,tr,.fees,.scope,.ssc{page-break-inside:avoid !important;break-inside:avoid !important;}` +
     `}</style>`;
 
-  // ?pdf=1 → also auto-open the browser's Save-as-PDF dialog on load.
   if (wantPdf) {
+    // Preferred: a real, server-generated PDF (proper A4 letterhead on every
+    // page, controlled pagination, small file). Only for the unsigned letter —
+    // the signed copy keeps its embedded-signature HTML path below.
+    if (!wantSigned) {
+      try {
+        const { renderLetterPdf } = await import("@/lib/letter-pdf");
+        const m = (link.letterMeta ?? {}) as Record<string, unknown>;
+        const pdf = await renderLetterPdf({
+          firm,
+          regBody: meta.regBody ?? firm.regBody,
+          companyName: link.companyName ?? "",
+          companyNumber: link.companyNumber ?? undefined,
+          clientAddress: meta.clientAddress,
+          directorName: link.directorName ?? undefined,
+          partnerName: meta.partnerName,
+          services: (link.services ?? []) as LetterService[],
+          customFees: meta.customFees ?? [],
+          scopeRows: meta.scopeRows ?? undefined,
+          ch: meta.ch ?? null,
+          paymentMethod: m.paymentMethod as string | undefined,
+          includeAnnexA: m.includeAnnexA as boolean | undefined,
+          clientType: m.clientType as string | undefined,
+          clientName: m.clientName as string | undefined,
+          utr: m.utr as string | undefined,
+          dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+          audit: null,
+        });
+        return new NextResponse(new Uint8Array(pdf), {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename="${baseName}.pdf"`,
+          },
+        });
+      } catch (e) {
+        // react-pdf could not load on this host — fall through to browser print.
+        console.error("renderLetterPdf failed, using browser-print fallback:", e);
+      }
+    }
+
+    // Fallback: print-ready page that opens the browser's Save-as-PDF dialog.
     const inject =
       printFix +
       `<script>document.title=${JSON.stringify(baseName)};` +
