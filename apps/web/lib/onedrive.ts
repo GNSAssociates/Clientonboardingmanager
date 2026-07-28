@@ -29,9 +29,11 @@ export function isOneDriveConfigured(): boolean {
 }
 
 export async function getGraphToken(): Promise<string | null> {
-  const tenant = process.env.ENTRA_TENANT_ID?.trim();
-  const clientId = process.env.ENTRA_CLIENT_ID?.trim();
-  const secret = process.env.ENTRA_CLIENT_SECRET?.trim();
+  // Accept either naming: ENTRA_* (main app) or MS_GRAPH_* (invoice app) — both
+  // point at the same Entra app registration that holds the Graph permissions.
+  const tenant = (process.env.ENTRA_TENANT_ID ?? process.env.MS_GRAPH_TENANT_ID)?.trim();
+  const clientId = (process.env.ENTRA_CLIENT_ID ?? process.env.MS_GRAPH_CLIENT_ID)?.trim();
+  const secret = (process.env.ENTRA_CLIENT_SECRET ?? process.env.MS_GRAPH_CLIENT_SECRET)?.trim();
   if (!tenant || !clientId || !secret) return null;
 
   try {

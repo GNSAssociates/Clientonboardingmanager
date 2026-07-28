@@ -54,7 +54,7 @@ async function tryGraph(opts: MailOptions): Promise<void> {
   const token = await getGraphToken();
   if (!token) throw new Error("Graph token unavailable (check ENTRA_* env)");
 
-  const sender = (process.env.GRAPH_MAIL_SENDER || fromEmail).trim();
+  const sender = (process.env.GRAPH_MAIL_SENDER || process.env.MS_GRAPH_USER || fromEmail).trim();
   const cc = ccFor(opts);
   const message: Record<string, unknown> = {
     subject: opts.subject,
@@ -220,7 +220,11 @@ async function tryResend(opts: MailOptions): Promise<void> {
 export async function sendMailResult(opts: MailOptions): Promise<MailResult> {
   // Every send replies to the practice inbox unless a caller overrides it.
   opts = { ...opts, replyTo: opts.replyTo ?? defaultReplyTo };
-  const graphReady = !!(process.env.ENTRA_TENANT_ID?.trim() && process.env.ENTRA_CLIENT_ID?.trim() && process.env.ENTRA_CLIENT_SECRET?.trim());
+  const graphReady = !!(
+    (process.env.ENTRA_TENANT_ID?.trim() || process.env.MS_GRAPH_TENANT_ID?.trim()) &&
+    (process.env.ENTRA_CLIENT_ID?.trim() || process.env.MS_GRAPH_CLIENT_ID?.trim()) &&
+    (process.env.ENTRA_CLIENT_SECRET?.trim() || process.env.MS_GRAPH_CLIENT_SECRET?.trim())
+  );
   const smtp2goKey = process.env.SMTP2GO_API_KEY?.trim();
   const smtpHost = process.env.SMTP_HOST?.trim();
   const brevoKey = process.env.BREVO_API_KEY?.trim();
