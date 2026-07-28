@@ -221,7 +221,9 @@ export function buildLetterHtml(d: LetterData): string {
 <meta charset="UTF-8">
 <title>Engagement Letter — ${esc(d.companyName)} — ${esc(f.legalName)}</title>
 <style>
-  @page { size: A4; margin: 24mm 16mm 18mm; }
+  /* Generous top/bottom margins reserve a band on every page for the running
+     header and footer, so page content can never flow underneath them. */
+  @page { size: A4; margin: 28mm 16mm 24mm; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #fff; color: #24292f; font-family: Georgia, 'Times New Roman', serif;
          font-size: 12.5px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
@@ -243,21 +245,23 @@ export function buildLetterHtml(d: LetterData): string {
        confidentiality marking belong to the document and must stay visible. */
     .lh, .rule, .rule2 { display: none !important; }
     .meta { display: flex !important; margin-top: 0 !important; }
-    /* Both bands stay clear of the outer 10mm of the sheet, where the browser
-       prints its own page title / URL / page numbers. */
+    /* Header and footer sit INSIDE the reserved page margins (positive offsets),
+       so they never land on top of body content — the previous negative offsets
+       could drop the footer onto a table near a page break. */
     .print-header {
-      display: flex; position: fixed; top: -13mm; left: 0; right: 0; height: 10mm;
+      display: flex; position: fixed; top: 8mm; left: 0; right: 0; height: 13mm;
       justify-content: space-between; align-items: center;
       border-bottom: 2px solid ${f.accentColor}; padding-bottom: 3px;
       font-family: 'Segoe UI', Arial, sans-serif;
     }
-    .print-header img { height: 8mm; }
+    .print-header img { height: 9mm; }
     .print-header .n { font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #1a1f2b; }
     .print-footer {
-      display: flex; position: fixed; bottom: -7mm; left: 0; right: 0; height: 7mm;
-      justify-content: space-between; align-items: center;
+      display: flex; position: fixed; bottom: 8mm; left: 0; right: 0; height: 11mm;
+      justify-content: space-between; align-items: flex-start;
       border-top: 1px solid #d7dbe0; padding-top: 3px;
       font-family: 'Segoe UI', Arial, sans-serif; font-size: 7.5px; color: #8a919c;
+      background: #fff;
     }
   }
   .sans { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; }

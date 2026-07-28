@@ -65,14 +65,20 @@ export async function GET(
     // old stylesheet, so the corrections are re-applied here as a late override
     // (last rule wins) — every letter prints correctly, not just new ones.
     const printFix =
-      `<style>@media print{` +
+      `<style>` +
+      // Enlarge the reserved page margins so the running header/footer have a
+      // band of their own (the last @page wins over the stored stylesheet).
+      `@page{size:A4;margin:28mm 16mm 24mm !important;}` +
+      `@media print{` +
       `html,body{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}` +
       `.lh,.rule,.rule2{display:none !important;}` +
       `.meta{display:flex !important;margin-top:0 !important;}` +
-      `.print-header{top:-13mm !important;height:10mm !important;padding-bottom:3px !important;` +
-      `border-bottom:2px solid ${firm.accentColor} !important;}` +
-      `.print-header img{height:8mm !important;}` +
-      `.print-footer{bottom:-7mm !important;height:7mm !important;padding-top:3px !important;}` +
+      // Positive offsets keep both bands inside the margins, off the content.
+      `.print-header{top:8mm !important;bottom:auto !important;height:13mm !important;padding-bottom:3px !important;` +
+      `border-bottom:2px solid ${firm.accentColor} !important;background:#fff !important;}` +
+      `.print-header img{height:9mm !important;}` +
+      `.print-footer{bottom:8mm !important;top:auto !important;height:11mm !important;padding-top:3px !important;` +
+      `align-items:flex-start !important;background:#fff !important;}` +
       `}</style>`;
     const inject =
       printFix +
