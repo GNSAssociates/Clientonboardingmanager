@@ -223,7 +223,7 @@ export function buildLetterHtml(d: LetterData): string {
 <style>
   /* Generous top/bottom margins reserve a band on every page for the running
      header and footer, so page content can never flow underneath them. */
-  @page { size: A4; margin: 28mm 16mm 24mm; }
+  @page { size: A4; margin: 30mm 16mm 26mm; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #fff; color: #24292f; font-family: Georgia, 'Times New Roman', serif;
          font-size: 12.5px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
@@ -239,7 +239,12 @@ export function buildLetterHtml(d: LetterData): string {
        the accent rule, table fills and the highlight panels from the PDF. */
     html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 0 !important; max-width: none !important; }
-    table, .imp, .dd, .chbox, .sig, .parties-panel { page-break-inside: avoid; }
+    /* Keep tables (esp. the fees/scope tables) whole so they move to the next
+       page intact rather than straddling a break into the header/footer band. */
+    table, tr, .fees, .scope, .ssc, .imp, .dd, .chbox, .sig, .parties-panel { page-break-inside: avoid; break-inside: avoid; }
+    /* Do not repeat table headers at the top of each page — that dark header row
+       was landing on top of the running letterhead. */
+    thead { display: table-row-group; }
     h1, h2, h3 { page-break-after: avoid; }
     /* Branding moves into the running header, but the date and the
        confidentiality marking belong to the document and must stay visible. */

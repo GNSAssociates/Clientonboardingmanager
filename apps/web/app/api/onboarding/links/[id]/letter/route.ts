@@ -58,28 +58,35 @@ export async function GET(
     });
   }
 
-  // ?pdf=1 → print-ready page: name the document (so the saved file is sensible)
-  // and auto-open the browser's Save-as-PDF dialog on load.
+  // Print corrections, applied on EVERY letter response so any print path (the
+  // download button, or just viewing then Ctrl+P) is fixed — not only ?pdf=1.
+  // Letters issued before these fixes are stored with the old stylesheet, so the
+  // corrections are re-applied here as a late override (last rule wins). Only
+  // @media print is touched, so the on-screen signing view is unchanged.
+  const printFix =
+    `<style>` +
+    // Generous reserved margins give the running header/footer a band of their
+    // own (the last @page wins over the stored stylesheet).
+    `@page{size:A4;margin:30mm 16mm 26mm !important;}` +
+    `@media print{` +
+    `html,body{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}` +
+    `.lh,.rule,.rule2{display:none !important;}` +
+    `.meta{display:flex !important;margin-top:0 !important;}` +
+    // Header/footer sit inside the margins, opaque and above content.
+    `.print-header{top:6mm !important;bottom:auto !important;height:15mm !important;padding-bottom:3px !important;` +
+    `border-bottom:2px solid ${firm.accentColor} !important;background:#fff !important;z-index:1000 !important;}` +
+    `.print-header img{height:9mm !important;}` +
+    `.print-footer{bottom:6mm !important;top:auto !important;height:13mm !important;padding-top:3px !important;` +
+    `align-items:flex-start !important;background:#fff !important;z-index:1000 !important;}` +
+    // Stop table headers from being repeated at the top of each page (where they
+    // collided with the letterhead), and keep the fee/scope tables whole so they
+    // move to the next page intact instead of straddling a page break.
+    `thead{display:table-row-group !important;}` +
+    `table,tr,.fees,.scope,.ssc{page-break-inside:avoid !important;break-inside:avoid !important;}` +
+    `}</style>`;
+
+  // ?pdf=1 → also auto-open the browser's Save-as-PDF dialog on load.
   if (wantPdf) {
-    // Letters issued before the print fixes are stored in the database with the
-    // old stylesheet, so the corrections are re-applied here as a late override
-    // (last rule wins) — every letter prints correctly, not just new ones.
-    const printFix =
-      `<style>` +
-      // Enlarge the reserved page margins so the running header/footer have a
-      // band of their own (the last @page wins over the stored stylesheet).
-      `@page{size:A4;margin:28mm 16mm 24mm !important;}` +
-      `@media print{` +
-      `html,body{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}` +
-      `.lh,.rule,.rule2{display:none !important;}` +
-      `.meta{display:flex !important;margin-top:0 !important;}` +
-      // Positive offsets keep both bands inside the margins, off the content.
-      `.print-header{top:8mm !important;bottom:auto !important;height:13mm !important;padding-bottom:3px !important;` +
-      `border-bottom:2px solid ${firm.accentColor} !important;background:#fff !important;}` +
-      `.print-header img{height:9mm !important;}` +
-      `.print-footer{bottom:8mm !important;top:auto !important;height:11mm !important;padding-top:3px !important;` +
-      `align-items:flex-start !important;background:#fff !important;}` +
-      `}</style>`;
     const inject =
       printFix +
       `<script>document.title=${JSON.stringify(baseName)};` +
@@ -88,6 +95,8 @@ export async function GET(
     return new NextResponse(printHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
 
+  // Plain view / download — inject the same print corrections so Ctrl+P is right.
+  html = html.includes("</body>") ? html.replace("</body>", `${printFix}</body>`) : html + printFix;
   const headers: Record<string, string> = { "Content-Type": "text/html; charset=utf-8" };
   if (download) headers["Content-Disposition"] = `attachment; filename="${baseName}.html"`;
   return new NextResponse(html, { headers });
