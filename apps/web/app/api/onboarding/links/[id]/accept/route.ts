@@ -13,6 +13,7 @@ import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { buildClearancePdf, clearancePdfFilename } from "@/lib/clearance-pdf";
 import { buildFirmNewClientEmail } from "@/lib/email-constants";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
+import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 import { setupDirectDebitMandate } from "@/lib/gocardless";
 import { archiveToClientFolder } from "@/lib/storage";
 
@@ -137,8 +138,10 @@ export async function POST(
     // The letter as presented — hash forms the tamper-evidence fingerprint
     let letterHtml = link.letterHtml ?? null;
     if (!letterHtml && mode === "engagement") {
+      const overrides = await loadEngagementLetterOverrides(firm.slug);
       letterHtml = buildLetterHtml({
         firm,
+        ...overrides,
         regBody: meta.regBody ?? firm.regBody,
         companyName: link.companyName ?? "",
         companyNumber: link.companyNumber ?? undefined,

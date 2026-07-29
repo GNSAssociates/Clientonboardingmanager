@@ -15,6 +15,8 @@
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
 import type { FirmConfig } from "./firms";
+import { renderVars, templateDef } from "./email-templates-lib";
+import { loadTemplateOverride } from "./template-overrides.server";
 import { GNS_LOGO_DATA_URI, GNS_SIGNATURE_DATA_URI } from "./brand-assets";
 import { SG_SIGNATURE_DATA_URI } from "./sg-signature";
 import { MG_SIGNATURE_DATA_URI } from "./mg-signature";
@@ -182,6 +184,19 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
   const partner = partnerName?.trim() || firm.partnerName;
   const accent = hexToRgb(firm.accentColor);
 
+  // Staff-editable text blocks (/staff/templates) — fall back to the code
+  // default (with its director/company-aware wording) when no override exists.
+  const [introOv, askOv, closingOv] = await Promise.all([
+    loadTemplateOverride("doc_clearance_intro", firm.slug),
+    loadTemplateOverride("doc_clearance_ask", firm.slug),
+    loadTemplateOverride("doc_clearance_closing", firm.slug),
+  ]);
+  const docVars = { firmName: firm.name, companyName: clientName, directorName: directorName ?? "" };
+  const introDefault = `We have been requested to act as accountants for the above${directorName ? " individual and company" : ""}. In connection with this, we are writing to enquire whether there are any professional reasons why we should not accept the appointment.`;
+  const introText = renderVars(introOv?.body || introDefault, docVars);
+  const askText = renderVars(askOv?.body || templateDef("doc_clearance_ask")!.defaultBody, docVars);
+  const closingText = renderVars(closingOv?.body || templateDef("doc_clearance_closing")!.defaultBody, docVars);
+
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Professional Clearance - ${sanitize(clientName)}`);
   pdf.setAuthor(firm.legalName);
@@ -343,14 +358,8 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
 
   // ── Body ────────────────────────────────────────────────────────────────────
   text("Dear Sirs,", { gap: 8 });
-  text(
-    `We have been requested to act as accountants for the above${directorName ? " individual and company" : ""}. In connection with this, we are writing to enquire whether there are any professional reasons why we should not accept the appointment.`,
-    { gap: 8 },
-  );
-  text(
-    "Assuming there are no such matters, we should be grateful if you would provide the following information, whichever are relevant. Please quote the item number when replying.",
-    { gap: 2 },
-  );
+  text(introText, { gap: 8 });
+  text(askText, { gap: 2 });
 
   const selected = (docItems ?? []).map(itemLabel).filter(Boolean);
 
@@ -371,7 +380,7 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
   numbered(PAYROLL_ITEMS);
 
   y -= 12;
-  text("Thank you for your assistance in this matter, which will allow a smooth changeover.", { gap: 12 });
+  text(closingText, { gap: 12 });
 
   // ── Signature ───────────────────────────────────────────────────────────────
   need(112);

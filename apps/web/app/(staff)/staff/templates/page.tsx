@@ -51,6 +51,9 @@ interface EmailTemplate {
   defaultBody: string;
   isOverridden: boolean;
   isCustom: boolean;
+  /** 'document' = clearance letter / engagement letter text block (no subject,
+   * no email shell) rather than a transactional email. */
+  kind?: 'email' | 'document';
   updatedAt: string | null;
 }
 
@@ -60,13 +63,14 @@ function EmailEditor({ tpl, variables, onSaved, onDeleted }: {
   onSaved: (t: EmailTemplate) => void;
   onDeleted: (key: string) => void;
 }) {
+  const isDoc = tpl.kind === 'document';
   const [subject, setSubject] = useState(tpl.subject);
   const [body, setBody] = useState(tpl.body);
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
-  const dirty = subject !== tpl.subject || body !== tpl.body;
+  const dirty = (!isDoc && subject !== tpl.subject) || body !== tpl.body;
 
   const insertVar = (v: string) => {
     const ta = bodyRef.current;
@@ -133,32 +137,41 @@ function EmailEditor({ tpl, variables, onSaved, onDeleted }: {
 
   return (
     <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
-      <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Subject line</label>
-        <input value={subject} onChange={(e) => setSubject(e.target.value)}
-          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none" />
-      </div>
+      {!isDoc && (
+        <div>
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Subject line</label>
+          <input value={subject} onChange={(e) => setSubject(e.target.value)}
+            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none" />
+        </div>
+      )}
 
       <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email body (HTML — wrapped in the firm’s branded shell when sent)</label>
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {isDoc ? 'Document text' : 'Email body (HTML — wrapped in the firm’s branded shell when sent)'}
+        </label>
         <textarea ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} rows={9}
           className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none resize-y" />
         {tpl.ctaLabel && (
           <p className="text-xs text-gray-400 mt-1">A “{tpl.ctaLabel}” button linking to the secure page is added automatically below your text.</p>
         )}
+        {isDoc && (
+          <p className="text-xs text-gray-400 mt-1">Applied live the next time this letter/PDF is generated — no email is sent for this entry.</p>
+        )}
       </div>
 
-      <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Insert a variable</p>
-        <div className="flex flex-wrap gap-1.5">
-          {variables.map(([v, desc]) => (
-            <button key={v} onClick={() => insertVar(v)} title={desc}
-              className="text-xs bg-gray-100 hover:bg-purple-100 text-purple-700 px-2 py-1 rounded font-mono transition-colors">
-              {v}
-            </button>
-          ))}
+      {!isDoc && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Insert a variable</p>
+          <div className="flex flex-wrap gap-1.5">
+            {variables.map(([v, desc]) => (
+              <button key={v} onClick={() => insertVar(v)} title={desc}
+                className="text-xs bg-gray-100 hover:bg-purple-100 text-purple-700 px-2 py-1 rounded font-mono transition-colors">
+                {v}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center gap-2 pt-1 flex-wrap">
         <button onClick={save} disabled={!dirty || saving}
@@ -166,10 +179,12 @@ function EmailEditor({ tpl, variables, onSaved, onDeleted }: {
           {saving ? <Loader2 size={14} className="animate-spin" /> : savedTick ? <Check size={14} /> : <Save size={14} />}
           {savedTick ? 'Saved' : 'Save changes'}
         </button>
-        <button onClick={preview}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:border-gray-500">
-          <Eye size={14} /> Preview
-        </button>
+        {!isDoc && (
+          <button onClick={preview}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:border-gray-500">
+            <Eye size={14} /> Preview
+          </button>
+        )}
         {tpl.isCustom ? (
           <button onClick={deleteCustom} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-red-300 text-red-600 hover:border-red-500 hover:bg-red-50 disabled:opacity-40">
@@ -302,7 +317,7 @@ function EmailsTab() {
     <div className="space-y-2">
       <div className="flex items-start justify-between gap-4 mb-2">
         <p className="text-sm text-gray-500">
-          Edit the wording of every email the platform sends. Changes apply to all future sends. Use the variable chips to merge in client and firm details.
+          Edit the wording of every email the platform sends, plus the editable text blocks in the professional clearance letter and the engagement letter (marked “Letter / PDF text”). Changes apply the next time each is generated. Use the variable chips to merge in client and firm details.
         </p>
         {!creating && (
           <button onClick={() => setCreating(true)}
@@ -326,16 +341,21 @@ function EmailsTab() {
             <button onClick={() => setOpen(isOpen ? null : t.key)}
               className="w-full flex items-center justify-between gap-4 p-4 text-left hover:bg-gray-50">
               <div className="flex items-start gap-3 min-w-0">
-                <Mail size={18} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                {t.kind === 'document' ? (
+                  <FileSignature size={18} className="text-indigo-600 mt-0.5 flex-shrink-0" />
+                ) : (
+                  <Mail size={18} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                )}
                 <div className="min-w-0">
                   <p className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
                     {t.name}
                     <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{t.audience}</span>
+                    {t.kind === 'document' && <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">Letter / PDF text</span>}
                     {t.isCustom && <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">Custom</span>}
                     {!t.isCustom && t.isOverridden && <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700">Edited</span>}
                   </p>
                   <p className="text-sm text-gray-500">{t.description}</p>
-                  <p className="text-xs text-gray-400 mt-1 font-mono truncate">Subject: {t.subject}</p>
+                  {t.kind !== 'document' && <p className="text-xs text-gray-400 mt-1 font-mono truncate">Subject: {t.subject}</p>}
                 </div>
               </div>
               <ChevronDown size={18} className={`text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -419,7 +439,7 @@ export default function TemplatesPage() {
       </div>
 
       <div className="flex gap-1 border border-gray-200 rounded-xl p-1 bg-white w-fit">
-        {([['emails', 'Emails', Mail], ['letters', 'Letters', FileText], ['variables', 'Variables', Braces]] as const).map(([k, label, Icon]) => (
+        {([['emails', 'Templates', Mail], ['letters', 'Letter previews', FileText], ['variables', 'Variables', Braces]] as const).map(([k, label, Icon]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === k ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
             <Icon size={14} /> {label}

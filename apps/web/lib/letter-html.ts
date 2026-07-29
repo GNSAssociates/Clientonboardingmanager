@@ -21,6 +21,10 @@ const PARTNER_SIGNATURES: Record<string, string> = {
 };
 import { buildSchedulesHtml } from './service-schedules';
 import { buildTermsOfBusinessHtml, buildPrivacyNoticeHtml } from './terms-of-business';
+// Pure (no DB) — safe to import from client components. DB-backed override
+// loading happens in the API routes via template-overrides.server.ts, which
+// pass the resolved text in via LetterData.introOverrideHtml/closingOverrideHtml.
+import { renderVars, templateDef } from './email-templates-lib';
 
 export type LetterFrequency = 'monthly' | 'quarterly' | 'annually';
 export interface LetterService { id?: string; name: string; price: number; oneoff?: boolean; frequency?: LetterFrequency }
@@ -56,6 +60,13 @@ export interface LetterData {
   clientType?: string; // 'limited' | 'llp' | 'sole_trader' | 'btl' | 'partnership' | 'individual'
   clientName?: string; // client / business / trading name (for non-company types)
   utr?: string; // Unique Taxpayer Reference (self-assessment / non-company clients)
+  /** Staff-editable text blocks (/staff/templates) — raw {variable} text as
+   * saved by staff, resolved by the caller via
+   * template-overrides.server.ts's loadEngagementLetterOverrides(). Falls
+   * back to the code default (doc_engagement_intro / doc_engagement_closing
+   * in email-templates-lib.ts) when omitted/null. */
+  introOverrideHtml?: string | null;
+  closingOverrideHtml?: string | null;
 }
 
 // Terminology + entity wording per client type, so the letter reads correctly
@@ -119,15 +130,25 @@ const SCOPE_ROW_SERVICE: Array<string | null> = [
   'cis',
   'self_assessment',
   'confirmation_statement',
-  null, // References and Letters — general inclusion, shown on every engagement
+  null, // References and Letters — see note below
 ];
 
-/** Scope rows restricted to the services actually selected. */
+/**
+ * Scope rows restricted to the services actually selected. NOTE: these rows
+ * are display-only coverage/threshold text for the "Scope of Services" table
+ * — they are never a chargeable fee and are never added into totalMonthly /
+ * totalOneoff (see buildLetterHtml). The "References and Letters" row has no
+ * single purchasable service behind it (`null` above), so it only appears
+ * when the client has at least one substantive monthly service selected —
+ * never on an empty selection, so it can't show as a standalone/phantom line
+ * with nothing else on the contract.
+ */
 export function scopeRowsForServices(serviceIds: string[], rows?: ScopeRow[] | null): ScopeRow[] {
   const source = rows?.length === DEFAULT_SCOPE_ROWS.length ? rows : DEFAULT_SCOPE_ROWS;
   return source.filter((_, i) => {
     const svc = SCOPE_ROW_SERVICE[i];
-    return svc === null || serviceIds.includes(svc ?? '');
+    if (svc === null) return serviceIds.length > 0;
+    return serviceIds.includes(svc ?? '');
   });
 }
 
@@ -147,6 +168,14 @@ export function buildLetterHtml(d: LetterData): string {
   const isManual = d.paymentMethod === 'manual'; // manual invoicing vs Direct Debit
   const showAnnexA = d.includeAnnexA !== false;  // annex included unless explicitly turned off
   const terms = CLIENT_TYPE_TERMS[d.clientType ?? 'limited'] ?? CLIENT_TYPE_TERMS.limited!;
+
+  // Staff-editable text blocks (/staff/templates) — intro paragraphs and the
+  // "Agreement of terms" closing clauses. The caller resolves the DB override
+  // (template-overrides.server.ts) and passes the raw text in; falls back to
+  // the code default here when not provided.
+  const docVars = { actFor: terms.actFor, companyName: d.companyName, firmName: f.name };
+  const introHtml = renderVars(d.introOverrideHtml || templateDef('doc_engagement_intro')!.defaultBody, docVars);
+  const closingHtml = renderVars(d.closingOverrideHtml || templateDef('doc_engagement_closing')!.defaultBody, docVars);
   const payModeLabel = isManual ? 'Monthly Invoice' : 'Monthly DD';
   const monthly = d.services.filter((s) => !s.oneoff);
   const oneoff = d.services.filter((s) => s.oneoff);
@@ -161,6 +190,11 @@ export function buildLetterHtml(d: LetterData): string {
     if (s.frequency === 'quarterly') return s.price * 4;
     return s.price * 12;
   };
+  // Fee totals — kept strictly separate: totalMonthly/totalAnnual are the
+  // recurring charge, totalOneoff is what's payable upfront. Both are driven
+  // only by d.services (selected + priced by staff) and d.customFees — never
+  // by DEFAULT_SCOPE_ROWS, which is coverage/threshold text for the "Scope of
+  // Services" table, not a chargeable fee, and must never be counted here.
   const totalMonthly = monthly.reduce((s, x) => s + svcToMonthly(x), 0);
   const totalAnnual = monthly.reduce((s, x) => s + svcToAnnual(x), 0);
   const totalOneoff = oneoff.reduce((s, x) => s + x.price, 0) + customFees.reduce((s, x) => s + x.price, 0);
@@ -226,7 +260,7 @@ export function buildLetterHtml(d: LetterData): string {
   @page { size: A4; margin: 30mm 16mm 26mm; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #fff; color: #24292f; font-family: Georgia, 'Times New Roman', serif;
-         font-size: 12.5px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+         font-size: 18.75px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
   .page { max-width: 780px; margin: 0 auto; padding: 56px 72px 44px; }
   @media (max-width: 700px) { .page { padding: 28px 22px; } }
 
@@ -260,22 +294,22 @@ export function buildLetterHtml(d: LetterData): string {
       font-family: 'Segoe UI', Arial, sans-serif;
     }
     .print-header img { height: 9mm; }
-    .print-header .n { font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #1a1f2b; }
+    .print-header .n { font-weight: 700; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; color: #1a1f2b; }
     .print-footer {
       display: flex; position: fixed; bottom: 8mm; left: 0; right: 0; height: 11mm;
       justify-content: space-between; align-items: flex-start;
       border-top: 1px solid #d7dbe0; padding-top: 3px;
-      font-family: 'Segoe UI', Arial, sans-serif; font-size: 7.5px; color: #8a919c;
+      font-family: 'Segoe UI', Arial, sans-serif; font-size: 11.25px; color: #8a919c;
       background: #fff;
     }
   }
   .sans { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; }
 
-  h1 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; text-align: center;
-       letter-spacing: 2.5px; text-transform: uppercase; color: #1a1f2b; margin: 30px 0 16px; font-weight: 600; }
-  h2 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase;
-       color: ${f.accentColor}; margin: 30px 0 10px; padding-bottom: 5px; border-bottom: 1px solid #e3e6ea; font-weight: 700; }
-  h3 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1f2b; margin: 18px 0 6px; font-weight: 700; }
+  h1 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 22.5px; text-align: center;
+       letter-spacing: 2.5px; text-transform: uppercase; color: #1a1f2b; margin: 38px 0 20px; font-weight: 600; }
+  h2 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 18px; letter-spacing: 1.6px; text-transform: uppercase;
+       color: ${f.accentColor}; margin: 38px 0 13px; padding-bottom: 6px; border-bottom: 1px solid #e3e6ea; font-weight: 700; }
+  h3 { font-family: 'Segoe UI', Arial, sans-serif; font-size: 18px; color: #1a1f2b; margin: 23px 0 8px; font-weight: 700; }
 
   /* Number the main clauses so they can be cross-referenced ("clause 5, Data
      Protection"). The annex and the signed-copy panels carry inline styling and
@@ -283,92 +317,92 @@ export function buildLetterHtml(d: LetterData): string {
   .page { counter-reset: clause-section; }
   h2:not([style]):not(.sans) { counter-increment: clause-section; }
   h2:not([style]):not(.sans)::before { content: counter(clause-section) ". "; }
-  p { margin: 0 0 11px; text-align: justify; }
+  p { margin: 0 0 14px; text-align: justify; }
 
   /* Auto-numbered paragraphs within schedule sections */
   .schedule-body { counter-reset: clause; }
   .schedule-body h3 { counter-reset: clause; }
   .schedule-body > p { counter-increment: clause; }
   .schedule-body > p::before { content: counter(clause) ". "; font-weight: 600; color: #374151; }
-  ul { margin: 0 0 11px; padding-left: 24px; }
-  li { margin-bottom: 4px; }
+  ul { margin: 0 0 14px; padding-left: 28px; }
+  li { margin-bottom: 5px; }
 
   /* Letterhead */
   .lh { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-bottom: 20px; }
   .lh img { height: 68px; }
-  .lh .fd { text-align: right; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5px; color: #5b6472; line-height: 1.7; }
-  .lh .fd .n { font-weight: 700; color: #1a1f2b; font-size: 12px; letter-spacing: 0.8px; text-transform: uppercase; }
+  .lh .fd { text-align: right; font-family: 'Segoe UI', Arial, sans-serif; font-size: 15.75px; color: #5b6472; line-height: 1.7; }
+  .lh .fd .n { font-weight: 700; color: #1a1f2b; font-size: 18px; letter-spacing: 0.8px; text-transform: uppercase; }
   .rule { height: 3px; background: ${f.accentColor}; }
   .rule2 { height: 1px; background: #d7dbe0; margin-top: 2px; }
-  .meta { display: flex; justify-content: space-between; margin-top: 14px; font-size: 10px;
+  .meta { display: flex; justify-content: space-between; margin-top: 14px; font-size: 15px;
           font-family: 'Segoe UI', Arial, sans-serif; color: #6b7280; }
   .meta .pc { letter-spacing: 2.5px; font-weight: 700; text-transform: uppercase; }
 
   /* Parties panel */
-  .doc-title { text-align: center; margin-top: 34px; }
-  .doc-title .kicker { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; letter-spacing: 4px;
+  .doc-title { text-align: center; margin-top: 40px; }
+  .doc-title .kicker { font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; letter-spacing: 4px;
                        text-transform: uppercase; color: ${f.accentColor}; font-weight: 700; }
-  .doc-title .main { font-family: Georgia, serif; font-size: 21px; color: #1a1f2b; margin: 6px 0 0; }
-  .parties-panel { border: 1px solid #d7dbe0; border-top: 3px solid ${f.accentColor}; padding: 18px 26px 14px; margin: 20px 0 8px; }
-  .parties-panel .lbl { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5px; letter-spacing: 2.5px;
+  .doc-title .main { font-family: Georgia, serif; font-size: 31.5px; color: #1a1f2b; margin: 8px 0 0; }
+  .parties-panel { border: 1px solid #d7dbe0; border-top: 3px solid ${f.accentColor}; padding: 22px 30px 17px; margin: 24px 0 10px; }
+  .parties-panel .lbl { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14.25px; letter-spacing: 2.5px;
                         color: #9aa1ab; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; text-align: left; }
-  .parties-panel .pty { font-size: 13px; margin: 0 0 12px; text-align: left; line-height: 1.55; }
-  .integral { text-align: center; font-style: italic; color: #6b7280; font-size: 11px; margin: 10px 0 24px; }
+  .parties-panel .pty { font-size: 19.5px; margin: 0 0 12px; text-align: left; line-height: 1.55; }
+  .integral { text-align: center; font-style: italic; color: #6b7280; font-size: 16.5px; margin: 10px 0 24px; }
 
   /* Companies House verification panel */
   .chbox { border: 1px solid #d7dbe0; margin: 0 0 24px; }
   .chbox-h { font-family: 'Segoe UI', Arial, sans-serif; padding: 8px 16px; background: #f6f7f9; border-bottom: 1px solid #e3e6ea;
-             font-weight: 700; font-size: 10px; color: #3b4453; letter-spacing: 1.5px; text-transform: uppercase; }
+             font-weight: 700; font-size: 15px; color: #3b4453; letter-spacing: 1.5px; text-transform: uppercase; }
   .chbox-b { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 26px; padding: 12px 16px;
-             font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #374151; }
+             font-family: 'Segoe UI', Arial, sans-serif; font-size: 16.5px; color: #374151; }
   .chbox-b p { margin: 0; text-align: left; }
   .chbox-b span { color: #8a919c; }
   .chbox-b .w { grid-column: 1 / -1; }
 
   /* Tables */
   table { width: 100%; border-collapse: collapse; margin: 0 0 8px; font-family: 'Segoe UI', Arial, sans-serif; }
-  .fees th { background: #1a1f2b; color: #fff; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
-             padding: 9px 11px; text-align: left; font-weight: 600; }
-  .fees td { border-bottom: 1px solid #e8eaee; padding: 8px 11px; font-size: 11.5px; color: #24292f; }
+  .fees th { background: #1a1f2b; color: #fff; font-size: 15px; letter-spacing: 0.8px; text-transform: uppercase;
+             padding: 11px 13px; text-align: left; font-weight: 600; }
+  .fees td { border-bottom: 1px solid #e8eaee; padding: 10px 13px; font-size: 17.25px; color: #24292f; }
   .fees .r { text-align: right; font-variant-numeric: tabular-nums; }
-  .fees .sub td { color: #5b6472; font-size: 11px; border-bottom: 1px solid #f1f2f5; }
-  .fees .sect td { background: #f6f7f9; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; color: #3b4453; }
-  .fees .total td { background: #f6f7f9; font-weight: 700; border-top: 2px solid #1a1f2b; border-bottom: 2px solid #1a1f2b; font-size: 12px; }
-  .vatnote { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 600; font-size: 10.5px; color: #5b6472;
+  .fees .sub td { color: #5b6472; font-size: 16.5px; border-bottom: 1px solid #f1f2f5; }
+  .fees .sect td { background: #f6f7f9; font-weight: 700; font-size: 15.75px; letter-spacing: 0.5px; text-transform: uppercase; color: #3b4453; }
+  .fees .total td { background: #f6f7f9; font-weight: 700; border-top: 2px solid #1a1f2b; border-bottom: 2px solid #1a1f2b; font-size: 18px; }
+  .vatnote { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 600; font-size: 15.75px; color: #5b6472;
              margin: 4px 0 26px; text-align: right; }
 
   /* Callouts */
-  .imp { border-left: 4px solid ${f.accentColor}; background: #fbf7f7; padding: 12px 18px; margin: 0 0 26px;
-         font-family: 'Segoe UI', Arial, sans-serif; font-size: 11.5px; }
-  .imp .t { color: ${f.accentColor}; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; font-size: 10.5px; margin-bottom: 4px; }
+  .imp { border-left: 4px solid ${f.accentColor}; background: #fbf7f7; padding: 15px 22px; margin: 0 0 30px;
+         font-family: 'Segoe UI', Arial, sans-serif; font-size: 17.25px; }
+  .imp .t { color: ${f.accentColor}; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; font-size: 15.75px; margin-bottom: 5px; }
   .imp p, .dd p { text-align: left; margin: 0; line-height: 1.65; }
-  .dd { border-left: 4px solid #3b4453; background: #f6f7f9; padding: 12px 18px; margin: 0 0 26px;
-        font-family: 'Segoe UI', Arial, sans-serif; font-size: 11.5px; }
-  .dd .t { font-weight: 700; letter-spacing: 1px; text-transform: uppercase; font-size: 10.5px; color: #3b4453; margin-bottom: 4px; }
+  .dd { border-left: 4px solid #3b4453; background: #f6f7f9; padding: 15px 22px; margin: 0 0 30px;
+        font-family: 'Segoe UI', Arial, sans-serif; font-size: 17.25px; }
+  .dd .t { font-weight: 700; letter-spacing: 1px; text-transform: uppercase; font-size: 15.75px; color: #3b4453; margin-bottom: 4px; }
 
-  .scope th { background: #1a1f2b; color: #fff; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
-              padding: 9px 11px; text-align: left; font-weight: 600; }
-  .scope td { border-bottom: 1px solid #e8eaee; padding: 8px 11px; font-size: 11px; vertical-align: top; color: #374151; }
+  .scope th { background: #1a1f2b; color: #fff; font-size: 15px; letter-spacing: 0.8px; text-transform: uppercase;
+              padding: 11px 13px; text-align: left; font-weight: 600; }
+  .scope td { border-bottom: 1px solid #e8eaee; padding: 10px 13px; font-size: 16.5px; vertical-align: top; color: #374151; }
   .scope .alt td { background: #fafbfc; }
   .scope strong { color: #1a1f2b; }
 
-  .ssc th { background: #f6f7f9; font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; color: #3b4453;
-            padding: 7px 10px; border-bottom: 2px solid #d7dbe0; text-align: left; font-weight: 700; }
-  .ssc td { border-bottom: 1px solid #eceef1; padding: 6px 10px; font-size: 10.5px; color: #374151; }
+  .ssc th { background: #f6f7f9; font-size: 15px; letter-spacing: 0.6px; text-transform: uppercase; color: #3b4453;
+            padding: 8px 12px; border-bottom: 2px solid #d7dbe0; text-align: left; font-weight: 700; }
+  .ssc td { border-bottom: 1px solid #eceef1; padding: 7px 12px; font-size: 15.75px; color: #374151; }
   .ssc .r { text-align: right; font-variant-numeric: tabular-nums; }
   .ssc .alt td { background: #fafbfc; }
-  .ssc-h { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  .ssc-h { font-family: 'Segoe UI', Arial, sans-serif; font-size: 15.75px; font-weight: 700; text-transform: uppercase;
            letter-spacing: 1.2px; color: ${f.accentColor}; margin: 20px 0 6px; }
 
   /* Signature */
-  .sig { margin: 22px 0; }
-  .sig img { height: 62px; display: block; margin-bottom: 2px; }
-  .sig .line { width: 240px; border-top: 1px solid #9aa1ab; margin: 4px 0 6px; }
-  .sig .n { font-weight: bold; font-size: 13px; }
-  .sig .r { color: #5b6472; font-size: 11px; font-family: 'Segoe UI', Arial, sans-serif; }
+  .sig { margin: 26px 0; }
+  .sig img { height: 62px; display: block; margin-bottom: 3px; }
+  .sig .line { width: 240px; border-top: 1px solid #9aa1ab; margin: 5px 0 7px; }
+  .sig .n { font-weight: bold; font-size: 19.5px; }
+  .sig .r { color: #5b6472; font-size: 16.5px; font-family: 'Segoe UI', Arial, sans-serif; }
 
-  .divider { border: 0; border-top: 1px solid #d7dbe0; margin: 36px 0 26px; position: relative; }
-  .foot { border-top: 1px solid #e3e6ea; margin-top: 40px; padding-top: 14px; font-size: 9px; color: #9aa1ab;
+  .divider { border: 0; border-top: 1px solid #d7dbe0; margin: 42px 0 30px; position: relative; }
+  .foot { border-top: 1px solid #e3e6ea; margin-top: 46px; padding-top: 17px; font-size: 13.5px; color: #9aa1ab;
           font-family: 'Segoe UI', Arial, sans-serif; text-align: center; line-height: 1.7; }
   .center { text-align: center; }
 </style>
@@ -420,14 +454,15 @@ export function buildLetterHtml(d: LetterData): string {
       <tr><th>Fees</th><th style="width:78px;text-align:right">Monthly £</th><th style="width:92px;text-align:right">Fees Upfront £</th><th style="width:110px;text-align:right">Annual Equivalent £</th><th style="width:96px">Payment Mode</th></tr>
     </thead>
     <tbody>
-      <tr><td><strong>Fees Agreed</strong></td><td class="r"><strong>${gbp(totalMonthly)}</strong></td><td class="r">—</td><td class="r">${gbp(totalAnnual)}</td><td>${payModeLabel}</td></tr>
+      <tr><td><strong>Recurring Fees Agreed (Monthly)</strong></td><td class="r"><strong>${gbp(totalMonthly)}</strong></td><td class="r">${totalOneoff > 0 ? gbp(totalOneoff) : '—'}</td><td class="r">${gbp(totalAnnual)}</td><td>${payModeLabel}</td></tr>
       ${monthlyRows}
       ${oneoffHeader}
       ${oneoffRows}
-      <tr class="total"><td>Final Monthly and One off Fees Agreed</td><td class="r">${gbp(totalMonthly)}</td><td class="r">${gbp(totalOneoff)}</td><td class="r">${gbp(totalAnnual)}</td><td style="font-size:10.5px">${payModeLabel}<br>One off Upfront</td></tr>
+      <tr class="total"><td>Total Recurring Monthly Fees</td><td class="r">${gbp(totalMonthly)}</td><td class="r">—</td><td class="r">${gbp(totalAnnual)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
+      ${totalOneoff > 0 ? `<tr class="total"><td>Total One-off Charges (payable upfront)</td><td class="r">—</td><td class="r">${gbp(totalOneoff)}</td><td class="r">—</td><td style="font-size:10.5px">One off Upfront</td></tr>` : ''}
     </tbody>
   </table>
-  <p class="vatnote sans">Note: 20% VAT applies to all above</p>
+  <p class="vatnote sans">Note: 20% VAT applies to all above. The Monthly and One-off columns are separate totals — they are not added together.</p>
 
   ${isManual ? `
   <div class="dd sans">
@@ -461,8 +496,7 @@ export function buildLetterHtml(d: LetterData): string {
   <p style="font-weight:bold">${esc(d.clientName || d.companyName)}</p>
   ${d.utr ? `<p style="font-size:11px;color:#374151">UTR: <strong>${esc(d.utr)}</strong></p>` : ''}
   <p>Dear Sir/s</p>
-  <p>We are pleased to accept the instruction to act as accountant for ${esc(terms.actFor)} and are writing to confirm the terms of our appointment.</p>
-  <p>The purpose of this letter, together with the attached terms and conditions, is to set out our terms for carrying out the work and to clarify our respective responsibilities.</p>
+  ${introHtml}
   <p>We are bound by the ${regBody === 'ICAEW' ? 'Code of Ethics of the Institute of Chartered Accountants in England and Wales (ICAEW)' : 'ethical guidelines of the Association of Chartered Certified Accountants (ACCA)'} and accept instructions to act for you on the basis that we will act in accordance with those ethical guidelines. A copy of these guidelines can be viewed at our offices on request${regBody === 'ACCA' ? ' or at www.accaglobal.com' : ' or at www.icaew.com'}.</p>
 
   <h2>Period of engagement</h2>
@@ -550,17 +584,14 @@ export function buildLetterHtml(d: LetterData): string {
   <p>From time to time we would like to contact you with details of other services we provide. Your chosen contact preferences are recorded in the acceptance section of this contract.</p>
 
   <h2>Agreement of terms</h2>
-  <p>This letter supersedes any previous engagement letter. Once it has been agreed, this letter will remain effective until it is replaced.</p>
-  <p>You or we may vary or terminate our authority to act on your behalf at any time without penalty. Notice of variation or termination must be given in writing.</p>
-  <p>We would be grateful if you could confirm your agreement to the terms of this letter by signing in the acceptance section.</p>
-  <p>If this letter is not in accordance with your understanding of the scope of our engagement or your circumstances have changed, please let us know. This letter should be read in conjunction with the firm's standard terms and conditions.</p>
+  ${closingHtml}
 
   <p>Yours sincerely,</p>
   <div class="sig">
     <img src="${PARTNER_SIGNATURES[partner] || GNS_SIGNATURE_DATA_URI}" alt="">
     <div class="line"></div>
     <div class="n">${esc(partner)}${PARTNER_DESIGNATIONS[partner] ? `, ${esc(PARTNER_DESIGNATIONS[partner])}` : ''}</div>
-    <div class="r">Director, ${esc(f.legalName)}</div>
+    <div class="r">Partner, ${esc(f.legalName)}</div>
   </div>
   <p>I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.</p>
 

@@ -41,6 +41,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             New Onboarding
           </Link>
           <Link
+            href="/staff/clearance"
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Home (Clearance)
+          </Link>
+          <Link
             href="/dashboard"
             className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirm } from "@/lib/firms";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
+import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +36,10 @@ export async function POST(req: NextRequest) {
   }
 
   const firm = getFirm(body.firmSlug || "gns");
+  const overrides = await loadEngagementLetterOverrides(firm.slug);
   const html = buildLetterHtml({
     firm,
+    ...overrides,
     regBody: body.regBody === "ICAEW" || body.regBody === "ACCA" ? body.regBody : firm.regBody,
     companyName: body.companyName,
     companyNumber: body.companyNumber,

@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { getFirm } from "@/lib/firms";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
+import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 import { archiveToClientFolder } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -119,8 +120,10 @@ export async function POST(req: NextRequest) {
     // Snapshot the letter exactly as issued (letter-bearing modes)
     let letterHtml: string | null = null;
     if (showsLetter) {
+      const overrides = await loadEngagementLetterOverrides(firm.slug);
       letterHtml = buildLetterHtml({
         firm,
+        ...overrides,
         regBody: letterRegBody,
         companyName,
         companyNumber,

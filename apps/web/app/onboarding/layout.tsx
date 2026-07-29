@@ -1,3 +1,11 @@
+// NOTE: this layout wraps every /onboarding/* page, including the
+// client-facing signing (/onboarding/engage/[token]) and document upload
+// (/onboarding/documents/[token]) pages — so the staff-only Back/Home bar is
+// NOT added here. It is rendered directly on the staff-only wizard steps
+// instead (see OnboardingHeader in ./_onboarding-header.tsx, used by
+// onboarding/page.tsx, onboarding/services/page.tsx and
+// onboarding/company/page.tsx) so external clients never see a "Home" link
+// into the staff area.
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-100">

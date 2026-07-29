@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Loader2, ChevronDown, ChevronUp, Plus, Trash2, Check, Search, AlertTriangle, Building2, CheckCircle2 } from 'lucide-react';
 import { DEFAULT_SCOPE_ROWS, type ScopeRow } from '@/lib/letter-html';
 import { saveWizardDraft, loadWizardDraft } from '@/lib/wizard-draft';
+import { OnboardingHeader } from '../_onboarding-header';
 
 type Frequency = 'monthly' | 'quarterly' | 'annually';
 type PaymentMethod = 'dd' | 'manual';
@@ -102,6 +103,14 @@ const SERVICES = [
     description: 'Annual filing to Companies House',
     threshold: 'Once a year',
     excess: '£50+VAT for additional filing',
+  },
+  {
+    id: 'management_fees',
+    name: 'Management Fees',
+    basePrice: 0,
+    description: 'General management / advisory fee — added to the monthly recurring total',
+    threshold: 'As agreed with the client',
+    excess: '—',
   },
   // Subscription based services (Annex A — SSC)
   {
@@ -526,6 +535,7 @@ function ServicesPageInner() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+      <OnboardingHeader />
       <div className="w-full max-w-3xl">
         {/* Progress indicator */}
         <div className="mb-8">
@@ -866,6 +876,9 @@ function ServicesPageInner() {
               {selected.includes(service.id) && (
                 <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2 flex-wrap">
+                    {/* TODO: reposition the "£" glyph (e.g. as an input adornment / prefix)
+                        once the design for this row is finalised — left as-is for now,
+                        including for the new "Management Fees" line. */}
                     <span className="text-sm text-gray-600">£</span>
                     <input
                       type="number"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, listEmailTemplates, upsertEmailTemplate } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
-import { EMAIL_TEMPLATES, TEMPLATE_VARIABLES, templateDef } from "@/lib/email-templates-lib";
+import { ALL_TEMPLATES, TEMPLATE_VARIABLES, templateDef } from "@/lib/email-templates-lib";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function GET() {
   const globalRows = rows.filter((o) => o.firmSlug === "");
   const byKey = new Map(globalRows.map((o) => [o.key, o]));
 
-  const builtIn = EMAIL_TEMPLATES.map((t) => {
+  const builtIn = ALL_TEMPLATES.map((t) => {
     const o = byKey.get(t.key);
     return {
       key: t.key,
@@ -31,6 +31,7 @@ export async function GET() {
       defaultBody: t.defaultBody,
       isOverridden: Boolean(o),
       isCustom: false,
+      kind: t.kind ?? "email",
       updatedAt: o?.updatedAt ?? null,
     };
   });
@@ -49,6 +50,7 @@ export async function GET() {
       defaultBody: o.body ?? "",
       isOverridden: true,
       isCustom: true,
+      kind: "email" as const,
       updatedAt: o.updatedAt,
     }));
 
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
   let key = `custom_${slugify(body.name)}`;
   // Avoid colliding with a built-in key or an existing custom template.
   const existingKeys = new Set([
-    ...EMAIL_TEMPLATES.map((t) => t.key),
+    ...ALL_TEMPLATES.map((t) => t.key),
     ...(await db.transaction((tx) => listEmailTemplates(tx))).map((r) => r.key),
   ]);
   if (existingKeys.has(key)) key = `${key}_${Date.now().toString(36)}`;

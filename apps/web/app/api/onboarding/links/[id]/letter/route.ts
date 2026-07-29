@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken } from "@gns/db";
 import { getFirm } from "@/lib/firms";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
+import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,8 +42,10 @@ export async function GET(
   let html: string | null = wantSigned ? (link.signedHtml ?? null) : (link.letterHtml ?? null);
   if (wantSigned && !html) return NextResponse.json({ error: "Not signed yet" }, { status: 404 });
   if (!html) {
+    const overrides = await loadEngagementLetterOverrides(firm.slug);
     html = buildLetterHtml({
       firm,
+      ...overrides,
       regBody: meta.regBody ?? firm.regBody,
       companyName: link.companyName ?? "",
       companyNumber: link.companyNumber ?? undefined,

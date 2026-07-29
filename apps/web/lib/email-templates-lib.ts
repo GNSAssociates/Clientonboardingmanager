@@ -7,6 +7,10 @@
  * substituted at send time, then wrapped in the firm's branded shell.
  */
 import type { FirmConfig } from './firms';
+// NOTE: no @gns/db import here — this file is reachable from client
+// components (via letter-html.ts's constants), and importing the postgres
+// driver into the client bundle breaks the Next.js build. DB-backed override
+// loading lives in template-overrides.server.ts instead.
 
 export interface TemplateDef {
   key: string;
@@ -16,6 +20,10 @@ export interface TemplateDef {
   ctaLabel?: string;       // if set, a button linking to {actionUrl} is added
   defaultSubject: string;
   defaultBody: string;     // HTML with {variables}
+  /** 'document' = a text block spliced into the clearance PDF / engagement
+   * letter (no subject, no email shell) rather than a transactional email.
+   * Defaults to 'email' when omitted. */
+  kind?: 'email' | 'document';
 }
 
 export const TEMPLATE_VARIABLES: Array<[string, string]> = [
@@ -139,8 +147,72 @@ export const EMAIL_TEMPLATES: TemplateDef[] = [
   },
 ];
 
+/**
+ * Document text blocks — spliced verbatim (after {variable} substitution)
+ * into the professional clearance PDF (plain text, pdf-lib) and the
+ * engagement letter (HTML, letter-html.ts). Editable from the same staff
+ * /staff/templates screen as the emails above, stored in the same
+ * `email_templates` table (firmSlug '' = all firms).
+ */
+export const DOCUMENT_TEMPLATES: TemplateDef[] = [
+  {
+    key: 'doc_clearance_intro',
+    name: 'Clearance letter — opening paragraph',
+    audience: 'Firm',
+    kind: 'document',
+    description: 'Plain text (no HTML tags). Opening paragraph of the professional clearance letter sent to the previous accountant.',
+    defaultSubject: '(not sent as an email — used inside the clearance PDF)',
+    defaultBody: 'We have been requested to act as accountants for the above individual and company. In connection with this, we are writing to enquire whether there are any professional reasons why we should not accept the appointment.',
+  },
+  {
+    key: 'doc_clearance_ask',
+    name: 'Clearance letter — request wording',
+    audience: 'Firm',
+    kind: 'document',
+    description: 'Plain text (no HTML tags). Introduces the numbered list of requested records/items in the clearance letter.',
+    defaultSubject: '(not sent as an email — used inside the clearance PDF)',
+    defaultBody: 'Assuming there are no such matters, we should be grateful if you would provide the following information, whichever are relevant. Please quote the item number when replying.',
+  },
+  {
+    key: 'doc_clearance_closing',
+    name: 'Clearance letter — closing paragraph',
+    audience: 'Firm',
+    kind: 'document',
+    description: 'Plain text (no HTML tags). Final paragraph of the clearance letter, before the signature.',
+    defaultSubject: '(not sent as an email — used inside the clearance PDF)',
+    defaultBody: 'Thank you for your assistance in this matter, which will allow a smooth changeover.',
+  },
+  {
+    key: 'doc_engagement_intro',
+    name: 'Engagement letter — opening paragraphs',
+    audience: 'Firm',
+    kind: 'document',
+    description: 'HTML (use <p> tags per paragraph). Appears immediately after "Dear Sir/s" at the top of the engagement letter, before the ethics/regulatory paragraph and the Period of Engagement section.',
+    defaultSubject: '(not sent as an email — used inside the engagement letter)',
+    defaultBody:
+      '<p>We are pleased to accept the instruction to act as accountant for {actFor} and are writing to confirm the terms of our appointment.</p>\n' +
+      '<p>The purpose of this letter, together with the attached terms and conditions, is to set out our terms for carrying out the work and to clarify our respective responsibilities.</p>',
+  },
+  {
+    key: 'doc_engagement_closing',
+    name: 'Engagement letter — Agreement of terms',
+    audience: 'Firm',
+    kind: 'document',
+    description: 'HTML (use <p> tags per paragraph). The "Agreement of terms" clause near the signature block, at the end of the main letter.',
+    defaultSubject: '(not sent as an email — used inside the engagement letter)',
+    defaultBody:
+      '<p>This letter supersedes any previous engagement letter. Once it has been agreed, this letter will remain effective until it is replaced.</p>\n' +
+      '<p>You or we may vary or terminate our authority to act on your behalf at any time without penalty. Notice of variation or termination must be given in writing.</p>\n' +
+      '<p>We would be grateful if you could confirm your agreement to the terms of this letter by signing in the acceptance section.</p>\n' +
+      '<p>If this letter is not in accordance with your understanding of the scope of our engagement or your circumstances have changed, please let us know. This letter should be read in conjunction with the firm\'s standard terms and conditions.</p>',
+  },
+];
+
+/** All editable templates — transactional emails plus letter/PDF document text blocks. */
+export const ALL_TEMPLATES: TemplateDef[] = [...EMAIL_TEMPLATES, ...DOCUMENT_TEMPLATES];
+
 export function templateDef(key: string): TemplateDef | undefined {
-  return EMAIL_TEMPLATES.find((t) => t.key === key);
+  return ALL_TEMPLATES.find((t) => t.key === key);
 }
 
 /** Substitute {variable} placeholders. Unknown placeholders are left as-is. */
