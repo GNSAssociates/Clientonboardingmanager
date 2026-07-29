@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CheckCircle2, Building
 import { getFirm } from '@/lib/firms';
 import { LETTER_PARTNERS } from '@/lib/letter-html';
 import { saveWizardDraft } from '@/lib/wizard-draft';
+import { OnboardingHeader } from '../_onboarding-header';
 
 interface Director {
   name: string;
@@ -191,7 +192,7 @@ function CompanyPageInner() {
   };
 
   const parseParams = () => {
-    let serviceDetails: Array<{ id: string; name: string; price: number; oneoff?: boolean }> = [];
+    let serviceDetails: Array<{ id: string; name: string; price: number; oneoff?: boolean; frequency?: string }> = [];
     let customFees: Array<{ description: string; price: number }> = [];
     let scopeRows: Array<{ service: string; threshold: string; excess: string }> | undefined;
     try { serviceDetails = JSON.parse(decodeURIComponent(serviceDetailsParam)); } catch {}
@@ -246,6 +247,12 @@ function CompanyPageInner() {
   // Autosave the full Companies House snapshot (incl. directors + SIC codes)
   // and send options to the draft so the client record captures CH data and the
   // dashboard reflects progress at the Company step.
+  //
+  // IMPORTANT: this must re-send every fee-selection field the Services step
+  // saved (frequencies, payment method, etc.) — the draft's letterMeta is
+  // replaced wholesale on each save, so omitting a field here would silently
+  // wipe it out and reset it to its default the next time the wizard (or the
+  // browser back button) reloads the draft on the Services step.
   useEffect(() => {
     if (!company) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -253,6 +260,15 @@ function CompanyPageInner() {
       const { serviceDetails, customFees, scopeRows } = parseParams();
       const prices = Object.fromEntries(serviceDetails.map((s) => [s.id, s.price]));
       const selectedOneoff = serviceDetails.filter((s) => s.oneoff).map((s) => s.id);
+      const frequencies = Object.fromEntries(
+        serviceDetails.filter((s) => !s.oneoff && s.frequency).map((s) => [s.id, s.frequency as string])
+      );
+      let includeInLetter: Record<string, boolean> = {};
+      let softwareItems: Array<{ name: string; price: number }> = [];
+      let oneoffScopes: Record<string, string> = {};
+      try { includeInLetter = JSON.parse(searchParams.get('includeInLetter') || '{}'); } catch {}
+      try { softwareItems = JSON.parse(searchParams.get('softwareItems') || '[]'); } catch {}
+      try { oneoffScopes = JSON.parse(searchParams.get('oneoffScopes') || '{}'); } catch {}
       const token = await saveWizardDraft({
         token: draftToken,
         firmSlug,
@@ -269,6 +285,16 @@ function CompanyPageInner() {
         partnerName,
         sendMode,
         regBody,
+        frequencies,
+        paymentMethod: searchParams.get('paymentMethod') || 'dd',
+        includeInLetter,
+        includeAnnexA: searchParams.get('includeAnnexA') !== '0',
+        softwareItems,
+        clientType: searchParams.get('clientType') || 'limited',
+        clientName: searchParams.get('clientName') || company.name,
+        businessAddress: searchParams.get('businessAddress') || company.address,
+        oneoffScopes,
+        utr: searchParams.get('utr') || '',
         ch: {
           number: company.number,
           name: company.name,
@@ -342,6 +368,7 @@ function CompanyPageInner() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+      <OnboardingHeader />
       <div className="w-full max-w-2xl">
 
         {/* Progress */}

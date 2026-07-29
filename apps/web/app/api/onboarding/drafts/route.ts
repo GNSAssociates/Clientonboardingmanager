@@ -27,6 +27,19 @@ export async function POST(req: NextRequest) {
       sendMode,
       regBody,
       ch,
+      // Fee-selection state that must survive back/forward navigation —
+      // previously dropped here, which reset frequency/payment method to
+      // their defaults every time the wizard was reloaded from a draft.
+      frequencies,
+      paymentMethod,
+      includeInLetter,
+      includeAnnexA,
+      softwareItems,
+      clientType,
+      clientName,
+      businessAddress,
+      oneoffScopes,
+      utr,
     } = body as {
       token?: string;
       firmSlug?: string;
@@ -44,6 +57,16 @@ export async function POST(req: NextRequest) {
       sendMode?: string;
       regBody?: string;
       ch?: Record<string, unknown> | null;
+      frequencies?: Record<string, string>;
+      paymentMethod?: string;
+      includeInLetter?: Record<string, boolean>;
+      includeAnnexA?: boolean;
+      softwareItems?: Array<{ name: string; price: number }>;
+      clientType?: string;
+      clientName?: string;
+      businessAddress?: string;
+      oneoffScopes?: Record<string, string>;
+      utr?: string;
     };
 
     if (!firmSlug) {
@@ -78,6 +101,16 @@ export async function POST(req: NextRequest) {
             partnerName: partnerName ?? null,
             sendMode: sendMode ?? null,
             regBody: regBody ?? null,
+            frequencies: frequencies ?? {},
+            paymentMethod: paymentMethod ?? "dd",
+            includeInLetter: includeInLetter ?? {},
+            includeAnnexA: includeAnnexA ?? true,
+            softwareItems: softwareItems ?? [],
+            clientType: clientType ?? "limited",
+            clientName: clientName ?? null,
+            businessAddress: businessAddress ?? null,
+            oneoffScopes: oneoffScopes ?? {},
+            utr: utr ?? null,
             savedAt: now.toISOString(),
           },
           ch: ch ?? null,
