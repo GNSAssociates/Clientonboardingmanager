@@ -272,9 +272,29 @@ export default function EngagementPage() {
     ? Boolean(authorised && esignConsent && signatureName.trim().length > 1) && !isExpired
     : Boolean(authorised && esignConsent && signatureName.trim().length > 1 && prevOk && ddValid) && !isExpired;
 
+  // Keep the Sign button visible/clickable at all times (see below) — when
+  // clicked with something missing, scroll the client to the first thing
+  // that needs their attention and focus it, rather than leaving them
+  // guessing why a greyed-out button won't respond.
+  const focusFirstError = () => {
+    const checks: Array<{ ok: boolean; selector: string }> = [];
+    if (mode !== 'proposal_only') checks.push({ ok: Boolean(prevOk), selector: '[data-field="prevAccountant"]' });
+    if (mode === 'engagement' && !isManualPayment) checks.push({ ok: ddValid, selector: '[data-field="directDebit"]' });
+    checks.push({ ok: authorised, selector: '[data-field="authorised"]' });
+    checks.push({ ok: esignConsent, selector: '[data-field="esignConsent"]' });
+    checks.push({ ok: signatureName.trim().length > 1, selector: '[data-field="signatureName"]' });
+    const firstBad = checks.find((c) => !c.ok);
+    if (!firstBad) return;
+    const el = document.querySelector(firstBad.selector) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const focusable = (el.matches('input,textarea,select') ? el : el.querySelector('input,textarea,select')) as HTMLElement | null;
+    focusable?.focus();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit) { focusFirstError(); return; }
     setSubmitting(true);
     setError('');
     try {
@@ -394,7 +414,7 @@ export default function EngagementPage() {
         {/* ═══════ MODE: DETAILS ONLY — short form, no contract ═══════ */}
         {mode === 'details_only' ? (
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
+            <div data-field="prevAccountant" className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
               <h1 className="text-xl font-bold text-gray-900 mb-1">Previous Accountant Details</h1>
               <p className="text-sm text-gray-500 mb-6">
                 {firm.legalName} needs these details to request professional clearance and the handover of the records
@@ -443,7 +463,7 @@ export default function EngagementPage() {
                 </p>
               </div>
 
-              <label className="flex items-start gap-3 cursor-pointer mb-3">
+              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-3">
                 <input type="checkbox" checked={authorised} onChange={(e) => setAuthorised(e.target.checked)}
                   className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
                 <p className="font-bold text-gray-900">
@@ -451,7 +471,7 @@ export default function EngagementPage() {
                 </p>
               </label>
 
-              <label className="flex items-start gap-3 cursor-pointer mb-5">
+              <label data-field="esignConsent" className="flex items-start gap-3 cursor-pointer mb-5">
                 <input type="checkbox" checked={esignConsent} onChange={(e) => setEsignConsent(e.target.checked)}
                   className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
                 <div>
@@ -469,6 +489,7 @@ export default function EngagementPage() {
               <div className="bg-white rounded-xl p-5 border border-purple-200">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Sign here to confirm *</label>
                 <input
+                  data-field="signatureName"
                   type="text"
                   value={signatureName}
                   onChange={(e) => setSignatureName(e.target.value)}
@@ -485,8 +506,10 @@ export default function EngagementPage() {
 
             {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl"><p className="text-sm text-red-700">{error}</p></div>}
 
-            <button type="submit" disabled={!canSubmit || submitting}
-              className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${canSubmit ? 'text-white hover:shadow-xl' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+            {/* Always visible/clickable — validation errors scroll the client
+                to the first thing missing rather than hiding the button. */}
+            <button type="submit" disabled={submitting}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${canSubmit ? 'text-white hover:shadow-xl' : 'bg-gray-300 text-gray-600 hover:bg-gray-400'}`}
               style={canSubmit ? { background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` } : {}}>
               {submitting ? 'Submitting...' : 'Sign & Submit Details'}
             </button>
@@ -530,7 +553,7 @@ export default function EngagementPage() {
 
             {mode !== 'proposal_only' && (<>
             {/* Previous Accountant */}
-            <div className="bg-white rounded-2xl p-8 border border-gray-200">
+            <div data-field="prevAccountant" className="bg-white rounded-2xl p-8 border border-gray-200">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Previous Accountant Details</h2>
               <p className="text-sm text-gray-500 mb-5">We need these details to request professional clearance and your records on your behalf.</p>
 
@@ -615,7 +638,7 @@ export default function EngagementPage() {
 
             {/* Direct Debit — only for DD payment method */}
             {!isManualPayment && (
-            <div className="bg-white rounded-2xl p-8 border-2 border-gray-300">
+            <div data-field="directDebit" className="bg-white rounded-2xl p-8 border-2 border-gray-300">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Direct Debit Details (GoCardless) *</h2>
               <p className="text-sm text-gray-500 mb-5">
                 Required to complete the contract — your monthly fees are collected by Direct Debit, protected by the Direct Debit Guarantee.
@@ -711,7 +734,7 @@ export default function EngagementPage() {
                 </p>
               </div>
 
-              <label className="flex items-start gap-3 cursor-pointer mb-3">
+              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-3">
                 <input type="checkbox" checked={authorised} onChange={(e) => setAuthorised(e.target.checked)}
                   className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
                 <div>
@@ -723,7 +746,7 @@ export default function EngagementPage() {
                 </div>
               </label>
 
-              <label className="flex items-start gap-3 cursor-pointer mb-5">
+              <label data-field="esignConsent" className="flex items-start gap-3 cursor-pointer mb-5">
                 <input type="checkbox" checked={esignConsent} onChange={(e) => setEsignConsent(e.target.checked)}
                   className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
                 <div>
@@ -749,6 +772,7 @@ export default function EngagementPage() {
                   Sign here to confirm you have read this contract to the last page and you are happy to proceed *
                 </label>
                 <input
+                  data-field="signatureName"
                   type="text"
                   value={signatureName}
                   onChange={(e) => setSignatureName(e.target.value)}
@@ -769,9 +793,11 @@ export default function EngagementPage() {
               </div>
             )}
 
-            <button type="submit" disabled={!canSubmit || submitting}
+            {/* Always visible/clickable — validation errors scroll the client
+                to the first thing missing rather than hiding the button. */}
+            <button type="submit" disabled={submitting}
               className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
-                canSubmit ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:shadow-xl hover:scale-[1.01]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                canSubmit ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:shadow-xl hover:scale-[1.01]' : 'bg-gray-300 text-gray-600 hover:bg-gray-400'
               }`}>
               {submitting ? (mode === 'proposal_only' ? 'Approving...' : 'Signing...') : (mode === 'proposal_only' ? 'Approve Proposal' : 'Sign & Accept Engagement')}
             </button>
