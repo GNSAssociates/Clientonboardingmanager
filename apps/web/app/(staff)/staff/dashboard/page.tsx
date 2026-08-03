@@ -166,12 +166,12 @@ export default function MasterDashboard() {
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-          {globalKpis.map((kpi) => {
+          {globalKpis.map((kpi, i) => {
             const Icon = kpi.icon;
             return (
-              <div key={kpi.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+              <div key={kpi.label} className="gns-reveal gns-press bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300" style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="flex items-start justify-between mb-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: kpi.color + '15' }}>
+                  <div className="gns-float w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: kpi.color + '15', animationDelay: `${i * 300}ms` }}>
                     <Icon size={18} style={{ color: kpi.color }} />
                   </div>
                   <span className="text-xs text-gray-400 font-medium text-right leading-tight max-w-[80px]">{kpi.trend}</span>
