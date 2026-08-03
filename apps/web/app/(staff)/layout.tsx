@@ -15,7 +15,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   if (!access.onboarding) redirect("/invoices");
 
   return (
-    <div className="flex min-h-screen bg-[#fbf8f1]">
+    <div className="flex min-h-screen bg-[#fdfcf9]">
       <aside className="w-60 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
         <div className="px-4 py-5 border-b border-gray-100">
           <div className="flex items-center gap-3">

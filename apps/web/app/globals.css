@@ -10,7 +10,7 @@
 :root {
   /* App-wide cream/ivory background (login keeps its own dark lamp theme).
      Lightened toward white per client feedback (less creamy). */
-  --background: 42 44% 97%;
+  --background: 44 50% 98.5%;
   --foreground: 215 28% 17%;
   --primary: 212 50% 25%;
   --primary-foreground: 0 0% 100%;

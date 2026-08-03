@@ -54,7 +54,7 @@ export default function DashboardPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-[#fbf8f1] flex items-center justify-center">
+      <div className="min-h-screen bg-[#fdfcf9] flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
       </div>
     );
@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const roleLabel = user.roles.map((r) => ROLE_LABELS[r] || r).join(', ') || 'Staff';
 
   return (
-    <div className="min-h-screen bg-[#fbf8f1]">
+    <div className="min-h-screen bg-[#fdfcf9]">
       {/* Top bar */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">

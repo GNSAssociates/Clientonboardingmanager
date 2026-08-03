@@ -104,7 +104,7 @@ export default function ClearanceResponsePage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#fbf8f1] py-12 px-4">
+    <div className="min-h-screen bg-[#fdfcf9] py-12 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
 
         {/* Letterhead */}

@@ -77,13 +77,14 @@ const BODY_BOTTOM = FOOTER_RULE_Y + 16;
 
 // Client requirement 1: warm cream/ivory page background on every page,
 // drawn first (behind everything). Single named const so it's easy to change.
-const CREAM_BG = rgb(0xfb / 255, 0xf8 / 255, 0xf1 / 255);
+const CREAM_BG = rgb(0xfd / 255, 0xfc / 255, 0xf9 / 255);
 
 const BODY_SIZE = 11;
 const LINE = 14.5;
 const SMALL_LINE = 12.5;
 const GREY = rgb(0.42, 0.45, 0.5);
 const INK = rgb(0.11, 0.13, 0.17);
+const HEADING = rgb(0.13, 0.18, 0.32); // deep navy ink for titles/headings
 const HAIRLINE = rgb(0.8, 0.78, 0.72);
 const TABLE_HEAD_BG = rgb(0.1, 0.12, 0.16);
 const TABLE_ALT_BG = rgb(0.94, 0.91, 0.85);
@@ -239,6 +240,11 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const italic = await pdf.embedFont(StandardFonts.HelveticaOblique);
+  // Serif family for titles/headings — a more classic, professional letterhead
+  // feel than all-Helvetica. Body copy stays Helvetica for on-screen legibility.
+  const serif = await pdf.embedFont(StandardFonts.TimesRoman);
+  const serifBold = await pdf.embedFont(StandardFonts.TimesRomanBold);
+  const serifItalic = await pdf.embedFont(StandardFonts.TimesRomanItalic);
   const logo = await embedDataUri(pdf, GNS_LOGO_DATA_URI);
   const signature = await embedDataUri(pdf, PARTNER_SIGNATURES[partner] ?? GNS_SIGNATURE_DATA_URI);
 
@@ -264,10 +270,10 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     }
     const tagline = sanitize(f.tagline ?? "Truly Professional");
     p.drawText(tagline, {
-      x: PAGE_W - MARGIN_X - italic.widthOfTextAtSize(tagline, 11),
+      x: PAGE_W - MARGIN_X - serifItalic.widthOfTextAtSize(tagline, 12),
       y: TAGLINE_Y,
-      size: 11,
-      font: italic,
+      size: 12,
+      font: serifItalic,
       color: accent,
     });
     const reg = f.regNumber ? `${f.regNumberLabel ?? f.regBody} Registration No. ${f.regNumber}` : `Registered in England and Wales No. ${f.companyNumber}`;
@@ -376,9 +382,9 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   const heading1 = (value: string) => {
     need(LINE * 2.5);
     y -= 6;
-    const t = sanitize(value).toUpperCase();
-    page.drawText(t, { x: (PAGE_W - bold.widthOfTextAtSize(t, 14)) / 2, y, size: 14, font: bold, color: INK });
-    y -= LINE * 1.4;
+    const t = sanitize(value); // title case in serif reads more refined than all-caps
+    page.drawText(t, { x: (PAGE_W - serifBold.widthOfTextAtSize(t, 18)) / 2, y, size: 18, font: serifBold, color: HEADING });
+    y -= LINE * 1.5;
   };
   const heading2 = (value: string, numbered = true) => {
     need(LINE * 2.5);
@@ -386,15 +392,16 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     clauseNo += 1;
     const label = numbered ? `${clauseNo}. ` : "";
     const t = sanitize(label + value);
-    page.drawText(t, { x: MARGIN_X, y, size: 12, font: bold, color: accent });
-    y -= 3;
-    page.drawRectangle({ x: MARGIN_X, y: y - 2, width: CONTENT_W, height: 0.6, color: HAIRLINE });
+    page.drawText(t, { x: MARGIN_X, y, size: 13, font: serifBold, color: HEADING });
+    y -= 4;
+    // Thin rule in the firm accent — a small colour cue without the heavy red text.
+    page.drawRectangle({ x: MARGIN_X, y: y - 2, width: CONTENT_W, height: 0.9, color: accent });
     y -= LINE;
   };
   const heading3 = (value: string) => {
     need(LINE * 2);
     y -= 4;
-    text(value, { font: bold, size: BODY_SIZE + 0.5, color: INK, gap: 2 });
+    text(value, { font: serifBold, size: BODY_SIZE + 1, color: HEADING, gap: 2 });
   };
 
   const renderBlocks = (blocks: Block[]) => {
@@ -460,7 +467,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text(`Date: ${d.dateStr}`, { color: GREY, gap: 10, align: "right" });
 
   heading1("Letter of Engagement");
-  text("Contract for Services", { font: italic, size: 12, color: accent, align: "center", gap: 14 });
+  text("Contract for Services", { font: serifItalic, size: 13, color: accent, align: "center", gap: 14 });
 
   text("Between", { font: bold, size: 8.5, color: GREY, gap: 2 });
   text(`${f.legalName.toUpperCase()} of ${f.address}, ${f.city} ${f.postcode} ('The Accountants')`, { gap: 8 });
