@@ -142,6 +142,10 @@ export default function LoginPage() {
 
   return (
     <div className={`login-root ${lit ? 'lit' : ''}`}>
+      {/* Ambient floating orbs (decorative, non-interactive) */}
+      <span className="orb orb-1" aria-hidden="true" />
+      <span className="orb orb-2" aria-hidden="true" />
+      <span className="orb orb-3" aria-hidden="true" />
       <div className="login-stage">
         {/* Left: Lamp column */}
         <div className="lamp-col">
@@ -339,6 +343,37 @@ export default function LoginPage() {
         }
         .login-root.lit {
           background: radial-gradient(1100px 680px at 22% 34%, #5a4494 0%, #372c5f 44%, #191134 100%);
+        }
+
+        /* ── Ambient floating orbs ─────────────────────────── */
+        .orb {
+          position: absolute; border-radius: 50%; pointer-events: none; z-index: 0;
+          filter: blur(60px); opacity: 0.5; will-change: transform;
+        }
+        .orb-1 {
+          width: 360px; height: 360px; top: -80px; right: -60px;
+          background: radial-gradient(circle, rgba(139,92,246,0.55), transparent 70%);
+          animation: orbDrift1 22s ease-in-out infinite;
+        }
+        .orb-2 {
+          width: 300px; height: 300px; bottom: -70px; left: -50px;
+          background: radial-gradient(circle, rgba(192,38,168,0.45), transparent 70%);
+          animation: orbDrift2 26s ease-in-out infinite;
+        }
+        .orb-3 {
+          width: 220px; height: 220px; top: 44%; left: 52%;
+          background: radial-gradient(circle, rgba(99,102,241,0.4), transparent 70%);
+          animation: orbDrift3 30s ease-in-out infinite;
+        }
+        .login-root.lit .orb { opacity: 0.7; }
+        @keyframes orbDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px,50px) scale(1.12); } }
+        @keyframes orbDrift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px,-40px) scale(1.1); } }
+        @keyframes orbDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-36px,-30px) scale(1.15); } }
+
+        .login-stage { position: relative; z-index: 1; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .orb { animation: none !important; }
         }
 
         .login-stage {
