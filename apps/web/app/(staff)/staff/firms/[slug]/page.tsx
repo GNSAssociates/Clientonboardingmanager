@@ -97,7 +97,7 @@ export default function FirmDashboard() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-[#f7f2e6] flex items-center justify-center">
       <div className="text-center">
         <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
         <p className="text-sm text-gray-500">Loading dashboard…</p>
@@ -106,7 +106,7 @@ export default function FirmDashboard() {
   );
 
   if (!data) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-[#f7f2e6] flex items-center justify-center">
       <p className="text-red-500">Failed to load firm data.</p>
     </div>
   );
@@ -157,7 +157,7 @@ export default function FirmDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f7f2e6]">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4">

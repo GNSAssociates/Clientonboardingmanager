@@ -8,7 +8,8 @@
  * so the same components recolour per entity (BR-ENT-4).
  */
 :root {
-  --background: 0 0% 100%;
+  /* App-wide cream/ivory background (login keeps its own dark lamp theme). */
+  --background: 42 52% 94%;
   --foreground: 215 28% 17%;
   --primary: 212 50% 25%;
   --primary-foreground: 0 0% 100%;
