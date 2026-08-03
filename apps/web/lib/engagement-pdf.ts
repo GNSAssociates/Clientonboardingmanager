@@ -71,14 +71,13 @@ const HEADER_RULE_Y = PAGE_H - 70;
 const BODY_TOP = PAGE_H - 96;
 
 const FOOTER_RULE_Y = 70;
-const BADGE_Y = 50;
 const BADGE_H = 14;
 const FOOTER_TEXT_Y = 39;
 const BODY_BOTTOM = FOOTER_RULE_Y + 16;
 
 // Client requirement 1: warm cream/ivory page background on every page,
 // drawn first (behind everything). Single named const so it's easy to change.
-const CREAM_BG = rgb(0xf7 / 255, 0xf2 / 255, 0xe6 / 255);
+const CREAM_BG = rgb(0xfb / 255, 0xf8 / 255, 0xf1 / 255);
 
 const BODY_SIZE = 11;
 const LINE = 14.5;
@@ -243,12 +242,12 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   const logo = await embedDataUri(pdf, GNS_LOGO_DATA_URI);
   const signature = await embedDataUri(pdf, PARTNER_SIGNATURES[partner] ?? GNS_SIGNATURE_DATA_URI);
 
-  const badges: PDFImage[] = [];
+  const badgeByBody = new Map<string, PDFImage>();
   for (const body of f.regBodies ?? []) {
     const uri = BODY_BADGES[body.toUpperCase()];
     if (!uri) continue;
     const img = await embedDataUri(pdf, uri);
-    if (img) badges.push(img);
+    if (img) badgeByBody.set(body.toUpperCase(), img);
   }
 
   let page!: PDFPage;
@@ -283,18 +282,9 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
 
     // ── Footer ──────────────────────────────────────────────────────────────
     p.drawRectangle({ x: MARGIN_X, y: FOOTER_RULE_Y, width: CONTENT_W, height: 0.6, color: HAIRLINE });
-    if (badges.length) {
-      const gap = 14;
-      const sizes = badges.map((b) => ({ img: b, w: (b.width / b.height) * BADGE_H }));
-      const total = sizes.reduce((sum, s) => sum + s.w, 0) + gap * (sizes.length - 1);
-      let x = (PAGE_W - total) / 2;
-      for (const s of sizes) {
-        p.drawImage(s.img, { x, y: BADGE_Y, width: s.w, height: BADGE_H });
-        x += s.w + gap;
-      }
-    }
-    // GNS Ltd / Galaxy show the fax number on the contact line; the LLP shows the
-    // mobile — matching each entity's letterhead.
+
+    // Contact / registration text — centred (wording unchanged). GNS Ltd / Galaxy
+    // show the fax on the contact line; the LLP shows the mobile.
     const contact = f.footerShowFax && f.footerFax
       ? `t: ${f.footerTel} | f: ${f.footerFax} | e: ${f.email} | ${f.website}`
       : `t: ${f.footerTel} | m: ${f.footerMobile} | e: ${f.email} | ${f.website}`;
@@ -313,6 +303,33 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
         color: GREY,
       });
     });
+
+    // Professional-body membership logos flank the footer text (client spec):
+    // Ltd / Galaxy show ICAEW + ACCA on the left and CIOT on the right; the LLP
+    // shows ACCA on the left. Membership is per-entity via f.regBodies.
+    const SIDE_H = BADGE_H + 3;
+    const midY = FOOTER_TEXT_Y - 9.5; // vertical centre of the 3 text lines
+    const drawGroup = (imgs: PDFImage[], side: "left" | "right") => {
+      if (!imgs.length) return;
+      const gap = 8;
+      const sized = imgs.map((im) => ({ im, w: (im.width / im.height) * SIDE_H }));
+      const total = sized.reduce((s, x) => s + x.w, 0) + gap * (sized.length - 1);
+      let x = side === "left" ? MARGIN_X : PAGE_W - MARGIN_X - total;
+      for (const s of sized) {
+        p.drawImage(s.im, { x, y: midY - SIDE_H / 2, width: s.w, height: SIDE_H });
+        x += s.w + gap;
+      }
+    };
+    const left: PDFImage[] = [];
+    const right: PDFImage[] = [];
+    const icaew = badgeByBody.get("ICAEW");
+    const acca = badgeByBody.get("ACCA");
+    const ciot = badgeByBody.get("CIOT");
+    if (icaew) left.push(icaew);
+    if (acca) left.push(acca);
+    if (ciot) right.push(ciot);
+    drawGroup(left, "left");
+    drawGroup(right, "right");
   };
 
   const newPage = () => {

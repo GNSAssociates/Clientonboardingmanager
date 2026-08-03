@@ -23,7 +23,7 @@ export default function InvoicesClient({ serviceUrl, embedUrl }: { serviceUrl: s
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f7f2e6] flex items-center justify-center">
+      <div className="min-h-screen bg-[#fbf8f1] flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
       </div>
     );
@@ -34,7 +34,7 @@ export default function InvoicesClient({ serviceUrl, embedUrl }: { serviceUrl: s
   const invoiceUrl = serviceUrl ? (embedUrl || serviceUrl) : null;
 
   return (
-    <div className="min-h-screen bg-[#f7f2e6] flex flex-col">
+    <div className="min-h-screen bg-[#fbf8f1] flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
         <div className="max-w-[1920px] mx-auto px-4 h-14 flex items-center justify-between">
