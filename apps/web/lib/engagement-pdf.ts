@@ -106,13 +106,6 @@ function sanitize(text: string): string {
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
 }
 
-function hexToRgb(hex: string): RGB {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return rgb(0.12, 0.23, 0.54);
-  const n = parseInt(m[1]!, 16);
-  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
-}
-
 async function embedDataUri(pdf: PDFDocument, dataUri: string): Promise<PDFImage | null> {
   const m = /^data:image\/(png|jpe?g);base64,([\s\S]+)$/i.exec(dataUri ?? "");
   if (!m) return null;
@@ -197,7 +190,10 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   const isManual = d.paymentMethod === "manual";
   const showAnnexA = d.includeAnnexA !== false;
   const terms = CLIENT_TYPE_TERMS[d.clientType ?? "limited"] ?? CLIENT_TYPE_TERMS.limited!;
-  const accent = hexToRgb(f.accentColor);
+  // Unified professional navy for every entity's letter accents (rules, labels,
+  // subtitle). The bright brand red/purple read as less formal on a legal
+  // engagement letter; the brand identity stays in the letterhead logo.
+  const accent = rgb(0.13, 0.20, 0.40);
 
   const docVars = { actFor: terms.actFor, companyName: d.companyName, firmName: f.name };
   const introText = renderVars(d.introOverrideHtml || templateDef("doc_engagement_intro")!.defaultBody, docVars);
@@ -828,10 +824,6 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       { rowBg: (i) => (i % 2 ? TABLE_ALT_BG : null) },
     );
   }
-
-  need(LINE * 2);
-  y -= 6;
-  text(f.regStatement, { font: italic, size: 7.5, color: GREY, align: "center" });
 
   // Page numbers, once the total is known.
   const pages = pdf.getPages();
