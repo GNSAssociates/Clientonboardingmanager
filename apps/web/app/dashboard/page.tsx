@@ -125,7 +125,7 @@ export default function DashboardPage() {
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-6 py-12">
         {/* Welcome section */}
-        <div className="mb-12">
+        <div className="mb-12 gns-reveal">
           <h1 className="text-3xl font-bold text-gray-900">
             Welcome back, {user.displayName?.split(' ')[0] || 'there'}
           </h1>
@@ -138,11 +138,12 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
           {/* Client Onboarding */}
           {canOnboard && (
-            <Link href="/staff/dashboard" className="group block">
-              <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-8 shadow-sm hover:shadow-xl hover:border-purple-200 transition-all duration-300 hover:-translate-y-1">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-purple-100/60 to-transparent rounded-bl-full" />
+            <Link href="/staff/dashboard" className="group block gns-reveal" style={{ animationDelay: '80ms' }}>
+              <div className="gns-sheen-host gns-press relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-8 shadow-sm hover:shadow-2xl hover:border-purple-200 transition-all duration-300 hover:-translate-y-1.5">
+                <div className="gns-aurora absolute top-0 right-0 w-44 h-44 bg-gradient-to-bl from-purple-200/70 via-indigo-100/40 to-transparent rounded-bl-full" />
+                <span className="gns-sheen" />
                 <div className="relative">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-6 shadow-lg shadow-purple-200/50 group-hover:scale-110 transition-transform">
+                  <div className="gns-float w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-6 shadow-lg shadow-purple-200/50 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                       <circle cx="9" cy="7" r="4" />
@@ -167,11 +168,12 @@ export default function DashboardPage() {
 
           {/* Invoice Summarizer */}
           {canInvoice && (
-            <Link href="/invoices" className="group block">
-              <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-8 shadow-sm hover:shadow-xl hover:border-emerald-200 transition-all duration-300 hover:-translate-y-1">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-emerald-100/60 to-transparent rounded-bl-full" />
+            <Link href="/invoices" className="group block gns-reveal" style={{ animationDelay: '160ms' }}>
+              <div className="gns-sheen-host gns-press relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-8 shadow-sm hover:shadow-2xl hover:border-emerald-200 transition-all duration-300 hover:-translate-y-1.5">
+                <div className="gns-aurora absolute top-0 right-0 w-44 h-44 bg-gradient-to-bl from-emerald-200/70 via-teal-100/40 to-transparent rounded-bl-full" />
+                <span className="gns-sheen" />
                 <div className="relative">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-6 shadow-lg shadow-emerald-200/50 group-hover:scale-110 transition-transform">
+                  <div className="gns-float w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-6 shadow-lg shadow-emerald-200/50 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                       <polyline points="14 2 14 8 20 8" />
@@ -180,7 +182,12 @@ export default function DashboardPage() {
                       <polyline points="10 9 9 9 8 9" />
                     </svg>
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">Invoice Summarizer</h2>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h2 className="text-xl font-bold text-gray-900">Invoice Summarizer</h2>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                      <span className="gns-pulse-ring h-1.5 w-1.5 rounded-full bg-emerald-500" /> AI Live
+                    </span>
+                  </div>
                   <p className="text-gray-500 text-sm leading-relaxed mb-6">
                     AI-powered invoice extraction, bank reconciliation, sales processing, and Amazon VAT summaries. Upload documents and get structured data instantly.
                   </p>
