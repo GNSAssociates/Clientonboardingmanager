@@ -21,10 +21,11 @@
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 
 export function isOneDriveConfigured(): boolean {
+  // Accept either naming scheme: ENTRA_* or MS_GRAPH_* (same Entra app).
   return Boolean(
-    process.env.ENTRA_TENANT_ID?.trim() &&
-    process.env.ENTRA_CLIENT_ID?.trim() &&
-    process.env.ENTRA_CLIENT_SECRET?.trim()
+    (process.env.ENTRA_TENANT_ID?.trim() || process.env.MS_GRAPH_TENANT_ID?.trim()) &&
+    (process.env.ENTRA_CLIENT_ID?.trim() || process.env.MS_GRAPH_CLIENT_ID?.trim()) &&
+    (process.env.ENTRA_CLIENT_SECRET?.trim() || process.env.MS_GRAPH_CLIENT_SECRET?.trim())
   );
 }
 
