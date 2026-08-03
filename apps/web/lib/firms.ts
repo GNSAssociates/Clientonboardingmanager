@@ -21,6 +21,10 @@ export interface FirmConfig {
   tagline?: string;
   /** Practising registration number shown in the letterhead, e.g. ACCA 5371891. */
   regNumber?: string;
+  /** Label for the letterhead registration line, e.g. "ACCA" → "ACCA Registration No. …". Defaults to regBody. */
+  regNumberLabel?: string;
+  /** Footer contact line shows the fax number (true) instead of the mobile (false/undefined). */
+  footerShowFax?: boolean;
   partnerName: string;
   partnerName2?: string;
   partnerTitle: string;
@@ -53,6 +57,9 @@ export const FIRMS: Record<string, FirmConfig> = {
     signatureImg: '/logos/gns-signature.png',
     regBody: 'ICAEW',
     regBodies: ['ICAEW', 'ACCA', 'CIOT'],
+    regNumber: '2522384',
+    regNumberLabel: 'ACCA',
+    footerShowFax: true,
     regStatement: 'GNS Associates Limited, Chartered Accountants (ICAEW, ACCA, CIOT). Registered in England and Wales, Company Registration No: 08086819.',
     partnerName: 'Lekh Nath Ghimire',
     partnerDesignation: 'ACCA, MBA, ICAEW (ACA), CIOT',
@@ -85,6 +92,8 @@ export const FIRMS: Record<string, FirmConfig> = {
     regStatement: 'GNS Associates UK LLP, Chartered Certified Accountants (ACCA). A Limited Liability Partnership registered in England and Wales, Registration No: OC428532.',
     tagline: 'Truly Professional',
     regNumber: '5371891',
+    regNumberLabel: 'ACCA',
+    footerShowFax: false,
     partnerName: 'Subash Ghimire',
     partnerDesignation: 'ACCA, MBA',
     partnerName2: 'Mahesh Giri',
@@ -115,6 +124,7 @@ export const FIRMS: Record<string, FirmConfig> = {
     signatureImg: '/logos/gns-signature.png',
     regBody: 'ICAEW',
     regBodies: ['ICAEW', 'ACCA', 'CIOT'],
+    footerShowFax: true,
     regStatement: 'GALAXY GNS ACCOUNTANTS LTD, Chartered Accountants (ICAEW, ACCA, CIOT). Registered in England and Wales, Company Registration No: 07965573.',
     partnerName: 'Mahesh Giri',
     partnerDesignation: 'ACCA, MA',

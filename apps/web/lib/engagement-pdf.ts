@@ -271,7 +271,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       font: italic,
       color: accent,
     });
-    const reg = f.regNumber ? `${f.regBody} Registration No. ${f.regNumber}` : `Registered in England and Wales No. ${f.companyNumber}`;
+    const reg = f.regNumber ? `${f.regNumberLabel ?? f.regBody} Registration No. ${f.regNumber}` : `Registered in England and Wales No. ${f.companyNumber}`;
     p.drawText(sanitize(reg), {
       x: PAGE_W - MARGIN_X - font.widthOfTextAtSize(sanitize(reg), 7.5),
       y: REGLINE_Y,
@@ -293,10 +293,15 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
         x += s.w + gap;
       }
     }
+    // GNS Ltd / Galaxy show the fax number on the contact line; the LLP shows the
+    // mobile — matching each entity's letterhead.
+    const contact = f.footerShowFax && f.footerFax
+      ? `t: ${f.footerTel} | f: ${f.footerFax} | e: ${f.email} | ${f.website}`
+      : `t: ${f.footerTel} | m: ${f.footerMobile} | e: ${f.email} | ${f.website}`;
     const lines = [
       `${f.legalName}, Registered in England and Wales, Company Registration No: ${f.companyNumber}`,
       `${f.address}, ${f.city}, ${f.postcode}`,
-      `t: ${f.footerTel} | m: ${f.footerMobile} | ${f.email} | ${f.website}`,
+      contact,
     ];
     lines.forEach((line, i) => {
       const t = sanitize(line);
