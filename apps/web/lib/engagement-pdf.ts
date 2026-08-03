@@ -181,7 +181,13 @@ function htmlToBlocks(html: string): Block[] {
   return blocks;
 }
 
-export interface EngagementPdfInput extends LetterData {}
+export interface EngagementPdfInput extends LetterData {
+  /** When rendering the SIGNED copy: the client's signatory + timestamp for a
+   *  signed-confirmation stamp under the signature block. */
+  signedName?: string;
+  signedAt?: string;
+  signedIp?: string;
+}
 
 export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buffer> {
   const d = input;
@@ -690,6 +696,28 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   if (PARTNER_DESIGNATIONS[partner]) text(PARTNER_DESIGNATIONS[partner]!, { font: italic, size: 9, color: accent, gap: 1 });
   text(`Partner, ${f.legalName}`, { size: 9.5, color: GREY, gap: 8 });
   text("I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.", { gap: 10 });
+
+  // Signed-confirmation stamp — only present when rendering the SIGNED copy.
+  if (d.signedName) {
+    const boxH = 48;
+    need(boxH + 8);
+    page.drawRectangle({
+      x: MARGIN_X, y: y - boxH, width: CONTENT_W, height: boxH,
+      color: rgb(0.91, 0.96, 0.92), borderColor: rgb(0.36, 0.66, 0.46), borderWidth: 0.9,
+    });
+    const sx = MARGIN_X + 12;
+    let sy = y - 15;
+    page.drawText(sanitize("SIGNED - Electronically executed"), { x: sx, y: sy, size: 10.5, font: serifBold, color: rgb(0.09, 0.42, 0.24) });
+    sy -= 15;
+    page.drawText(sanitize(`Signed by ${d.signedName}`), { x: sx, y: sy, size: 9.5, font: bold, color: INK });
+    sy -= 13;
+    const when = d.signedAt
+      ? new Date(d.signedAt).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "";
+    const meta = [when && `Date: ${when}`, d.signedIp && `IP: ${d.signedIp}`].filter(Boolean).join("     ");
+    if (meta) page.drawText(sanitize(meta), { x: sx, y: sy, size: 8.5, font, color: GREY });
+    y -= boxH + 8;
+  }
 
   need(LINE);
   page.drawRectangle({ x: MARGIN_X, y, width: CONTENT_W, height: 0.6, color: HAIRLINE });

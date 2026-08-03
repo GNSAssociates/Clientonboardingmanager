@@ -90,43 +90,52 @@ export async function GET(
 
   if (wantPdf) {
     // Preferred: a real, server-generated PDF (proper A4 letterhead on every
-    // page, controlled pagination, small file). Only for the unsigned letter —
-    // the signed copy keeps its embedded-signature HTML path below.
-    if (!wantSigned) {
-      try {
-        // pdf-lib engagement letter — clean A4, letterhead every page, cream
-        // background, ~15-20 pages. Runs reliably on cPanel (react-pdf does not).
-        const { buildEngagementPdf, engagementPdfFilename } = await import("@/lib/engagement-pdf");
-        const m = (link.letterMeta ?? {}) as Record<string, unknown>;
-        const pdf = await buildEngagementPdf({
-          firm,
-          regBody: meta.regBody ?? firm.regBody,
-          companyName: link.companyName ?? "",
-          companyNumber: link.companyNumber ?? undefined,
-          clientAddress: meta.clientAddress,
-          directorName: link.directorName ?? undefined,
-          partnerName: meta.partnerName,
-          services: (link.services ?? []) as LetterService[],
-          customFees: meta.customFees ?? [],
-          scopeRows: meta.scopeRows ?? undefined,
-          ch: meta.ch ?? null,
-          paymentMethod: m.paymentMethod as string | undefined,
-          includeAnnexA: m.includeAnnexA as boolean | undefined,
-          clientType: m.clientType as string | undefined,
-          clientName: m.clientName as string | undefined,
-          utr: m.utr as string | undefined,
-          dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
-        });
-        return new NextResponse(new Uint8Array(pdf), {
-          headers: {
-            "Content-Type": "application/pdf",
-            "Content-Disposition": `attachment; filename="${engagementPdfFilename(link.companyName ?? "client")}"`,
-          },
-        });
-      } catch (e) {
-        // Any failure → fall through to the browser-print HTML fallback below.
-        console.error("buildEngagementPdf failed, using browser-print fallback:", e);
-      }
+    // page, controlled pagination, small file) for BOTH the unsigned letter and
+    // the signed copy. The signed copy adds a signature-confirmation stamp built
+    // from the stored acceptance record. Runs on cPanel (react-pdf does not).
+    try {
+      const { buildEngagementPdf, engagementPdfFilename } = await import("@/lib/engagement-pdf");
+      const m = (link.letterMeta ?? {}) as Record<string, unknown>;
+      // Acceptance record (signatory + timestamp + audit) for the signed copy.
+      const acc = (link as { acceptanceData?: Record<string, unknown> }).acceptanceData ?? {};
+      const audit = (acc.audit ?? {}) as Record<string, unknown>;
+      const signedFields = wantSigned
+        ? {
+            signedName: (acc.signatureName as string) || link.directorName || undefined,
+            signedAt: (acc.signedAt as string) || undefined,
+            signedIp: (audit.ipAddress as string) || undefined,
+          }
+        : {};
+      const pdf = await buildEngagementPdf({
+        firm,
+        regBody: meta.regBody ?? firm.regBody,
+        companyName: link.companyName ?? "",
+        companyNumber: link.companyNumber ?? undefined,
+        clientAddress: meta.clientAddress,
+        directorName: link.directorName ?? undefined,
+        partnerName: meta.partnerName,
+        services: (link.services ?? []) as LetterService[],
+        customFees: meta.customFees ?? [],
+        scopeRows: meta.scopeRows ?? undefined,
+        ch: meta.ch ?? null,
+        paymentMethod: m.paymentMethod as string | undefined,
+        includeAnnexA: m.includeAnnexA as boolean | undefined,
+        clientType: m.clientType as string | undefined,
+        clientName: m.clientName as string | undefined,
+        utr: m.utr as string | undefined,
+        dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+        ...signedFields,
+      });
+      const fname = `${wantSigned ? "SIGNED - " : ""}${engagementPdfFilename(link.companyName ?? "client")}`;
+      return new NextResponse(new Uint8Array(pdf), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${fname}"`,
+        },
+      });
+    } catch (e) {
+      // Any failure → fall through to the browser-print HTML fallback below.
+      console.error("buildEngagementPdf failed, using browser-print fallback:", e);
     }
 
     // Fallback: print-ready page that opens the browser's Save-as-PDF dialog.
