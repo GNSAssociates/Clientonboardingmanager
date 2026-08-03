@@ -19,7 +19,22 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
     await setResetToken(user.id, token, expiresAt);
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "http://localhost:3000";
+    // Prefer the configured public URL; if it's missing or points at localhost
+    // (e.g. NEXT_PUBLIC_* not inlined at build time), fall back to the actual
+    // host the request came in on so the emailed link always works in prod.
+    const envUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      process.env.PUBLIC_BASE_URL ||
+      process.env.APP_URL
+    )?.trim();
+    const hdrHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const hdrProto = req.headers.get("x-forwarded-proto") || "https";
+    const baseUrl = envUrl && !envUrl.startsWith("http://localhost")
+      ? envUrl
+      : hdrHost
+        ? `${hdrProto}://${hdrHost}`
+        : "http://localhost:3000";
     const resetLink = `${baseUrl}/login?mode=reset&token=${token}`;
 
     try {

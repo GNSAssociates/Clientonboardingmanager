@@ -117,7 +117,6 @@ export const DEFAULT_SCOPE_ROWS: ScopeRow[] = [
   { service: 'CIS', threshold: 'NA', excess: '£10+VAT per subcontractor per month' },
   { service: 'Self-Assessment (Excluding: Buy-to-Let)', threshold: '2 persons including directors', excess: '£200+VAT per year for additional person · Rental Property: To be Agreed Later' },
   { service: 'Confirmation Statement Filing to Companies House', threshold: 'Once a Year', excess: '£50+VAT for additional filing' },
-  { service: 'References and Letters', threshold: '1 Letter or 1 Reference Included', excess: '£75+VAT for additional reference / letter' },
 ];
 
 // Which scope row belongs to which purchasable service. Rows for services the
@@ -130,7 +129,6 @@ const SCOPE_ROW_SERVICE: Array<string | null> = [
   'cis',
   'self_assessment',
   'confirmation_statement',
-  null, // References and Letters — see note below
 ];
 
 /**
