@@ -1,8 +1,17 @@
 /**
  * ACCA (Association of Chartered Certified Accountants) logo data URI.
- * Simple text-based SVG placeholder — replace with official logo PNG when available.
+ * Official-style red mark (solid red block, white "ACCA") matching the ACCA
+ * letterhead logo. Swap in the exact official artwork PNG/SVG when supplied.
  */
+const ACCA_SVG =
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">` +
+  `<rect width="80" height="80" rx="6" fill="#E4002B"/>` +
+  `<text x="40" y="52" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="26" letter-spacing="0.5" fill="#fff">ACCA</text>` +
+  `<text x="92" y="36" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="15" fill="#333">Chartered Certified</text>` +
+  `<text x="92" y="56" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="15" fill="#333">Accountants</text>` +
+  `</svg>`;
+
 export const ACCA_LOGO_DATA_URI =
   'data:image/svg+xml;base64,' + (typeof Buffer !== 'undefined'
-    ? Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80"><rect width="200" height="80" rx="4" fill="#fff"/><rect x="2" y="2" width="196" height="76" rx="3" fill="none" stroke="#8B1A4A" stroke-width="2"/><text x="100" y="50" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="28" fill="#8B1A4A">ACCA</text></svg>`).toString('base64')
-    : btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80"><rect width="200" height="80" rx="4" fill="#fff"/><rect x="2" y="2" width="196" height="76" rx="3" fill="none" stroke="#8B1A4A" stroke-width="2"/><text x="100" y="50" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="28" fill="#8B1A4A">ACCA</text></svg>`));
+    ? Buffer.from(ACCA_SVG).toString('base64')
+    : btoa(ACCA_SVG));
