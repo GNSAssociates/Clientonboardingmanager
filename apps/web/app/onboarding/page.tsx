@@ -31,9 +31,15 @@ export default function OnboardingStart() {
               <p className="text-xs text-gray-400">Client Onboarding Portal</p>
             </div>
           </div>
-          <Link href="/dev-login" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            Staff login →
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/staff/dashboard" className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+              Back to Dashboard
+            </Link>
+            <Link href="/dev-login" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+              Staff login →
+            </Link>
+          </div>
         </div>
       </header>
 
