@@ -94,9 +94,11 @@ export async function GET(
     // the signed copy keeps its embedded-signature HTML path below.
     if (!wantSigned) {
       try {
-        const { renderLetterPdf } = await import("@/lib/letter-pdf");
+        // pdf-lib engagement letter — clean A4, letterhead every page, cream
+        // background, ~15-20 pages. Runs reliably on cPanel (react-pdf does not).
+        const { buildEngagementPdf, engagementPdfFilename } = await import("@/lib/engagement-pdf");
         const m = (link.letterMeta ?? {}) as Record<string, unknown>;
-        const pdf = await renderLetterPdf({
+        const pdf = await buildEngagementPdf({
           firm,
           regBody: meta.regBody ?? firm.regBody,
           companyName: link.companyName ?? "",
@@ -114,17 +116,16 @@ export async function GET(
           clientName: m.clientName as string | undefined,
           utr: m.utr as string | undefined,
           dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
-          audit: null,
         });
         return new NextResponse(new Uint8Array(pdf), {
           headers: {
             "Content-Type": "application/pdf",
-            "Content-Disposition": `attachment; filename="${baseName}.pdf"`,
+            "Content-Disposition": `attachment; filename="${engagementPdfFilename(link.companyName ?? "client")}"`,
           },
         });
       } catch (e) {
-        // react-pdf could not load on this host — fall through to browser print.
-        console.error("renderLetterPdf failed, using browser-print fallback:", e);
+        // Any failure → fall through to the browser-print HTML fallback below.
+        console.error("buildEngagementPdf failed, using browser-print fallback:", e);
       }
     }
 
