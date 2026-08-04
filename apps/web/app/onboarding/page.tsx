@@ -62,13 +62,14 @@ export default function OnboardingStart() {
 
           {/* Firm cards */}
           <div className="grid md:grid-cols-3 gap-5">
-            {FIRM_LIST.map((firm) => {
+            {FIRM_LIST.map((firm, i) => {
               const isSelected = selectedFirm === firm.slug;
               return (
                 <button
                   key={firm.slug}
                   onClick={() => handleSelect(firm.slug)}
-                  className={`group relative overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 bg-white hover:shadow-xl hover:-translate-y-0.5 ${
+                  style={{ animationDelay: `${i * 90}ms` }}
+                  className={`gns-reveal gns-press group relative overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 bg-white hover:shadow-xl hover:-translate-y-0.5 ${
                     isSelected
                       ? 'border-blue-500 shadow-xl -translate-y-0.5'
                       : 'border-gray-100 hover:border-gray-200 shadow-sm'

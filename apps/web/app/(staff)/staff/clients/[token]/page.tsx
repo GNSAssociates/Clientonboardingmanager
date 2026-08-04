@@ -208,7 +208,7 @@ export default function ClientDetailPage() {
       </button>
 
       {/* Header */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+      <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -249,7 +249,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Letters */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+      <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><FileText size={16} className="text-purple-600" /> Engagement Letter</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <a href={`/api/onboarding/links/${token}/letter`} target="_blank" rel="noreferrer"
@@ -284,7 +284,7 @@ export default function ClientDetailPage() {
       <KycPanel token={token} expectedName={d?.director?.name} />
 
       {/* Email History — what we've sent to (or about) this client */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+      <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Mail size={16} className="text-purple-600" /> Email History</h2>
           {d && <SendTemplateForm token={token} details={d} onSent={load} />}
@@ -316,7 +316,7 @@ export default function ClientDetailPage() {
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Direct Debit / GoCardless */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
           <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2"><Banknote size={16} className="text-purple-600" /> Direct Debit Mandate</h2>
           <p className="text-xs text-gray-400 mb-4">Full details shown to staff only — use to retry if the client&apos;s input failed.</p>
           {d.directDebit ? (
@@ -369,7 +369,7 @@ export default function ClientDetailPage() {
         </div>
 
         {/* Previous accountant */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><UserSearch size={16} className="text-purple-600" /> Previous Accountant</h2>
           {d.previousAccountant.firmName || d.previousAccountant.email ? (
             <dl className="text-sm space-y-2">
@@ -386,7 +386,7 @@ export default function ClientDetailPage() {
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Services */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
           <h2 className="font-semibold text-gray-900 mb-4">Agreed Services</h2>
           {monthly.length + oneoff.length === 0 ? (
             <p className="text-sm text-gray-500">No services on this engagement.</p>
@@ -406,7 +406,7 @@ export default function ClientDetailPage() {
         </div>
 
         {/* Director documents */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
           <h2 className="font-semibold text-gray-900 mb-4">Director ID Documents</h2>
           {(d.documents.director ?? []).length === 0 ? (
             <p className="text-sm text-gray-500">Statuses appear when the client signs.</p>
