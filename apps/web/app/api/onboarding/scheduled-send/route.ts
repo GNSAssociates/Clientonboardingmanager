@@ -10,9 +10,13 @@ export const maxDuration = 60;
 // Authorised by the Vercel cron bearer token OR a logged-in staff session
 // (so staff can also flush the queue on demand).
 async function run(req: NextRequest) {
+  // Authorised by a Bearer {CRON_SECRET} header, a ?key={CRON_SECRET} query param
+  // (so a plain cPanel cron `curl` / UptimeRobot works), OR a logged-in staff
+  // session (so staff can flush the queue on demand).
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  const key = req.nextUrl.searchParams.get("key");
+  const isCron = !!cronSecret && (authHeader === `Bearer ${cronSecret}` || key === cronSecret);
   const session = getSession();
   if (!isCron && !session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -15,9 +15,12 @@ function docListHtml(items: DocItem[]): string {
 // Called by Vercel Cron daily at 10:00 UTC — processes all overdue clearance requests.
 // Vercel automatically sends Authorization: Bearer {CRON_SECRET} on every cron invocation.
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
+  // Authorised by a Bearer {CRON_SECRET} header OR a ?key={CRON_SECRET} query
+  // param, so a plain cPanel cron `curl` (or UptimeRobot) can trigger it.
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  const authHeader = req.headers.get("authorization");
+  const key = req.nextUrl.searchParams.get("key");
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && key !== cronSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
