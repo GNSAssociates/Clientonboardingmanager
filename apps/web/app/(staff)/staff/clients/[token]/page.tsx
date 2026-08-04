@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import KycPanel from './_kyc';
 import {
   RefreshCw, ChevronLeft, Eye, Download, FileSignature, FileJson, Banknote,
   CheckCircle2, XCircle, AlertTriangle, RotateCw, FilePlus2, UserSearch, FileText, Cloud, Mail,
@@ -274,6 +275,9 @@ export default function ClientDetailPage() {
         </div>
         {!signed && <p className="text-xs text-gray-400 mt-3">The signed copy with the audit report appears here as soon as the client signs.</p>}
       </div>
+
+      {/* AI ID verification (KYC) */}
+      <KycPanel token={token} expectedName={d?.director?.name} />
 
       {/* Email History — what we've sent to (or about) this client */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6">
