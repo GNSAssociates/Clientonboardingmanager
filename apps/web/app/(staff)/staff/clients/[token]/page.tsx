@@ -260,6 +260,10 @@ export default function ClientDetailPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:border-gray-500">
             <Download size={13} /> Download PDF
           </a>
+          <a href={`/api/onboarding/links/${token}/letter?docx=1`}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-blue-300 text-blue-700 hover:border-blue-500 hover:bg-blue-50">
+            <FileText size={13} /> Download Word
+          </a>
           {signed && (
             <>
               <a href={`/api/onboarding/links/${token}/letter?signed=1&pdf=1`} target="_blank" rel="noreferrer"

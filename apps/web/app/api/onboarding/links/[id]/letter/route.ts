@@ -28,6 +28,7 @@ export async function GET(
   const wantSigned = req.nextUrl.searchParams.get("signed") === "1";
   const download = req.nextUrl.searchParams.get("download") === "1";
   const wantPdf = req.nextUrl.searchParams.get("pdf") === "1";
+  const wantDocx = req.nextUrl.searchParams.get("docx") === "1";
 
   const meta = (link.letterMeta ?? {}) as {
     partnerName?: string; customFees?: CustomFee[]; scopeRows?: ScopeRow[];
@@ -87,6 +88,43 @@ export async function GET(
     `thead{display:table-row-group !important;}` +
     `table,tr,.fees,.scope,.ssc{page-break-inside:avoid !important;break-inside:avoid !important;}` +
     `}</style>`;
+
+  if (wantDocx && !wantSigned) {
+    // Editable Word (.docx) copy — same content/wording as the PDF, for firms
+    // that prefer to tweak in Word before sending.
+    try {
+      const { buildEngagementDocx, engagementDocxFilename } = await import("@/lib/engagement-docx");
+      const m = (link.letterMeta ?? {}) as Record<string, unknown>;
+      const docx = await buildEngagementDocx({
+        firm,
+        regBody: meta.regBody ?? firm.regBody,
+        companyName: link.companyName ?? "",
+        companyNumber: link.companyNumber ?? undefined,
+        clientAddress: meta.clientAddress,
+        directorName: link.directorName ?? undefined,
+        partnerName: meta.partnerName,
+        services: (link.services ?? []) as LetterService[],
+        customFees: meta.customFees ?? [],
+        scopeRows: meta.scopeRows ?? undefined,
+        ch: meta.ch ?? null,
+        paymentMethod: m.paymentMethod as string | undefined,
+        includeAnnexA: m.includeAnnexA as boolean | undefined,
+        clientType: m.clientType as string | undefined,
+        clientName: m.clientName as string | undefined,
+        utr: m.utr as string | undefined,
+        dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+      });
+      return new NextResponse(new Uint8Array(docx), {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "Content-Disposition": `attachment; filename="${engagementDocxFilename(link.companyName ?? "client")}"`,
+        },
+      });
+    } catch (e) {
+      console.error("buildEngagementDocx failed:", e);
+      return NextResponse.json({ error: "Could not build the Word document." }, { status: 500 });
+    }
+  }
 
   if (wantPdf) {
     // Preferred: a real, server-generated PDF (proper A4 letterhead on every
