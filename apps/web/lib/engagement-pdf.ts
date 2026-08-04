@@ -75,9 +75,9 @@ const BADGE_H = 14;
 const FOOTER_TEXT_Y = 39;
 const BODY_BOTTOM = FOOTER_RULE_Y + 16;
 
-// Client requirement 1: warm cream/ivory page background on every page,
-// drawn first (behind everything). Single named const so it's easy to change.
-const CREAM_BG = rgb(0xfd / 255, 0xfc / 255, 0xf9 / 255);
+// Clean plain-white page background on every page (client feedback: professional,
+// not mixed). Single named const so it's easy to change to a uniform tint later.
+const CREAM_BG = rgb(1, 1, 1);
 
 const BODY_SIZE = 11;
 const LINE = 14.5;

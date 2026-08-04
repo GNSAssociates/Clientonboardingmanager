@@ -47,6 +47,12 @@ jobs:
         env:
           NPM_CONFIG_NODE_LINKER: hoisted
 
+      # Passenger restarts the app whenever tmp/restart.txt changes. Writing a
+      # fresh timestamp each deploy makes the new build go live automatically —
+      # no manual "Restart" click in cPanel.
+      - name: Trigger Passenger restart on deploy
+        run: mkdir -p apps/web/.next/standalone/tmp && date -u > apps/web/.next/standalone/tmp/restart.txt
+
       - name: Sync bundle to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
