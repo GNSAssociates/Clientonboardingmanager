@@ -174,19 +174,31 @@ export default function ClearanceOverviewPage() {
           ))}
         </div>
 
-        {/* Firm filter */}
-        <div className="flex items-center gap-2">
+        {/* Firm filter — clickable pills (click to filter, click again to clear) */}
+        <div className="flex items-center gap-2 flex-wrap">
           <Filter size={14} className="text-gray-400" />
-          <select
-            value={firmFilter}
-            onChange={e => setFirmFilter(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+          <button
+            type="button"
+            onClick={() => setFirmFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${firmFilter === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
           >
-            <option value="all">All Firms</option>
-            {Object.entries(FIRM_LABELS).map(([slug, { label }]) => (
-              <option key={slug} value={slug}>{label}</option>
-            ))}
-          </select>
+            All Firms
+          </button>
+          {Object.entries(FIRM_LABELS).map(([slug, { label, color }]) => {
+            const active = firmFilter === slug;
+            return (
+              <button
+                key={slug}
+                type="button"
+                onClick={() => setFirmFilter(active ? 'all' : slug)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all inline-flex items-center gap-2 ${active ? 'text-white' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                style={active ? { background: color, borderColor: color } : {}}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ background: active ? '#fff' : color }} />
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
