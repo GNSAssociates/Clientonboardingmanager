@@ -293,7 +293,7 @@ export default function ClientsPage() {
             const resumeHref = `/onboarding/services?draft=${r.token}&firm=${r.firmSlug ?? 'gns'}`;
             const detailHref = isDraft ? resumeHref : `/staff/clients/${r.token}`;
             return (
-              <div key={r.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-4 flex-wrap hover:shadow-sm transition-shadow">
+              <div key={r.id} className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-4 flex-wrap hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
                 <Link href={detailHref} className="flex-1 min-w-0 group">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${st.cls}`}>{st.label}</span>

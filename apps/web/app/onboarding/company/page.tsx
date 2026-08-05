@@ -633,7 +633,7 @@ function CompanyPageInner() {
             </div>
 
             <div className="space-y-5">
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <div className="gns-reveal bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-start gap-3 mb-5">
                   <CheckCircle2 className={`flex-shrink-0 mt-0.5 ${company.manual ? 'text-blue-500' : 'text-green-500'}`} size={22} />
                   <div>
@@ -717,7 +717,7 @@ function CompanyPageInner() {
               </div>
 
               {/* What to send — the key decision before the link goes out */}
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <div className="gns-reveal bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 <p className="text-sm font-bold text-gray-900 mb-3">What should we send to the client?</p>
                 <div className="space-y-2">
                   <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${sendMode === 'engagement' ? 'border-purple-400 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>

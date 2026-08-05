@@ -567,7 +567,7 @@ function ServicesPageInner() {
         </div>
 
         {/* Client type + Payment method + Annex A toggles — MOVED BEFORE company details */}
-        <div className="mb-8 p-5 bg-white border border-gray-200 rounded-xl space-y-4">
+        <div className="gns-reveal mb-8 p-5 bg-white border border-gray-200 rounded-xl space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-gray-700">Client Type</p>

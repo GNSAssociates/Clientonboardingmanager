@@ -51,7 +51,7 @@ export default function ReviewsPage() {
       {loading ? (
         <div className="flex items-center justify-center py-16"><RefreshCw size={22} className="animate-spin text-purple-500" /></div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="gns-reveal bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
             <ClipboardCheck size={16} className="text-green-600" />
             <h2 className="font-semibold text-gray-900 text-sm">Signed engagements — ready for review &amp; work setup</h2>

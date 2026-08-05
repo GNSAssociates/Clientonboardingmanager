@@ -72,7 +72,7 @@ export default function CompliancePage() {
           <p className="text-sm text-gray-500 mt-1">Compliance records appear here once a client signs.</p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden divide-y divide-gray-50">
+        <div className="gns-reveal bg-white border border-gray-200 rounded-2xl overflow-hidden divide-y divide-gray-50">
           {filtered.map((r) => {
             const firm = r.firmSlug ? FIRMS[r.firmSlug] : null;
             return (
