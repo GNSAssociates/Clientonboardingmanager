@@ -134,6 +134,40 @@ export async function getOneDriveFolderLink(companyName: string, userEmail?: str
 }
 
 /**
+ * Ensure the client's OneDrive folder exists — creates the "Client Onboarding"
+ * root and the {Company} subfolder if missing — so staff can open the folder
+ * even before anything has been archived. Returns the shareable link (or null
+ * when unconfigured). Never throws.
+ */
+export async function ensureClientFolder(companyName: string, userEmail?: string): Promise<string | null> {
+  const token = await getGraphToken();
+  if (!token) return null;
+  const user = userEmail?.trim() || process.env.ONEDRIVE_USER_EMAIL?.trim() || 'info@gnsassociates.co.uk';
+  const root = process.env.ONEDRIVE_ROOT_FOLDER?.trim() || 'Client Onboarding';
+  const segments = [sanitize(root), sanitize(companyName)].filter(Boolean);
+
+  let parentPath = '';
+  for (const seg of segments) {
+    const childrenUrl = parentPath
+      ? `${GRAPH}/users/${encodeURIComponent(user)}/drive/root:/${parentPath.split('/').map(encodeURIComponent).join('/')}:/children`
+      : `${GRAPH}/users/${encodeURIComponent(user)}/drive/root/children`;
+    try {
+      // conflictBehavior "fail" → a 409 when it already exists, which is fine:
+      // we only need the folder to exist, not to recreate it.
+      await fetch(childrenUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: seg, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+      });
+    } catch (e) {
+      console.error('ensureClientFolder create error:', e);
+    }
+    parentPath = parentPath ? `${parentPath}/${seg}` : seg;
+  }
+  return getOneDriveFolderLink(companyName, userEmail);
+}
+
+/**
  * Upload a file into the client's OneDrive folder. Small files use a single
  * PUT; larger files (>4MB) use a Graph upload session. Returns the OneDrive
  * path on success, null when unconfigured or failed. Never throws.
