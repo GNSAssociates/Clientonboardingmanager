@@ -53,6 +53,11 @@ jobs:
       - name: Trigger Passenger restart on deploy
         run: mkdir -p apps/web/.next/standalone/tmp && date -u > apps/web/.next/standalone/tmp/restart.txt
 
+      # Breadcrumb to confirm which build reached the server: open
+      # gns-app/DEPLOY_INFO.txt in cPanel.
+      - name: Write deploy marker
+        run: echo "commit ${{ github.sha }} deployed $(date -u)" > apps/web/.next/standalone/DEPLOY_INFO.txt
+
       - name: Sync bundle to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -61,6 +66,11 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: apps/web/.next/standalone/
           server-dir: gns-app/
+          # Verbose log shows exactly which files upload and where.
+          log-level: verbose
+          # New state name forces a clean full re-scan/upload (old runs were
+          # skipping files against a stale sync-state). Non-destructive.
+          state-name: .gns-deploy-state.json
           # The action's DEFAULT exclude list skips **/node_modules/** — but the
           # standalone bundle's node_modules IS the app's runtime. Override the
           # excludes so the pruned node_modules ships with the bundle.
