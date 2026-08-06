@@ -27,6 +27,12 @@ const nextConfig = {
     // metrics from node_modules at runtime (webpack bundling breaks this and
     // causes "Cannot read properties of undefined (reading 'unitsPerEm')").
     serverComponentsExternalPackages: ["pino", "postgres", "@react-pdf/renderer"],
+    // cPanel account NPROC (max concurrent processes/threads) is capped at
+    // 100 (keep builds well under 80); Next's default build parallelism (one
+    // worker thread/process per detected CPU) can push the shared account
+    // over that alongside Apache/Passenger/cron. Not applied to the Vercel
+    // build, which runs in its own isolated sandbox with no such limit.
+    ...(isCpanelBuild ? { cpus: 2, workerThreads: false } : {}),
     // Monorepo: trace from the workspace root so hoisted/workspace deps
     // (packages/db, packages/core, etc.) resolve and are included in the
     // standalone output. In Next 14 this lives under `experimental`.
