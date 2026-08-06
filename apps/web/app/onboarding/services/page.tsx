@@ -106,7 +106,7 @@ const SERVICES = [
   },
   {
     id: 'management_fees',
-    name: 'Management Fees',
+    name: 'Management Accounts',
     basePrice: 0,
     description: 'General management / advisory fee — added to the monthly recurring total',
     threshold: 'As agreed with the client',
@@ -473,6 +473,18 @@ function ServicesPageInner() {
   }, 0);
   const oneoffTotal = selectedOneoff.reduce((sum, id) => sum + (prices[id] || 0), 0)
     + customFees.filter((c) => c.frequency === 'one-off').reduce((s, c) => s + (c.price || 0), 0);
+
+  // Recurring additional (custom) service lines — their monthly/annual equivalents
+  // must roll into the package total, not just show as a separate figure.
+  const recurringCustom = customFees.filter((c) => c.frequency && c.frequency !== 'one-off');
+  const customMonthly = recurringCustom.reduce((s, c) => s + toMonthly(c.price || 0, c.frequency as Frequency), 0);
+  const customAnnual = recurringCustom.reduce((s, c) => s + toAnnual(c.price || 0, c.frequency as Frequency), 0);
+  // Companies House disbursements (no VAT) — added to the ANNUAL package total.
+  const chAnnual = selected.reduce((s, id) => s + (chFees[id] || 0), 0);
+  // Full package figures shown on the quote (recurring services + recurring
+  // additional lines; annual also includes the non-VAT CH disbursements).
+  const packageMonthly = totalMonthly + customMonthly;
+  const packageAnnual = totalAnnual + customAnnual + chAnnual;
 
   const canContinue = selected.length > 0 && directorEmail && clientName.trim() && (needsCH ? companyNumber : true);
 
@@ -858,7 +870,6 @@ function ServicesPageInner() {
                     {service.name}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">{service.description}</p>
-                  <p className="text-xs text-purple-600 mt-1 font-medium">Includes: {service.threshold}</p>
                 </div>
 
                 {/* Checkbox */}
@@ -922,6 +933,10 @@ function ServicesPageInner() {
                         min="0" placeholder="0"
                       />
                       <span className="text-xs text-gray-500">paid to Companies House · the GNS fee above is the +VAT portion (may be £0)</span>
+                      <p className="w-full text-right text-xs font-semibold text-gray-700 pt-1">
+                        Section total (annual): £{(toAnnual(prices[service.id] || 0, frequencies[service.id]) + (chFees[service.id] || 0)).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span className="font-normal text-gray-500"> — GNS £{toAnnual(prices[service.id] || 0, frequencies[service.id]).toLocaleString('en-GB')} +VAT · CH £{(chFees[service.id] || 0).toLocaleString('en-GB')} no VAT</span>
+                      </p>
                     </div>
                   )}
                   {(frequencies[service.id] || 'monthly') !== 'monthly' && (
@@ -1161,11 +1176,11 @@ function ServicesPageInner() {
             <div>
               <p className="text-sm text-gray-600">Monthly Services</p>
               <p className="text-2xl font-bold text-gray-900">
-                £{totalMonthly.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                £{packageMonthly.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 <span className="text-lg text-gray-500 ml-1">/month</span>
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                {selected.length} service{selected.length !== 1 ? 's' : ''} · £{totalAnnual.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/year · {paymentMethod === 'dd' ? 'Direct Debit' : 'Manual invoice'}
+                {selected.length} service{selected.length !== 1 ? 's' : ''} · £{packageAnnual.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/year{chAnnual > 0 ? ' (incl. CH fee, no VAT)' : ''} · {paymentMethod === 'dd' ? 'Direct Debit' : 'Manual invoice'}
               </p>
             </div>
             <div className="text-right">
@@ -1180,8 +1195,8 @@ function ServicesPageInner() {
               ) : (
                 <>
                   <p className="text-xs text-gray-500 mb-2">Annual equivalent</p>
-                  <p className="text-2xl font-bold text-purple-600">£{totalAnnual.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                  <p className="text-xs text-purple-600">+ VAT</p>
+                  <p className="text-2xl font-bold text-purple-600">£{packageAnnual.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-purple-600">+ VAT{chAnnual > 0 ? ' (excl. CH fee)' : ''}</p>
                 </>
               )}
             </div>
