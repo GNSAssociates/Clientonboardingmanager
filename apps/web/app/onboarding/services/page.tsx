@@ -882,7 +882,7 @@ function ServicesPageInner() {
                     <span className="text-sm text-gray-600">£</span>
                     <input
                       type="number"
-                      value={prices[service.id]}
+                      value={prices[service.id] || ''}
                       onChange={(e) => updatePrice(service.id, e.target.value)}
                       className="w-20 px-3 py-2 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
                       min="0"
@@ -1025,7 +1025,7 @@ function ServicesPageInner() {
                               <span className="text-sm text-gray-600">£</span>
                               <input
                                 type="number"
-                                value={prices[item.id]}
+                                value={prices[item.id] || ''}
                                 onChange={(e) => updatePrice(item.id, e.target.value)}
                                 className={`w-20 px-2 py-1.5 border rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                                   isSel ? 'border-purple-300 bg-white' : 'border-gray-200 bg-gray-50'
