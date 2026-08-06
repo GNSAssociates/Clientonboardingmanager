@@ -266,7 +266,7 @@ export function buildLetterHtml(d: LetterData): string {
   const chServices = [...monthly, ...oneoff].filter((s) => (s.chFee || 0) > 0);
   const chDisbursements = chServices.reduce((s, x) => s + (x.chFee || 0), 0);
   const chRows = chServices.length ? `
-      <tr class="sect"><td colspan="5">Companies House disbursements — paid to Companies House, not subject to VAT</td></tr>
+      <tr class="sect"><td colspan="5">Companies House disbursements -Annual Fee Payable to Companies House (NON VAT Recharge.</td></tr>
       ${chServices.map((s) => `<tr class="sub"><td>• Companies House filing fee — ${esc(s.name)}</td><td class="r">${gbp(s.chFee!)}</td><td></td><td></td><td>Disbursement (no VAT)</td></tr>`).join('')}
       <tr class="total"><td>Total Companies House disbursements (no VAT)</td><td class="r">${gbp(chDisbursements)}</td><td class="r">—</td><td class="r">—</td><td style="font-size:10.5px">Payable to CH</td></tr>` : '';
 
