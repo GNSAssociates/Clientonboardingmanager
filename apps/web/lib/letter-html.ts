@@ -28,7 +28,7 @@ import { renderVars, templateDef } from './email-templates-lib';
 
 export type LetterFrequency = 'monthly' | 'quarterly' | 'annually';
 export interface LetterService { id?: string; name: string; price: number; oneoff?: boolean; frequency?: LetterFrequency }
-export interface CustomFee { description: string; price: number }
+export interface CustomFee { description: string; price: number; frequency?: 'one-off' | LetterFrequency }
 export interface ScopeRow { service: string; threshold: string; excess: string }
 
 export interface ChDetails {
@@ -184,6 +184,13 @@ export function buildLetterHtml(d: LetterData): string {
   const monthly = d.services.filter((s) => !s.oneoff);
   const oneoff = d.services.filter((s) => s.oneoff);
   const customFees = (d.customFees ?? []).filter((c) => c.description.trim());
+  // Additional/custom fees carry their own frequency. Recurring ones (monthly/
+  // quarterly/annually) join the recurring totals like any other service; only
+  // genuine one-offs sit in the upfront total. (Previously ALL custom fees were
+  // dumped into the one-off total, so a recurring extra fee never reached the
+  // monthly/annual figures.)
+  const customRecurring = customFees.filter((c) => c.frequency && c.frequency !== 'one-off');
+  const customOneoff = customFees.filter((c) => !c.frequency || c.frequency === 'one-off');
   const svcToMonthly = (s: LetterService) => {
     if (s.frequency === 'annually') return s.price / 12;
     if (s.frequency === 'quarterly') return s.price / 3;
@@ -194,14 +201,16 @@ export function buildLetterHtml(d: LetterData): string {
     if (s.frequency === 'quarterly') return s.price * 4;
     return s.price * 12;
   };
+  const cfToMonthly = (c: CustomFee) => c.frequency === 'annually' ? c.price / 12 : c.frequency === 'quarterly' ? c.price / 3 : c.price;
+  const cfToAnnual = (c: CustomFee) => c.frequency === 'annually' ? c.price : c.frequency === 'quarterly' ? c.price * 4 : c.price * 12;
   // Fee totals — kept strictly separate: totalMonthly/totalAnnual are the
   // recurring charge, totalOneoff is what's payable upfront. Both are driven
   // only by d.services (selected + priced by staff) and d.customFees — never
   // by DEFAULT_SCOPE_ROWS, which is coverage/threshold text for the "Scope of
   // Services" table, not a chargeable fee, and must never be counted here.
-  const totalMonthly = monthly.reduce((s, x) => s + svcToMonthly(x), 0);
-  const totalAnnual = monthly.reduce((s, x) => s + svcToAnnual(x), 0);
-  const totalOneoff = oneoff.reduce((s, x) => s + x.price, 0) + customFees.reduce((s, x) => s + x.price, 0);
+  const totalMonthly = monthly.reduce((s, x) => s + svcToMonthly(x), 0) + customRecurring.reduce((s, c) => s + cfToMonthly(c), 0);
+  const totalAnnual = monthly.reduce((s, x) => s + svcToAnnual(x), 0) + customRecurring.reduce((s, c) => s + cfToAnnual(c), 0);
+  const totalOneoff = oneoff.reduce((s, x) => s + x.price, 0) + customOneoff.reduce((s, c) => s + c.price, 0);
 
   // Only the scope rows for services the client actually selected appear on
   // the contract — unselected coverage clauses must never be shown.
@@ -211,7 +220,7 @@ export function buildLetterHtml(d: LetterData): string {
   // Dynamic Schedule of Services — per-service responsibilities wording
   const schedulesHtml = buildSchedulesHtml({
     serviceIds: monthlyIds,
-    hasOneoff: oneoff.length > 0 || customFees.length > 0,
+    hasOneoff: oneoff.length > 0 || customOneoff.length > 0,
     firmName: f.name,
     regBody: f.regBody,
   });
@@ -234,15 +243,18 @@ export function buildLetterHtml(d: LetterData): string {
     </div>
   </div>` : '';
 
-  const monthlyRows = monthly.map((s) => `
-    <tr class="sub"><td>• ${esc(s.name)}</td><td class="r">${gbp(svcToAnnual(s))}</td><td></td><td class="r">${gbp(svcToMonthly(s))}</td><td></td></tr>`).join('');
+  const monthlyRows = [
+    ...monthly.map((s) => ({ name: s.name, monthly: svcToMonthly(s), annual: svcToAnnual(s) })),
+    ...customRecurring.map((c) => ({ name: c.description, monthly: cfToMonthly(c), annual: cfToAnnual(c) })),
+  ].map((r) => `
+    <tr class="sub"><td>• ${esc(r.name)}</td><td class="r">${gbp(r.annual)}</td><td></td><td class="r">${gbp(r.monthly)}</td><td></td></tr>`).join('');
 
-  const oneoffHeader = (oneoff.length || customFees.length) ? `
+  const oneoffHeader = (oneoff.length || customOneoff.length) ? `
     <tr class="sect"><td colspan="5">Fees for any past due filings, catch-up and ad-hoc work (IF ANY)</td></tr>` : '';
 
   const oneoffRows = [
     ...oneoff.map((s) => ({ name: s.name, price: s.price })),
-    ...customFees.map((c) => ({ name: c.description, price: c.price })),
+    ...customOneoff.map((c) => ({ name: c.description, price: c.price })),
   ].map((s, i) => `
     <tr class="sub"><td>${i + 1}. ${esc(s.name)}</td><td></td><td class="r">${gbp(s.price)}</td><td></td><td>One off upfront</td></tr>`).join('');
 
