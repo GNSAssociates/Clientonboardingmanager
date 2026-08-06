@@ -33,10 +33,13 @@ const PARTNER_SIGNATURES: Record<string, string> = {
   'Mahesh Giri': MG_SIGNATURE_DATA_URI,
 };
 
+// Post-nominal DESIGNATIONS (the qualification), not the membership body — the
+// bodies (ACCA/ICAEW/CIOT) are shown as the footer logo badges. Keep in sync
+// with PARTNER_DESIGNATIONS in letter-html.ts and firm config in firms.ts.
 const PARTNER_DESIGNATIONS: Record<string, string> = {
-  'Lekh Nath Ghimire': 'ACCA, MBA, ICAEW (ACA), CIOT',
-  'Subash Ghimire': 'ACCA, MBA',
-  'Mahesh Giri': 'ACCA, MA',
+  'Lekh Nath Ghimire': 'FCCA, ACA, CTA, MBA',
+  'Subash Ghimire': 'FCCA, MBA',
+  'Mahesh Giri': 'FCCA, MA',
 };
 
 // Register an embedded TrueType font. react-pdf's built-in standard fonts fail

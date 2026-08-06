@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { getFirmByEntityId } from "@/lib/firms";
 import { buildClearancePdf, clearancePdfFilename } from "@/lib/clearance-pdf";
+import { buildAuthorityLetterPdf, authorityLetterFilename } from "@/lib/authority-letter-pdf";
 
 const PDF_MIME = "application/pdf";
 
@@ -101,15 +102,28 @@ export async function POST(req: NextRequest) {
   // No portal link — the previous accountant just replies with the records.
   if (firm) {
     void appUrl;
-    let attachments;
+    const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+    // 1) Professional clearance letter (from GNS to the outgoing accountant).
     try {
       const buffer = await buildClearancePdf({
         firm, clientName, companyNumber, prevFirmName, prevFirmAddress: prevFirmAddress || undefined,
         directorName: engagementDirector, partnerName: actingPartner, docItems, today,
       });
-      attachments = [{ filename: clearancePdfFilename(clientName), content: buffer, contentType: PDF_MIME }];
+      attachments.push({ filename: clearancePdfFilename(clientName), content: buffer, contentType: PDF_MIME });
     } catch (e) {
       console.error("Clearance PDF generation failed (sending without attachment):", e);
+    }
+    // 2) Client authority (change of accountants) letter — the client's written
+    // authority for the outgoing accountant to release records to us. Sent with
+    // the first clearance email so the outgoing firm has the authority in hand.
+    try {
+      const authBuffer = await buildAuthorityLetterPdf({
+        firm, clientName, companyNumber, directorName: engagementDirector,
+        prevFirmName, prevFirmAddress: prevFirmAddress || undefined, today,
+      });
+      attachments.push({ filename: authorityLetterFilename(clientName), content: authBuffer, contentType: PDF_MIME });
+    } catch (e) {
+      console.error("Authority letter generation failed (sending without it):", e);
     }
     try {
       await sendTemplatedMail({
