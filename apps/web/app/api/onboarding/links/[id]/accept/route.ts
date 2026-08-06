@@ -11,6 +11,7 @@ import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { buildClearancePdf, clearancePdfFilename } from "@/lib/clearance-pdf";
+import { buildAuthorityLetterPdf, authorityLetterFilename } from "@/lib/authority-letter-pdf";
 import { buildFirmNewClientEmail } from "@/lib/email-constants";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
@@ -355,7 +356,8 @@ export async function POST(
     // EMAIL → PREVIOUS ACCOUNTANT: professional clearance request (editable template)
     if (!noPrevAccountant && prevEmail) {
       void clearanceUrl;
-      let clearanceAttachments;
+      const clearanceAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+      // 1) Professional clearance letter (GNS → outgoing accountant).
       try {
         const buffer = await buildClearancePdf({
           firm,
@@ -367,13 +369,32 @@ export async function POST(
           partnerName: meta.partnerName,
           today,
         });
-        clearanceAttachments = [{
+        clearanceAttachments.push({
           filename: clearancePdfFilename(link.companyName ?? "Client"),
           content: buffer,
           contentType: "application/pdf",
-        }];
+        });
       } catch (e) {
         console.error("Clearance PDF generation failed (sending without attachment):", e);
+      }
+      // 2) Client authority (change of accountants) letter — the client's written
+      // authority for the outgoing accountant to release records to us.
+      try {
+        const authBuffer = await buildAuthorityLetterPdf({
+          firm,
+          clientName: link.companyName ?? "",
+          companyNumber: link.companyNumber ?? undefined,
+          directorName: link.directorName ?? undefined,
+          prevFirmName: prevFirmName || "Previous Accountants",
+          today,
+        });
+        clearanceAttachments.push({
+          filename: authorityLetterFilename(link.companyName ?? "Client"),
+          content: authBuffer,
+          contentType: "application/pdf",
+        });
+      } catch (e) {
+        console.error("Authority letter generation failed (sending without it):", e);
       }
       try {
         const r = await sendTemplatedMail({

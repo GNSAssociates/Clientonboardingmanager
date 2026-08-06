@@ -288,8 +288,8 @@ export function buildLetterHtml(d: LetterData): string {
   * { box-sizing: border-box; }
   body { margin: 0; background: #fff; color: #24292f; font-family: Georgia, 'Times New Roman', serif;
          font-size: 18.75px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
-  .page { max-width: 780px; margin: 0 auto; padding: 56px 72px 44px; }
-  @media (max-width: 700px) { .page { padding: 28px 22px; } }
+  .page { max-width: 820px; margin: 0 auto; padding: 48px 44px 40px 30px; }
+  @media (max-width: 700px) { .page { padding: 24px 18px; } }
 
   /* Running header/footer — repeat on every printed (or PDF) page. Chrome and
      Edge honour position:fixed on each page when printing / saving to PDF. */
