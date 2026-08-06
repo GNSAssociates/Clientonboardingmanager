@@ -23,6 +23,7 @@ import { ICAEW_LOGO_DATA_URI } from './icaew-logo';
 import { ACCA_LOGO_DATA_URI } from './acca-logo';
 import { CIOT_LOGO_DATA_URI } from './ciot-logo';
 import { NOTO_SANS_DATA_URI } from './font-noto';
+import { DANCING_SCRIPT_DATA_URI } from './font-cursive';
 import { SERVICE_SCHEDULES, ADHOC_SCHEDULE } from './service-schedules';
 import { scopeRowsForServices, CLIENT_TYPE_TERMS, type LetterData, type AuditData, type LetterService } from './letter-html';
 import { buildTermsOfBusinessHtml, buildPrivacyNoticeHtml } from './terms-of-business';
@@ -55,6 +56,7 @@ function ensureFont() {
     { src: NOTO_SANS_DATA_URI, fontWeight: 'normal', fontStyle: 'italic' },
     { src: NOTO_SANS_DATA_URI, fontWeight: 'bold', fontStyle: 'italic' },
   ] });
+  Font.register({ family: 'Signature', fonts: [{ src: DANCING_SCRIPT_DATA_URI }] });
   Font.registerHyphenationCallback((word) => [word]); // no hyphenation splits
   fontRegistered = true;
 }
@@ -136,6 +138,7 @@ const styles = StyleSheet.create({
   sscH: { fontSize: 7.5, fontFamily: 'Noto', fontWeight: 'bold', letterSpacing: 0.8, marginTop: 12, marginBottom: 4 },
   sig: { height: 34, marginTop: 6, marginBottom: 2 },
   sigLine: { width: 160, borderTopWidth: 0.5, borderTopColor: '#9aa1ab', marginTop: 3, marginBottom: 3 },
+  sigScript: { fontFamily: 'Signature', fontSize: 26, color: '#1a3fa0', marginTop: 18 },
   auditBadge: { borderWidth: 2, borderColor: '#16a34a', backgroundColor: '#f0fdf4', padding: 12, marginBottom: 14, borderRadius: 4 },
 });
 
@@ -436,6 +439,12 @@ function letterDoc(d: PdfLetterInput) {
         <View style={styles.sigLine} />
         <Text style={{ fontFamily: 'Noto', fontWeight: 'bold', fontSize: 9 }}>{partner}{PARTNER_DESIGNATIONS[partner] ? `, ${PARTNER_DESIGNATIONS[partner]}` : ''}</Text>
         <Text style={{ fontSize: 8, color: '#5b6472' }}>Director, {f.legalName}</Text>
+
+        <Text style={[styles.p, { marginTop: 20 }]}>Agreed and accepted on behalf of {d.clientName || d.companyName}:</Text>
+        <Text style={styles.sigScript}>{d.audit?.signatureName || d.directorName || ''}</Text>
+        <View style={styles.sigLine} />
+        <Text style={{ fontSize: 8, color: '#5b6472' }}>{d.directorName}, {terms.heading}</Text>
+        <Text style={{ fontSize: 8, color: '#5b6472' }}>Date: {d.audit?.signedAtIso ? new Date(d.audit.signedAtIso).toLocaleDateString('en-GB', { timeZone: 'Europe/London' }) : d.dateStr}</Text>
 
         {/* Schedule of Services */}
         <Text style={[styles.title, { fontSize: 13, marginTop: 20 }]} break>SCHEDULE OF SERVICES</Text>

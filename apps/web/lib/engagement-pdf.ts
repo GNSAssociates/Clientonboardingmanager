@@ -21,7 +21,9 @@
  * re-typed — this guarantees the wording matches the HTML letter exactly.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import type { FirmConfig } from "./firms";
+import { DANCING_SCRIPT_DATA_URI } from "./font-cursive";
 import {
   CLIENT_TYPE_TERMS,
   scopeRowsForServices,
@@ -233,6 +235,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
 
   // ── Document setup ──────────────────────────────────────────────────────────
   const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
   pdf.setTitle(`Engagement Letter - ${sanitize(d.companyName)}`);
   pdf.setAuthor(f.legalName);
   pdf.setSubject("Letter of Engagement — Contract for Services");
@@ -247,6 +250,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   const serif = await pdf.embedFont(StandardFonts.TimesRoman);
   const serifBold = await pdf.embedFont(StandardFonts.TimesRomanBold);
   const serifItalic = await pdf.embedFont(StandardFonts.TimesRomanItalic);
+  const script = await pdf.embedFont(Buffer.from(DANCING_SCRIPT_DATA_URI.split(",")[1]!, "base64"));
   const logo = await embedDataUri(pdf, GNS_LOGO_DATA_URI);
   const signature = await embedDataUri(pdf, PARTNER_SIGNATURES[partner] ?? GNS_SIGNATURE_DATA_URI);
 
@@ -694,24 +698,26 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.", { gap: 10 });
 
   // Signed-confirmation stamp — only present when rendering the SIGNED copy.
+  // Styled like Adobe Sign / DocuSign: a blue cursive rendering of the typed
+  // name as the visual "signature", plus a compact audit line underneath.
   if (d.signedName) {
-    const boxH = 48;
+    const boxH = 62;
     need(boxH + 8);
     page.drawRectangle({
       x: MARGIN_X, y: y - boxH, width: CONTENT_W, height: boxH,
       color: rgb(0.91, 0.96, 0.92), borderColor: rgb(0.36, 0.66, 0.46), borderWidth: 0.9,
     });
     const sx = MARGIN_X + 12;
-    let sy = y - 15;
-    page.drawText(sanitize("SIGNED - Electronically executed"), { x: sx, y: sy, size: 10.5, font: serifBold, color: rgb(0.09, 0.42, 0.24) });
-    sy -= 15;
-    page.drawText(sanitize(`Signed by ${d.signedName}`), { x: sx, y: sy, size: 9.5, font: bold, color: INK });
+    let sy = y - 13;
+    page.drawText(sanitize("SIGNED - Electronically executed"), { x: sx, y: sy, size: 9.5, font: serifBold, color: rgb(0.09, 0.42, 0.24) });
+    sy -= 25;
+    page.drawText(sanitize(d.signedName), { x: sx, y: sy, size: 24, font: script, color: rgb(0.10, 0.24, 0.63) });
     sy -= 13;
     const when = d.signedAt
       ? new Date(d.signedAt).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
-    const meta = [when && `Date: ${when}`, d.signedIp && `IP: ${d.signedIp}`].filter(Boolean).join("     ");
-    if (meta) page.drawText(sanitize(meta), { x: sx, y: sy, size: 8.5, font, color: GREY });
+    const meta = [`Signed by ${d.signedName}`, when && `Date: ${when}`, d.signedIp && `IP: ${d.signedIp}`].filter(Boolean).join("     ");
+    if (meta) page.drawText(sanitize(meta), { x: sx, y: sy, size: 8, font, color: GREY });
     y -= boxH + 8;
   }
 

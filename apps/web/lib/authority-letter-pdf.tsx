@@ -20,6 +20,7 @@ import { ICAEW_LOGO_DATA_URI } from './icaew-logo';
 import { ACCA_LOGO_DATA_URI } from './acca-logo';
 import { CIOT_LOGO_DATA_URI } from './ciot-logo';
 import { NOTO_SANS_DATA_URI } from './font-noto';
+import { DANCING_SCRIPT_DATA_URI } from './font-cursive';
 
 let fontRegistered = false;
 function ensureFont() {
@@ -29,6 +30,7 @@ function ensureFont() {
     { src: NOTO_SANS_DATA_URI, fontWeight: 'bold' },
     { src: NOTO_SANS_DATA_URI, fontWeight: 'normal', fontStyle: 'italic' },
   ] });
+  Font.register({ family: 'Signature', fonts: [{ src: DANCING_SCRIPT_DATA_URI }] });
   Font.registerHyphenationCallback((word) => [word]);
   fontRegistered = true;
 }
@@ -60,7 +62,7 @@ const styles = StyleSheet.create({
   lbl: { fontSize: 7, letterSpacing: 1.5, color: '#9aa1ab', fontFamily: 'Noto', fontWeight: 'bold', marginBottom: 4 },
   sigLine: { width: 200, borderTopWidth: 0.6, borderTopColor: '#9aa1ab', marginTop: 26, marginBottom: 4 },
   sigK: { fontSize: 8.5, color: '#5b6472', marginBottom: 3 },
-  sigScript: { fontFamily: 'Noto', fontStyle: 'italic', fontSize: 22, color: '#1a3fa0', marginTop: 22, transform: 'skew(-8deg)' },
+  sigScript: { fontFamily: 'Signature', fontSize: 30, color: '#1a3fa0', marginTop: 20 },
 });
 
 export interface AuthorityLetterInput {
