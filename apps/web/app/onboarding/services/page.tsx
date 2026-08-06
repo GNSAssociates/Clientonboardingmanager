@@ -464,8 +464,12 @@ function ServicesPageInner() {
     return price * 12;
   };
 
-  const totalMonthly = selected.reduce((sum, id) => sum + toMonthly(prices[id] || 0, frequencies[id]), 0);
-  const totalAnnual = selected.reduce((sum, id) => sum + toAnnual(prices[id] || 0, frequencies[id]), 0);
+  // Software Subscription is priced by summing its dynamic item boxes; when any
+  // item has a price, that sum is the service fee (overrides the single input).
+  const softwareTotal = softwareItems.reduce((s, x) => s + (x.price || 0), 0);
+  const effPrice = (id: string) => id === 'software_subscription' && softwareTotal > 0 ? softwareTotal : (prices[id] || 0);
+  const totalMonthly = selected.reduce((sum, id) => sum + toMonthly(effPrice(id), frequencies[id]), 0);
+  const totalAnnual = selected.reduce((sum, id) => sum + toAnnual(effPrice(id), frequencies[id]), 0);
   const total = totalMonthly;
   const customTotal = customFees.reduce((sum, c) => {
     if (c.frequency === 'one-off') return sum + (c.price || 0);
@@ -494,7 +498,7 @@ function ServicesPageInner() {
     const monthlyServices = selected.map((id) => ({
       id,
       name: SERVICES.find((s) => s.id === id)?.name || id,
-      price: prices[id] || 0,
+      price: effPrice(id),
       frequency: frequencies[id] || 'monthly',
       oneoff: false,
       chFee: chFees[id] || 0,
