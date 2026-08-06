@@ -58,6 +58,14 @@ jobs:
       - name: Write deploy marker
         run: echo "commit ${{ github.sha }} deployed $(date -u)" > apps/web/.next/standalone/DEPLOY_INFO.txt
 
+      # Passenger ALWAYS restarts when the application startup file changes.
+      # tmp/restart.txt is not reliable on this host, so append a fresh deploy
+      # comment to loader.cjs (the cPanel "Application startup file") each run —
+      # the content change makes FTP re-upload it, changing its mtime and forcing
+      # Passenger to reload the new standalone build automatically.
+      - name: Touch startup file to force Passenger restart
+        run: echo "// deploy ${{ github.sha }} $(date -u)" >> apps/web/.next/standalone/apps/web/loader.cjs
+
       - name: Sync bundle to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
