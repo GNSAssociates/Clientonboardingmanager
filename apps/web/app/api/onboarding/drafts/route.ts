@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       // previously dropped here, which reset frequency/payment method to
       // their defaults every time the wizard was reloaded from a draft.
       frequencies,
+      chFees,
       paymentMethod,
       includeInLetter,
       includeAnnexA,
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
       regBody?: string;
       ch?: Record<string, unknown> | null;
       frequencies?: Record<string, string>;
+      chFees?: Record<string, number>;
       paymentMethod?: string;
       includeInLetter?: Record<string, boolean>;
       includeAnnexA?: boolean;
@@ -102,6 +104,7 @@ export async function POST(req: NextRequest) {
             sendMode: sendMode ?? null,
             regBody: regBody ?? null,
             frequencies: frequencies ?? {},
+            chFees: chFees ?? {},
             paymentMethod: paymentMethod ?? "dd",
             includeInLetter: includeInLetter ?? {},
             includeAnnexA: includeAnnexA ?? true,

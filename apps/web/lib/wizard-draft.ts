@@ -21,6 +21,7 @@ export interface WizardDraftState {
   regBody?: string | null;
   ch?: Record<string, unknown> | null;
   frequencies?: Record<string, string>;
+  chFees?: Record<string, number>;
   paymentMethod?: string;
   includeInLetter?: Record<string, boolean>;
   includeAnnexA?: boolean;

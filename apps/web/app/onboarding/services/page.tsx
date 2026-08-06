@@ -131,6 +131,11 @@ const SERVICES = [
   },
 ];
 
+// Services that carry a Companies House disbursement (a fee paid to Companies
+// House on the client's behalf, NOT subject to VAT). These get a second
+// "Companies House fee (no VAT)" box alongside the GNS fee in the builder.
+const CH_FEE_SERVICES = new Set(['confirmation_statement']);
+
 // One-off / ad-hoc services (Annex A — Schedule of Service Charges).
 // Prices are the total client-facing fee (inc. VAT where applicable).
 const ONEOFF_GROUPS: { group: string; items: { id: string; name: string; basePrice: number; note?: string }[] }[] = [
@@ -208,6 +213,11 @@ function ServicesPageInner() {
 
   // Billing frequency per service
   const [frequencies, setFrequencies] = useState<Record<string, Frequency>>({});
+
+  // Companies House disbursement per service (paid to Companies House, NOT
+  // subject to VAT). Shown as a second box for CH-filing services so the CH
+  // portion is billed separately from the (VATable) GNS fee.
+  const [chFees, setChFees] = useState<Record<string, number>>({});
 
   // Payment method toggle
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('dd');
@@ -351,6 +361,7 @@ function ServicesPageInner() {
         if (d.customFees?.length) setCustomFees(d.customFees as CustomFee[]);
         if (d.scopeRows?.length) setScopeRows(d.scopeRows);
         if (d.frequencies) setFrequencies(d.frequencies as Record<string, Frequency>);
+        if (d.chFees) setChFees(d.chFees as Record<string, number>);
         if (d.paymentMethod) setPaymentMethod(d.paymentMethod as PaymentMethod);
         if (d.includeInLetter) setIncludeInLetter(d.includeInLetter as Record<string, boolean>);
         if (d.includeAnnexA !== undefined) setIncludeAnnexA(d.includeAnnexA as boolean);
@@ -474,6 +485,7 @@ function ServicesPageInner() {
       price: prices[id] || 0,
       frequency: frequencies[id] || 'monthly',
       oneoff: false,
+      chFee: chFees[id] || 0,
     }));
     const oneoffServices = selectedOneoff.map((id) => ({
       id,
@@ -498,6 +510,7 @@ function ServicesPageInner() {
       customFees: cleanCustomFees,
       scopeRows,
       frequencies,
+      chFees,
       paymentMethod,
       includeInLetter,
       includeAnnexA,
@@ -897,6 +910,20 @@ function ServicesPageInner() {
                       <option value="annually">Annually</option>
                     </select>
                   </div>
+                  {CH_FEE_SERVICES.has(service.id) && (
+                    <div className="flex items-center gap-2 flex-wrap border-t border-purple-100 pt-3">
+                      <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wide w-full">Companies House fee (no VAT) — separate disbursement</span>
+                      <span className="text-sm text-gray-600">£</span>
+                      <input
+                        type="number"
+                        value={chFees[service.id] || ''}
+                        onChange={(e) => setChFees((prev) => ({ ...prev, [service.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                        className="w-24 px-3 py-2 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        min="0" placeholder="0"
+                      />
+                      <span className="text-xs text-gray-500">paid to Companies House · the GNS fee above is the +VAT portion (may be £0)</span>
+                    </div>
+                  )}
                   {(frequencies[service.id] || 'monthly') !== 'monthly' && (
                     <p className="text-xs text-gray-500">
                       = £{((prices[service.id] || 0) / ((frequencies[service.id] || 'monthly') === 'quarterly' ? 3 : 12)).toFixed(0)}/month

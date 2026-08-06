@@ -37,6 +37,7 @@ export async function GET(
       sendMode: draft.sendMode ?? null,
       regBody: draft.regBody ?? null,
       frequencies: draft.frequencies ?? {},
+      chFees: draft.chFees ?? {},
       paymentMethod: draft.paymentMethod ?? "dd",
       includeInLetter: draft.includeInLetter ?? {},
       includeAnnexA: draft.includeAnnexA ?? true,

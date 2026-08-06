@@ -27,7 +27,9 @@ import { buildTermsOfBusinessHtml, buildPrivacyNoticeHtml } from './terms-of-bus
 import { renderVars, templateDef } from './email-templates-lib';
 
 export type LetterFrequency = 'monthly' | 'quarterly' | 'annually';
-export interface LetterService { id?: string; name: string; price: number; oneoff?: boolean; frequency?: LetterFrequency }
+// price = the GNS fee (VATable). chFee = a Companies House disbursement paid to
+// Companies House on the client's behalf — NOT subject to VAT, shown separately.
+export interface LetterService { id?: string; name: string; price: number; oneoff?: boolean; frequency?: LetterFrequency; chFee?: number }
 export interface CustomFee { description: string; price: number; frequency?: 'one-off' | LetterFrequency }
 export interface ScopeRow { service: string; threshold: string; excess: string }
 
@@ -258,6 +260,16 @@ export function buildLetterHtml(d: LetterData): string {
   ].map((s, i) => `
     <tr class="sub"><td>${i + 1}. ${esc(s.name)}</td><td></td><td class="r">${gbp(s.price)}</td><td></td><td>One off upfront</td></tr>`).join('');
 
+  // Companies House disbursements — the CH filing fee is paid TO Companies House
+  // on the client's behalf and is NOT subject to VAT, so it is shown on its own
+  // line separate from the (VATable) GNS fees.
+  const chServices = [...monthly, ...oneoff].filter((s) => (s.chFee || 0) > 0);
+  const chDisbursements = chServices.reduce((s, x) => s + (x.chFee || 0), 0);
+  const chRows = chServices.length ? `
+      <tr class="sect"><td colspan="5">Companies House disbursements — paid to Companies House, not subject to VAT</td></tr>
+      ${chServices.map((s) => `<tr class="sub"><td>• Companies House filing fee — ${esc(s.name)}</td><td class="r">${gbp(s.chFee!)}</td><td></td><td></td><td>Disbursement (no VAT)</td></tr>`).join('')}
+      <tr class="total"><td>Total Companies House disbursements (no VAT)</td><td class="r">${gbp(chDisbursements)}</td><td class="r">—</td><td class="r">—</td><td style="font-size:10.5px">Payable to CH</td></tr>` : '';
+
   const scopeRowsHtml = scopeRows.map((r, i) => `
     <tr${i % 2 ? ' class="alt"' : ''}><td><strong>${esc(r.service)}</strong></td><td>${esc(r.threshold)}</td><td>${esc(r.excess)}</td></tr>`).join('');
 
@@ -475,9 +487,10 @@ export function buildLetterHtml(d: LetterData): string {
       ${oneoffRows}
       <tr class="total"><td>Total Recurring Monthly Fees</td><td class="r">${gbp(totalAnnual)}</td><td class="r">—</td><td class="r">${gbp(totalMonthly)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
       ${totalOneoff > 0 ? `<tr class="total"><td>Total One-off Charges (payable upfront)</td><td class="r">—</td><td class="r">${gbp(totalOneoff)}</td><td class="r">—</td><td style="font-size:10.5px">One off Upfront</td></tr>` : ''}
+      ${chRows}
     </tbody>
   </table>
-  <p class="vatnote sans">Note: 20% VAT applies to all above. The Monthly and One-off columns are separate totals — they are not added together.</p>
+  <p class="vatnote sans">Note: 20% VAT applies to the GNS fees above. Companies House filing fees are disbursements paid to Companies House and are <strong>not</strong> subject to VAT. The Monthly and One-off columns are separate totals — they are not added together.</p>
 
   ${isManual ? `
   <div class="dd sans">

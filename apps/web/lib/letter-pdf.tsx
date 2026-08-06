@@ -202,8 +202,17 @@ function letterDoc(d: PdfLetterInput) {
   const monthly = d.services.filter((s) => !s.oneoff);
   const oneoff = d.services.filter((s) => s.oneoff);
   const customFees = (d.customFees ?? []).filter((c) => c.description.trim());
-  const totalMonthly = monthly.reduce((s, x) => s + x.price, 0);
-  const totalOneoff = oneoff.reduce((s, x) => s + x.price, 0) + customFees.reduce((s, x) => s + x.price, 0);
+  const customRecurring = customFees.filter((c) => c.frequency && c.frequency !== 'one-off');
+  const customOneoff = customFees.filter((c) => !c.frequency || c.frequency === 'one-off');
+  const svcMonthly = (s: LetterService) => s.frequency === 'annually' ? s.price / 12 : s.frequency === 'quarterly' ? s.price / 3 : s.price;
+  const svcAnnual = (s: LetterService) => s.frequency === 'annually' ? s.price : s.frequency === 'quarterly' ? s.price * 4 : s.price * 12;
+  const cfMonthly = (c: { price: number; frequency?: string }) => c.frequency === 'annually' ? c.price / 12 : c.frequency === 'quarterly' ? c.price / 3 : c.price;
+  const cfAnnual = (c: { price: number; frequency?: string }) => c.frequency === 'annually' ? c.price : c.frequency === 'quarterly' ? c.price * 4 : c.price * 12;
+  const totalMonthly = monthly.reduce((s, x) => s + svcMonthly(x), 0) + customRecurring.reduce((s, c) => s + cfMonthly(c), 0);
+  const totalAnnual = monthly.reduce((s, x) => s + svcAnnual(x), 0) + customRecurring.reduce((s, c) => s + cfAnnual(c), 0);
+  const totalOneoff = oneoff.reduce((s, x) => s + x.price, 0) + customOneoff.reduce((s, c) => s + c.price, 0);
+  const chServices = [...monthly, ...oneoff].filter((s) => (s.chFee || 0) > 0);
+  const chDisbursements = chServices.reduce((s, x) => s + (x.chFee || 0), 0);
   const monthlyIds = monthly.map((s) => s.id ?? '');
   const scopeRows = scopeRowsForServices(monthlyIds, d.scopeRows);
   const selectedSchedules = SERVICE_SCHEDULES.filter((s) => monthlyIds.includes(s.id));
@@ -290,18 +299,25 @@ function letterDoc(d: PdfLetterInput) {
         {/* Fee structure */}
         <Table
           accent={f.accentColor}
-          widths={[40, 15, 15, 18, 12]}
-          head={['Fees', 'Monthly £', 'Upfront £', 'Annual £', 'Mode']}
+          widths={[40, 18, 15, 15, 12]}
+          head={['Fees', 'Annual £', 'Upfront £', 'Monthly £', 'Mode']}
           rows={[
-            ['Fees Agreed', GBP(totalMonthly), '—', GBP(totalMonthly * 12), payMode],
-            ...monthly.map((s) => [`• ${s.name}`, GBP(s.price), '', GBP(s.price * 12), '']),
-            ...(oneoff.length || customFees.length ? [['Past due / catch-up / ad-hoc work (if any)', '', '', '', '']] : []),
+            ['Recurring Fees Agreed', GBP(totalAnnual), totalOneoff > 0 ? GBP(totalOneoff) : '—', GBP(totalMonthly), payMode],
+            ...monthly.map((s) => [`• ${s.name}`, GBP(svcAnnual(s)), '', GBP(svcMonthly(s)), '']),
+            ...customRecurring.map((c) => [`• ${c.description}`, GBP(cfAnnual(c)), '', GBP(cfMonthly(c)), '']),
+            ...(oneoff.length || customOneoff.length ? [['Past due / catch-up / ad-hoc work (if any)', '', '', '', '']] : []),
             ...oneoff.map((s, i) => [`${i + 1}. ${s.name}`, '', GBP(s.price), '', 'One off']),
-            ...customFees.map((c, i) => [`${oneoff.length + i + 1}. ${c.description}`, '', GBP(c.price), '', 'One off']),
-            ['Final Monthly and One-off Fees Agreed', GBP(totalMonthly), GBP(totalOneoff), GBP(totalMonthly * 12), isManual ? 'Inv / Upfront' : 'DD / Upfront'],
+            ...customOneoff.map((c, i) => [`${oneoff.length + i + 1}. ${c.description}`, '', GBP(c.price), '', 'One off']),
+            ['Total Recurring Monthly Fees', GBP(totalAnnual), '—', GBP(totalMonthly), payMode],
+            ...(totalOneoff > 0 ? [['Total One-off Charges (upfront)', '—', GBP(totalOneoff), '—', isManual ? 'Inv / Upfront' : 'Upfront']] : []),
+            ...(chServices.length ? [
+              ['Companies House disbursements — not subject to VAT', '', '', '', ''],
+              ...chServices.map((s) => [`• CH filing fee — ${s.name}`, GBP(s.chFee!), '', '', 'No VAT']),
+              ['Total Companies House disbursements (no VAT)', GBP(chDisbursements), '—', '—', 'To CH'],
+            ] : []),
           ]}
         />
-        <Text style={styles.vat}>Note: 20% VAT applies to all above</Text>
+        <Text style={styles.vat}>Note: 20% VAT applies to the GNS fees above. Companies House filing fees are disbursements and are not subject to VAT.</Text>
 
         {isManual ? (
           <View style={[styles.callout, { borderLeftColor: '#3b4453' }]}>
