@@ -892,9 +892,9 @@ function ServicesPageInner() {
                       onChange={(e) => setFrequencies((prev) => ({ ...prev, [service.id]: e.target.value as Frequency }))}
                       className="px-2 py-2 border border-purple-300 rounded text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
                     >
-                      <option value="monthly">/month</option>
-                      <option value="quarterly">/quarter</option>
-                      <option value="annually">/year</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="annually">Annually</option>
                     </select>
                   </div>
                   {(frequencies[service.id] || 'monthly') !== 'monthly' && (

@@ -104,10 +104,16 @@ export interface AuditData {
 // Acting partners selectable when issuing a letter
 export const LETTER_PARTNERS = ['Lekh Nath Ghimire', 'Subash Ghimire', 'Mahesh Giri'];
 
+// Post-nominal DESIGNATIONS (the qualification earned), not the membership body.
+// The professional bodies themselves (ACCA / ICAEW / CIOT) are represented by
+// the logo badges, so the signature line carries the individual's certifications:
+//   ACCA  -> FCCA (Fellow Chartered Certified Accountant)
+//   ICAEW -> ACA  (Associate Chartered Accountant)
+//   CIOT  -> CTA  (Chartered Tax Adviser)
 const PARTNER_DESIGNATIONS: Record<string, string> = {
-  'Lekh Nath Ghimire': 'ACCA, MBA, ICAEW (ACA), CIOT',
-  'Subash Ghimire': 'ACCA, MBA',
-  'Mahesh Giri': 'ACCA, MA',
+  'Lekh Nath Ghimire': 'FCCA, ACA, CTA, MBA',
+  'Subash Ghimire': 'FCCA, MBA',
+  'Mahesh Giri': 'FCCA, MA',
 };
 
 export const DEFAULT_SCOPE_ROWS: ScopeRow[] = [
