@@ -55,7 +55,7 @@ export interface ClearancePdfInput {
 // ── Page geometry (A4, in points) ─────────────────────────────────────────────
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
-const MARGIN_X = 56;
+const MARGIN_X = 40;
 const CONTENT_W = PAGE_W - MARGIN_X * 2;
 
 // Header: logo and strap-line sit above the rule, never across it.

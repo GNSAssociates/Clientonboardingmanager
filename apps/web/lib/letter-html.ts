@@ -228,9 +228,8 @@ export function buildLetterHtml(d: LetterData): string {
     </div>
   </div>` : '';
 
-  const freqLabel = (f?: LetterFrequency) => f === 'annually' ? '/year' : f === 'quarterly' ? '/quarter' : '/month';
   const monthlyRows = monthly.map((s) => `
-    <tr class="sub"><td>• ${esc(s.name)}${s.frequency && s.frequency !== 'monthly' ? ` <em style="color:#888;font-size:0.85em">(${freqLabel(s.frequency)})</em>` : ''}</td><td class="r">${gbp(svcToMonthly(s))}</td><td></td><td class="r">${gbp(svcToAnnual(s))}</td><td></td></tr>`).join('');
+    <tr class="sub"><td>• ${esc(s.name)}</td><td class="r">${gbp(svcToAnnual(s))}</td><td></td><td class="r">${gbp(svcToMonthly(s))}</td><td></td></tr>`).join('');
 
   const oneoffHeader = (oneoff.length || customFees.length) ? `
     <tr class="sect"><td colspan="5">Fees for any past due filings, catch-up and ad-hoc work (IF ANY)</td></tr>` : '';
@@ -449,14 +448,14 @@ export function buildLetterHtml(d: LetterData): string {
 
   <table class="fees sans">
     <thead>
-      <tr><th>Fees</th><th style="width:78px;text-align:right">Monthly £</th><th style="width:92px;text-align:right">Fees Upfront £</th><th style="width:110px;text-align:right">Annual Equivalent £</th><th style="width:96px">Payment Mode</th></tr>
+      <tr><th>Fees</th><th style="width:110px;text-align:right">Annual Equivalent £</th><th style="width:92px;text-align:right">Fees Upfront £</th><th style="width:78px;text-align:right">Monthly £</th><th style="width:96px">Payment Mode</th></tr>
     </thead>
     <tbody>
-      <tr><td><strong>Recurring Fees Agreed (Monthly)</strong></td><td class="r"><strong>${gbp(totalMonthly)}</strong></td><td class="r">${totalOneoff > 0 ? gbp(totalOneoff) : '—'}</td><td class="r">${gbp(totalAnnual)}</td><td>${payModeLabel}</td></tr>
+      <tr><td><strong>Recurring Fees Agreed (Monthly)</strong></td><td class="r">${gbp(totalAnnual)}</td><td class="r">${totalOneoff > 0 ? gbp(totalOneoff) : '—'}</td><td class="r"><strong>${gbp(totalMonthly)}</strong></td><td>${payModeLabel}</td></tr>
       ${monthlyRows}
       ${oneoffHeader}
       ${oneoffRows}
-      <tr class="total"><td>Total Recurring Monthly Fees</td><td class="r">${gbp(totalMonthly)}</td><td class="r">—</td><td class="r">${gbp(totalAnnual)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
+      <tr class="total"><td>Total Recurring Monthly Fees</td><td class="r">${gbp(totalAnnual)}</td><td class="r">—</td><td class="r">${gbp(totalMonthly)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
       ${totalOneoff > 0 ? `<tr class="total"><td>Total One-off Charges (payable upfront)</td><td class="r">—</td><td class="r">${gbp(totalOneoff)}</td><td class="r">—</td><td style="font-size:10.5px">One off Upfront</td></tr>` : ''}
     </tbody>
   </table>
