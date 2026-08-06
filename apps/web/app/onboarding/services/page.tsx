@@ -90,7 +90,7 @@ const SERVICES = [
   },
   {
     id: 'self_assessment',
-    name: 'Self-Assessment (excl. Buy-to-Let)',
+    name: 'Self-Assessment',
     basePrice: 50,
     description: "Director's personal tax return filing",
     threshold: '2 persons including directors',
