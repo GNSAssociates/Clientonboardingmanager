@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
   lbl: { fontSize: 7, letterSpacing: 1.5, color: '#9aa1ab', fontFamily: 'Noto', fontWeight: 'bold', marginBottom: 4 },
   sigLine: { width: 200, borderTopWidth: 0.6, borderTopColor: '#9aa1ab', marginTop: 26, marginBottom: 4 },
   sigK: { fontSize: 8.5, color: '#5b6472', marginBottom: 3 },
+  sigScript: { fontFamily: 'Noto', fontStyle: 'italic', fontSize: 22, color: '#1a3fa0', marginTop: 22, transform: 'skew(-8deg)' },
 });
 
 export interface AuthorityLetterInput {
@@ -161,8 +162,8 @@ function authorityDoc(d: AuthorityLetterInput) {
 
         <Text style={{ marginTop: 6 }}>Kind regards,</Text>
 
+        <Text style={styles.sigScript}>{d.directorName ?? ''}</Text>
         <View style={styles.sigLine} />
-        <Text style={styles.sigK}>Signed: {d.directorName ?? ''}</Text>
         <Text style={styles.sigK}>Name: {d.directorName ?? ''}</Text>
         {d.clientName ? <Text style={styles.sigK}>For and on behalf of {clientLabel}</Text> : null}
         <Text style={styles.sigK}>Date: {d.today}</Text>
