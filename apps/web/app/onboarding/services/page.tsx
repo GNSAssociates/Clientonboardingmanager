@@ -927,7 +927,7 @@ function ServicesPageInner() {
                   </div>
                   {CH_FEE_SERVICES.has(service.id) && (
                     <div className="flex items-center gap-2 flex-wrap border-t border-purple-100 pt-3">
-                      <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wide w-full">Companies House fee (no VAT) — separate disbursement</span>
+                      <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wide w-full">ANNUAL Companies House fee (no VAT) — separate disbursement</span>
                       <span className="text-sm text-gray-600">£</span>
                       <input
                         type="number"
@@ -936,7 +936,7 @@ function ServicesPageInner() {
                         className="w-24 px-3 py-2 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
                         min="0" placeholder="0"
                       />
-                      <span className="text-xs text-gray-500">paid to Companies House · the GNS fee above is the +VAT portion (may be £0)</span>
+                      <span className="text-xs text-gray-500">Annual Confirmation Statement Fees Payable to Companies House once in a year-This will be a non vat recharge</span>
                       <p className="w-full text-right text-xs font-semibold text-gray-700 pt-1">
                         Section total (annual): £{(toAnnual(prices[service.id] || 0, frequencies[service.id]) + (chFees[service.id] || 0)).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         <span className="font-normal text-gray-500"> — GNS £{toAnnual(prices[service.id] || 0, frequencies[service.id]).toLocaleString('en-GB')} +VAT · CH £{(chFees[service.id] || 0).toLocaleString('en-GB')} no VAT</span>
