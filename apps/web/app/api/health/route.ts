@@ -37,12 +37,21 @@ export function GET() {
     }),
   );
 
+  // Diagnostic: the NAMES of the GoCardless variables the process can actually
+  // see (never their values). A variable that was saved but misspelled, or set
+  // after the last restart, is otherwise indistinguishable from one that was
+  // never set at all — this tells the two apart at a glance.
+  const gocardlessVarsSeen = Object.keys(process.env)
+    .filter((k) => k.toUpperCase().startsWith("GOCARDLESS"))
+    .sort();
+
   const configured = {
     database: Boolean(process.env.DATABASE_URL),
     anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
     supabase: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
     gocardlessEnvironment: process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "sandbox" : "live",
     gocardless,
+    gocardlessVarsSeen,
   };
   return NextResponse.json(
     {
