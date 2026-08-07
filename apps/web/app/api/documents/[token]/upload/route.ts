@@ -13,6 +13,10 @@ async function uploadToSupabase(
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
   const bucket = "client-documents";
 
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Document storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing). Please contact us.");
+  }
+
   const url = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
   const res = await fetch(url, {
     method: "POST",
@@ -26,9 +30,9 @@ async function uploadToSupabase(
 
   if (!res.ok) {
     const err = await res.text();
-    console.warn("Supabase Storage upload failed:", err);
-    // Return a placeholder URL so the flow continues even without Storage configured
-    return `local://${path}`;
+    console.error("Supabase Storage upload failed:", res.status, err);
+    // Surface the real reason instead of silently saving an unusable placeholder.
+    throw new Error(`Storage upload failed (${res.status}). ${err.slice(0, 160)}`);
   }
 
   return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
@@ -52,9 +56,14 @@ export async function POST(
       return NextResponse.json({ error: "Unknown document type" }, { status: 400 });
     }
 
-    // Validate file type
-    if (!docTypeDef.acceptedFormats.includes(file.type) && file.type !== "application/octet-stream") {
-      return NextResponse.json({ error: `File type not accepted for ${docTypeDef.label}` }, { status: 400 });
+    // Validate file type — accept by MIME OR by file extension (phones often
+    // send an empty or generic type, e.g. HEIC photos), so genuine documents
+    // are not wrongly rejected.
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    const extOk = ["pdf", "jpg", "jpeg", "png", "heic", "heif", "webp", "gif", "doc", "docx"].includes(ext);
+    const typeOk = docTypeDef.acceptedFormats.includes(file.type) || file.type === "application/octet-stream" || !file.type;
+    if (!typeOk && !extOk) {
+      return NextResponse.json({ error: `File type not accepted for ${docTypeDef.label}. Please upload a PDF or image.` }, { status: 400 });
     }
 
     // Validate file size
@@ -78,13 +87,18 @@ export async function POST(
 
     const fileUrl = await uploadToSupabase(path, arrayBuffer, file.type);
 
-    // Mirror into the client's OneDrive folder (non-fatal, no-op until configured)
-    await archiveToClientFolder({
-      companyName: link.companyName ?? params.token.substring(0, 8),
-      fileName: `${docTypeDef.label} - ${safeName}`,
-      content: arrayBuffer,
-      mimeType: file.type,
-    });
+    // Mirror into the client's OneDrive folder — truly non-fatal: a OneDrive
+    // misconfiguration must never fail the client's upload.
+    try {
+      await archiveToClientFolder({
+        companyName: link.companyName ?? params.token.substring(0, 8),
+        fileName: `${docTypeDef.label} - ${safeName}`,
+        content: arrayBuffer,
+        mimeType: file.type,
+      });
+    } catch (e) {
+      console.error("OneDrive archive failed (upload still saved):", e);
+    }
 
     // Persist to DB
     const row = await db.transaction((tx) =>
@@ -105,7 +119,7 @@ export async function POST(
     });
   } catch (err) {
     console.error("Document upload error:", err);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Upload failed" }, { status: 500 });
   }
 }
 

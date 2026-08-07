@@ -147,7 +147,7 @@ export default function EngagementPage() {
 
   if (pageError || !link || !link.companyName) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
+      <div className="max-w-xl w-full bg-white rounded-2xl p-6 sm:p-10 shadow-lg text-center">
         <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Link Not Found</h1>
         <p className="text-gray-600">This onboarding link is invalid or has expired. Please contact us.</p>
@@ -157,7 +157,7 @@ export default function EngagementPage() {
 
   if (link.status === 'accepted') return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
+      <div className="max-w-xl w-full bg-white rounded-2xl p-6 sm:p-10 shadow-lg text-center">
         <CheckCircle2 className="text-green-500 mx-auto mb-4" size={48} />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Already Signed</h1>
         <p className="text-gray-600">
@@ -172,7 +172,7 @@ export default function EngagementPage() {
   // reconnect them to the waiting screen rather than offering the form again.
   if (link.status === 'pending_dd' && !ddPending && !ddFailure && !submitted) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
+      <div className="max-w-xl w-full bg-white rounded-2xl p-6 sm:p-10 shadow-lg text-center">
         <div className="inline-flex mb-6">
           <div className="animate-spin rounded-full h-14 w-14 border-4 border-gray-200 border-b-purple-600" />
         </div>
@@ -232,7 +232,7 @@ export default function EngagementPage() {
   if (!verified) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-        <div className="max-w-md w-full bg-white rounded-2xl p-8 shadow-lg">
+        <div className="max-w-md w-full bg-white rounded-2xl p-5 sm:p-8 shadow-lg">
           <div className="text-center mb-6">
             <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: `${firmForGate.accentColor}15` }}>
               <ShieldCheck size={26} style={{ color: firmForGate.accentColor }} />
@@ -386,7 +386,7 @@ export default function EngagementPage() {
   if (ddPending || ddFailure) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
-        <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
+        <div className="max-w-xl w-full bg-white rounded-2xl p-6 sm:p-10 shadow-lg text-center">
           {ddFailure ? (
             <>
               <AlertCircle className="text-red-500 mx-auto mb-4" size={56} />
@@ -429,7 +429,7 @@ export default function EngagementPage() {
     const anyReady = DIRECTOR_DOCS.some((d) => (docStatus[d.id] || 'later') === 'ready');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
-        <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
+        <div className="max-w-xl w-full bg-white rounded-2xl p-6 sm:p-10 shadow-lg text-center">
           <div className="inline-flex mb-6">
             <div className="relative">
               <div className="absolute inset-0 bg-green-200 rounded-full animate-ping opacity-40" />
@@ -514,7 +514,7 @@ export default function EngagementPage() {
         {/* ═══════ MODE: DETAILS ONLY — short form, no contract ═══════ */}
         {mode === 'details_only' ? (
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div data-field="prevAccountant" className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
+            <div data-field="prevAccountant" className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200 shadow-sm">
               <h1 className="text-xl font-bold text-gray-900 mb-1">Previous Accountant Details</h1>
               <p className="text-sm text-gray-500 mb-6">
                 {firm.legalName} needs these details to request professional clearance and the handover of the records
@@ -554,7 +554,7 @@ export default function EngagementPage() {
             </div>
 
             {/* Declaration + e-signature — authority to approach the previous accountant */}
-            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-2xl p-8">
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-2xl p-5 sm:p-8">
               <div className="flex items-center gap-3 mb-4">
                 <Lock className="text-purple-600" size={22} />
                 <h2 className="text-lg font-bold text-gray-900">Declaration &amp; Electronic Signature</h2>
@@ -647,7 +647,7 @@ export default function EngagementPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
 
             {mode === 'proposal_only' && (
-              <div className="bg-white rounded-2xl p-8 border border-gray-200">
+              <div className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
                 <h2 className="text-lg font-bold text-gray-900 mb-1">Approve this proposal</h2>
                 <p className="text-sm text-gray-500">
                   Please review the proposal above. If you are happy to proceed, approve it below and we&apos;ll send your
@@ -659,7 +659,7 @@ export default function EngagementPage() {
 
             {mode !== 'proposal_only' && (<>
             {/* Previous Accountant */}
-            <div data-field="prevAccountant" className="bg-white rounded-2xl p-8 border border-gray-200">
+            <div data-field="prevAccountant" className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Previous Accountant Details</h2>
               <p className="text-sm text-gray-500 mb-5">We need these details to request professional clearance and your records on your behalf.</p>
 
@@ -750,7 +750,7 @@ export default function EngagementPage() {
 
             {/* Direct Debit — only for DD payment method */}
             {!isManualPayment && (
-            <div data-field="directDebit" className="bg-white rounded-2xl p-8 border-2 border-gray-300">
+            <div data-field="directDebit" className="bg-white rounded-2xl p-5 sm:p-8 border-2 border-gray-300">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Direct Debit Details (GoCardless) *</h2>
               <p className="text-sm text-gray-500 mb-5">
                 Required to complete the contract — your monthly fees are collected by Direct Debit, protected by the Direct Debit Guarantee.
@@ -803,7 +803,7 @@ export default function EngagementPage() {
             )}
 
             {/* Contact preferences */}
-            <div className="bg-white rounded-2xl p-8 border border-gray-200">
+            <div className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Contact Preferences</h2>
               <p className="text-sm text-gray-500 mb-4">
                 From time to time we would like to contact you with details of other services we provide. Select the ways you consent to being contacted:
@@ -822,7 +822,7 @@ export default function EngagementPage() {
             </>)}
 
             {/* Declaration + E-Signature */}
-            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-2xl p-8">
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-2xl p-5 sm:p-8">
               <div className="flex items-center gap-3 mb-4">
                 <Lock className="text-purple-600" size={22} />
                 <h2 className="text-lg font-bold text-gray-900">{mode === 'proposal_only' ? 'Proposal Approval' : 'Client Declaration & Electronic Signature'}</h2>
