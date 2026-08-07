@@ -197,18 +197,9 @@ export async function POST(
     }
     const pendingDd = requiresDdGate && gcConfigured && gcSucceeded;
 
-    // ── Mark accepted — or, when a DD mandate is gating this acceptance,
-    //    "pending_dd" until the GoCardless webhook confirms it's active ──────
-    await db.transaction((tx) =>
-      updateOnboardingLink(tx, link.id, {
-        status: pendingDd ? "pending_dd" : "accepted",
-        acceptedAt: pendingDd ? null : now,
-        prevAccountantEmail: noPrevAccountant ? null : (prevEmail || null),
-        prevAccountantFirmName: noPrevAccountant ? null : (prevFirmName || null),
-      })
-    );
-
     // ── Signed copy with audit certificate ────────────────────────────────────
+    // Built BEFORE the status write: it's pure CPU work, and the status write
+    // must not land without the mandate id beside it (see the single write below).
     const ddSummary = directDebit?.accountName
       ? `${directDebit.accountName} · ****${cleanAccountNo.slice(-4)} · ${cleanSortCode.slice(0, 2)}-**-**`
       : null;
@@ -237,28 +228,37 @@ export async function POST(
       });
     }
 
-    // ── Persist full acceptance record (non-fatal) ────────────────────────────
-    try {
-      await db.transaction((tx) =>
-        updateOnboardingLink(tx, link.id, {
-          signedHtml,
-          acceptanceData: {
-            mode,
-            signatureName: signatureName || link.directorName || null,
-            signedAt: now.toISOString(),
-            contactPrefs: contactPrefs ?? [],
-            directDebit: directDebit ?? null,
-            gocardless: gcResult,
-            directorDocs: directorDocs ?? [],
-            companyDocs: companyDocs ?? [],
-            prevPhone: noPrevAccountant ? null : (prevPhone || null),
-            audit: { ipAddress, userAgent, documentSha256 },
-          },
-        })
-      );
-    } catch (e) {
-      console.error("Failed to persist acceptance data (non-fatal):", e);
-    }
+    // ── Mark accepted (or "pending_dd" when a mandate is gating this), and
+    //    persist the acceptance record — in ONE write.
+    //
+    //    These must be atomic: the GoCardless webhook locates a client by the
+    //    mandate id inside acceptanceData, so if the status landed first and
+    //    the mandate id only afterwards, an "active" webhook arriving in that
+    //    window would match nothing, be skipped, and strand the client in
+    //    pending_dd forever. Sandbox mandates activate in seconds, so that
+    //    window is realistically hit. Splitting it also risked the webhook's
+    //    masking of the bank details being clobbered by the second write.
+    await db.transaction((tx) =>
+      updateOnboardingLink(tx, link.id, {
+        status: pendingDd ? "pending_dd" : "accepted",
+        acceptedAt: pendingDd ? null : now,
+        prevAccountantEmail: noPrevAccountant ? null : (prevEmail || null),
+        prevAccountantFirmName: noPrevAccountant ? null : (prevFirmName || null),
+        signedHtml,
+        acceptanceData: {
+          mode,
+          signatureName: signatureName || link.directorName || null,
+          signedAt: now.toISOString(),
+          contactPrefs: contactPrefs ?? [],
+          directDebit: directDebit ?? null,
+          gocardless: gcResult,
+          directorDocs: directorDocs ?? [],
+          companyDocs: companyDocs ?? [],
+          prevPhone: noPrevAccountant ? null : (prevPhone || null),
+          audit: { ipAddress, userAgent, documentSha256 },
+        },
+      })
+    );
 
     // ── DD gate active: stop here. The client sits on a "pending_dd" screen
     //    until the GoCardless webhook confirms the mandate is active, at which

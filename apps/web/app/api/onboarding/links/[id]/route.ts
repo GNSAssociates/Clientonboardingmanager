@@ -97,7 +97,32 @@ export async function GET(
       }
     }
 
-    return NextResponse.json(link);
+    // SECURITY: this endpoint is unauthenticated — possession of the onboarding
+    // token is the only credential, and that token travels by email, sits in
+    // browser history and can be forwarded. Returning the raw row would ship
+    // acceptanceData with it, which holds the client's full bank account number
+    // and sort code in clear, plus the stored letter HTML. Return only the
+    // fields the signing page actually renders.
+    return NextResponse.json({
+      id: link.id,
+      token: link.token,
+      companyName: link.companyName,
+      companyNumber: link.companyNumber,
+      clientEmail: link.clientEmail,
+      directorName: link.directorName,
+      firmSlug: link.firmSlug,
+      services: link.services,
+      status: link.status,
+      sentAt: link.sentAt,
+      expiresAt: link.expiresAt,
+      acceptedAt: link.acceptedAt,
+      // Only the two presentation flags the signing page branches on — the rest
+      // of letterMeta is internal (pricing workings, partner routing, drafts).
+      letterMeta: {
+        sendMode: (link.letterMeta as Record<string, unknown> | null)?.sendMode ?? null,
+        paymentMethod: (link.letterMeta as Record<string, unknown> | null)?.paymentMethod ?? null,
+      },
+    });
   } catch (error) {
     console.error("Error fetching link:", error);
     return NextResponse.json(

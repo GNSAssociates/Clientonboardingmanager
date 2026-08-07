@@ -52,6 +52,13 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb();
+  // An "active" event for a mandate we can't find yet almost always means the
+  // signing request that created it hasn't finished committing. Rather than
+  // silently dropping it (which would strand that client in pending_dd
+  // forever), we ask GoCardless to redeliver by answering non-2xx; it retries
+  // with backoff for several days. Re-delivered events that were already
+  // handled are no-ops thanks to the pending_dd status guard below.
+  let retryWanted = false;
 
   for (const ev of events) {
     if (ev.resource_type !== "mandates") continue;
@@ -64,8 +71,19 @@ export async function POST(req: NextRequest) {
 
     try {
       const link = await db.transaction((tx) => getOnboardingLinkByMandateId(tx, mandateId));
-      // Not one of ours, or a mandate for a client who was never gated on DD.
-      if (!link || link.status !== "pending_dd") continue;
+      if (!link) {
+        // Unknown mandate. If it's an activation, the acceptance may still be
+        // committing — ask for redelivery. Failures we let go: there is no
+        // client state to update, and retrying forever adds nothing.
+        if (isActive) {
+          retryWanted = true;
+          console.warn(`GoCardless webhook: no link for mandate ${mandateId} yet — requesting redelivery`);
+        }
+        continue;
+      }
+      // Already finalised (or never gated on DD) — nothing to do. This is what
+      // makes redelivered/replayed events safe.
+      if (link.status !== "pending_dd") continue;
 
       const acc = (link.acceptanceData ?? {}) as Record<string, unknown>;
       const gc = (acc.gocardless ?? {}) as Record<string, unknown>;
@@ -101,12 +119,27 @@ export async function POST(req: NextRequest) {
       const cleanAccountNo = (dd?.accountNumber ?? "").replace(/\D/g, "");
       const cleanSortCode = (dd?.sortCode ?? "").replace(/\D/g, "");
 
+      // Once the mandate is active GoCardless holds the bank details and we
+      // never need the raw account number/sort code again (collections run off
+      // the mandate id). Replace them with a masked summary so a database or
+      // backup compromise can't yield usable account details. The masked form
+      // is still enough for staff to recognise the account on screen.
+      const maskedDd = dd
+        ? {
+            accountName: dd.accountName ?? null,
+            accountNumber: cleanAccountNo ? `****${cleanAccountNo.slice(-4)}` : null,
+            sortCode: cleanSortCode ? `${cleanSortCode.slice(0, 2)}-**-**` : null,
+            purgedAt: now.toISOString(),
+          }
+        : null;
+
       await db.transaction((tx) =>
         updateOnboardingLink(tx, link.id, {
           status: "accepted",
           acceptedAt: now,
           acceptanceData: {
             ...acc,
+            directDebit: maskedDd,
             gocardless: { ...gc, mandateStatus: "active", mandateActiveAt: now.toISOString() },
           },
         })
@@ -146,5 +179,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (retryWanted) {
+    return NextResponse.json({ error: "Mandate not yet on file — please redeliver" }, { status: 503 });
+  }
   return NextResponse.json({ received: true });
 }
