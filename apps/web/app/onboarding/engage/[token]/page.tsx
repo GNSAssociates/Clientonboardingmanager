@@ -71,6 +71,7 @@ export default function EngagementPage() {
   const [prevFirmName, setPrevFirmName] = useState('');
   const [prevEmail, setPrevEmail] = useState('');
   const [prevPhone, setPrevPhone] = useState('');
+  const [prevAddress, setPrevAddress] = useState('');
   const [noPrevAccountant, setNoPrevAccountant] = useState(false);
 
   // Director ID document statuses
@@ -310,7 +311,7 @@ export default function EngagementPage() {
     && ddAccountNo.replace(/\D/g, '').length >= 6
     && ddSortCode.replace(/\D/g, '').length === 6);
 
-  const prevOk = noPrevAccountant || (prevFirmName && prevEmail && prevPhone);
+  const prevOk = noPrevAccountant || (prevFirmName && prevEmail && prevPhone && prevAddress.trim());
 
   const canSubmit = mode === 'details_only'
     ? Boolean(authorised && esignConsent && signatureName.trim().length > 1 && prevOk) && !isExpired
@@ -351,6 +352,7 @@ export default function EngagementPage() {
           prevFirmName: (noPrevAccountant || mode === 'proposal_only') ? null : prevFirmName,
           prevEmail: (noPrevAccountant || mode === 'proposal_only') ? null : prevEmail,
           prevPhone: (noPrevAccountant || mode === 'proposal_only') ? null : prevPhone,
+          prevAddress: (noPrevAccountant || mode === 'proposal_only') ? null : prevAddress.trim(),
           noPrevAccountant: mode === 'proposal_only' ? true : noPrevAccountant,
           directorDocs: mode === 'proposal_only' ? [] : DIRECTOR_DOCS.map((d) => ({ id: d.id, label: d.label, status: docStatus[d.id] || 'later' })),
           signatureName: signatureName.trim(),
@@ -541,6 +543,12 @@ export default function EngagementPage() {
                     <input type="tel" value={prevPhone} onChange={(e) => setPrevPhone(e.target.value)} required
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Their Postal Address *</label>
+                    <textarea value={prevAddress} onChange={(e) => setPrevAddress(e.target.value)} required rows={3}
+                      placeholder={'Building & Street\nTown / City\nPostcode'}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                  </div>
                 </div>
               )}
             </div>
@@ -675,6 +683,12 @@ export default function EngagementPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Their Phone Number *</label>
                     <input type="tel" value={prevPhone} onChange={(e) => setPrevPhone(e.target.value)} placeholder="+44 20 1234 5678" required={!noPrevAccountant}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Their Postal Address *</label>
+                    <textarea value={prevAddress} onChange={(e) => setPrevAddress(e.target.value)} required={!noPrevAccountant} rows={3}
+                      placeholder={'Building & Street\nTown / City\nPostcode'}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">

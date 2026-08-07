@@ -72,6 +72,7 @@ export interface PostAcceptanceContext {
   prevFirmName?: string | null;
   prevEmail?: string | null;
   prevPhone?: string | null;
+  prevFirmAddress?: string | null;
   noPrevAccountant?: boolean;
   ipAddress: string;
   userAgent: string;
@@ -90,7 +91,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
   const {
     link, token, mode, firm, meta, appUrl, today, now,
     signatureName, contactPrefs, directorDocs, companyDocs,
-    prevFirmName, prevEmail, prevPhone, noPrevAccountant,
+    prevFirmName, prevEmail, prevPhone, prevFirmAddress, noPrevAccountant,
     ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
   } = ctx;
   const db = getDb();
@@ -213,6 +214,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         companyNumber: link.companyNumber ?? undefined,
         directorName: link.directorName ?? undefined,
         prevFirmName: prevFirmName || "Previous Accountants",
+        prevFirmAddress: prevFirmAddress || undefined,
         // Signed by the partner who issued this client's engagement letter.
         partnerName: meta.partnerName,
         today,
@@ -237,6 +239,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         clientAddress: meta.clientAddress,
         directorName: link.directorName ?? undefined,
         prevFirmName: prevFirmName || "Previous Accountants",
+        prevFirmAddress: prevFirmAddress || undefined,
         today,
       });
       clearanceAttachments.push({

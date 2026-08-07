@@ -26,6 +26,7 @@ export async function POST(
     prevFirmName,
     prevEmail,
     prevPhone,
+    prevAddress,
     noPrevAccountant,
     directorDocs,
     companyDocs,
@@ -37,6 +38,7 @@ export async function POST(
     prevFirmName?: string;
     prevEmail?: string;
     prevPhone?: string;
+    prevAddress?: string;
     noPrevAccountant?: boolean;
     directorDocs?: DocStatus[];
     companyDocs?: DocStatus[];
@@ -255,6 +257,7 @@ export async function POST(
           directorDocs: directorDocs ?? [],
           companyDocs: companyDocs ?? [],
           prevPhone: noPrevAccountant ? null : (prevPhone || null),
+          prevFirmAddress: noPrevAccountant ? null : (prevAddress || null),
           audit: { ipAddress, userAgent, documentSha256 },
         },
       })
@@ -281,7 +284,7 @@ export async function POST(
       contactPrefs: contactPrefs ?? [],
       directorDocs: directorDocs ?? [],
       companyDocs: companyDocs ?? [],
-      prevFirmName, prevEmail, prevPhone, noPrevAccountant,
+      prevFirmName, prevEmail, prevPhone, prevFirmAddress: prevAddress, noPrevAccountant,
       ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
     };
     const postResult = await runPostAcceptanceEffects(postCtx);
