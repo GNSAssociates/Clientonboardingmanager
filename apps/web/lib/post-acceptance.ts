@@ -232,6 +232,9 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         firm,
         clientName: link.companyName ?? "",
         companyNumber: link.companyNumber ?? undefined,
+        // The client's own address — this letter is on plain paper with the
+        // client as sender, so without it the letterhead block is bare.
+        clientAddress: meta.clientAddress,
         directorName: link.directorName ?? undefined,
         prevFirmName: prevFirmName || "Previous Accountants",
         today,
@@ -315,7 +318,8 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
           companyName: link.companyName ?? "",
           directorName: link.directorName ?? "",
           today,
-          signedContractUrl: `${appUrl}/api/onboarding/links/${token}/letter?signed=1`,
+          // &pdf=1 → the real signed PDF as a download, not the HTML view.
+          signedContractUrl: `${appUrl}/api/onboarding/links/${token}/letter?signed=1&pdf=1`,
         },
       });
       if (!r.ok) emailErrors.push(`welcome: ${r.error ?? "send failed"}`);
@@ -350,7 +354,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
   }
 
   return {
-    signedLetterUrl: signedHtml ? `/api/onboarding/links/${token}/letter?signed=1` : null,
+    signedLetterUrl: signedHtml ? `/api/onboarding/links/${token}/letter?signed=1&pdf=1` : null,
     uploadUrl: `/onboarding/documents/${token}`,
     message: mode === "details_only"
       ? "Thank you — your previous accountant's details have been received."

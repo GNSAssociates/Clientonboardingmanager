@@ -7,18 +7,20 @@
  * GNS and previous-accountant details) and attached alongside the professional
  * clearance letter on the first email to the previous accountant.
  *
- * Built with @react-pdf/renderer using the same firm letterhead (logo header +
- * regulator-badge footer) as the engagement letter, so it runs on the cPanel
- * standalone build with no browser.
+ * Deliberately rendered on PLAIN PAPER — no GNS logo, accent colour, regulator
+ * badges or firm footer. The letter is written and signed by the client, so it
+ * carries the client's own name, company number and address as the sender;
+ * dressing it in our letterhead would misrepresent its author to the outgoing
+ * accountant. Our details appear only in the "my new accountants" panel, which
+ * is what the recipient needs in order to send the records on.
+ *
+ * Built with @react-pdf/renderer so it runs on the cPanel standalone build
+ * with no browser.
  */
 import React from 'react';
 // @ts-ignore — no type declarations for the internal path (build ignores TS errors)
-import { Document, Page, View, Text, Image, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer/lib/react-pdf.js';
+import { Document, Page, View, Text, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer/lib/react-pdf.js';
 import type { FirmConfig } from './firms';
-import { GNS_LOGO_DATA_URI } from './brand-assets';
-import { ICAEW_LOGO_DATA_URI } from './icaew-logo';
-import { ACCA_LOGO_DATA_URI } from './acca-logo';
-import { CIOT_LOGO_DATA_URI } from './ciot-logo';
 import { NOTO_SANS_DATA_URI } from './font-noto';
 import { DANCING_SCRIPT_DATA_URI } from './font-cursive';
 
@@ -35,34 +37,28 @@ function ensureFont() {
   fontRegistered = true;
 }
 
+// Plain-paper styling. This letter is FROM THE CLIENT, so it deliberately
+// carries no GNS logo, accent colour, regulator badges or firm footer — it
+// must read as the client's own correspondence on blank paper, with their
+// name and address as the sender. (Putting our letterhead on a letter the
+// client signs would misrepresent who wrote it.)
 const styles = StyleSheet.create({
-  page: { paddingTop: 92, paddingBottom: 104, paddingHorizontal: 46, fontFamily: 'Noto', fontSize: 10, color: '#24292f', lineHeight: 1.55 },
-  header: { position: 'absolute', top: 26, left: 46, right: 46 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  headerLogo: { height: 36 },
-  headerRight: { alignItems: 'flex-end' },
-  headerName: { fontSize: 9, fontFamily: 'Noto', fontWeight: 'bold', color: '#1a1f2b', letterSpacing: 0.6 },
-  headerTag: { fontSize: 6.5, color: '#7a828f', letterSpacing: 1.2, marginTop: 2, textTransform: 'uppercase' },
-  headerContact: { fontSize: 6.5, color: '#9aa1ab', marginTop: 1 },
-  headerRuleAccent: { borderTopWidth: 1.4, marginTop: 9 },
-  headerRuleThin: { borderTopWidth: 0.4, borderTopColor: '#cdd2da', marginTop: 1.5 },
-  footer: { position: 'absolute', bottom: 24, left: 46, right: 46, alignItems: 'center' },
-  footerRuleAccent: { borderTopWidth: 1, width: '100%', marginBottom: 5 },
-  footerLogo: { height: 16, marginBottom: 4 },
-  footerStrong: { fontSize: 6.8, color: '#3b4453', fontFamily: 'Noto', fontWeight: 'bold', textAlign: 'center' },
-  footerTxt: { fontSize: 6.5, color: '#6b7280', textAlign: 'center', marginTop: 1.5, lineHeight: 1.35 },
-  kicker: { fontSize: 7, letterSpacing: 2, color: '#8a919c', fontFamily: 'Noto', fontWeight: 'bold', textAlign: 'center', marginTop: 4 },
-  title: { fontSize: 16, textAlign: 'center', marginTop: 3, marginBottom: 10, color: '#1a1f2b', fontFamily: 'Noto', fontWeight: 'bold' },
-  meta: { fontSize: 9, color: '#5b6472', marginBottom: 2 },
-  addr: { fontSize: 9.5, marginBottom: 1 },
-  addrK: { color: '#8a919c' },
-  re: { fontFamily: 'Noto', fontWeight: 'bold', fontSize: 11, marginTop: 14, marginBottom: 8 },
-  p: { marginBottom: 9, textAlign: 'justify' },
-  panel: { borderWidth: 0.5, borderColor: '#d7dbe0', borderTopWidth: 2, padding: 12, marginTop: 4, marginBottom: 14 },
-  lbl: { fontSize: 7, letterSpacing: 1.5, color: '#9aa1ab', fontFamily: 'Noto', fontWeight: 'bold', marginBottom: 4 },
-  sigLine: { width: 200, borderTopWidth: 0.6, borderTopColor: '#9aa1ab', marginTop: 26, marginBottom: 4 },
-  sigK: { fontSize: 8.5, color: '#5b6472', marginBottom: 3 },
-  sigScript: { fontFamily: 'Signature', fontSize: 30, color: '#1a3fa0', marginTop: 20 },
+  page: { paddingTop: 46, paddingBottom: 40, paddingHorizontal: 56, fontFamily: 'Noto', fontSize: 10.5, color: '#111111', lineHeight: 1.5 },
+  senderBlock: { marginBottom: 18 },
+  senderName: { fontSize: 12, fontFamily: 'Noto', fontWeight: 'bold', color: '#111111', marginBottom: 2 },
+  senderLine: { fontSize: 10, color: '#333333', marginBottom: 0.5 },
+  meta: { fontSize: 10.5, color: '#111111', marginBottom: 2 },
+  addr: { fontSize: 10.5, marginBottom: 0.5 },
+  re: { fontFamily: 'Noto', fontWeight: 'bold', fontSize: 10.5, marginTop: 12, marginBottom: 9 },
+  p: { marginBottom: 9 },
+  panel: { borderWidth: 0.75, borderColor: '#999999', padding: 11, marginTop: 2, marginBottom: 12 },
+  lbl: { fontSize: 8, letterSpacing: 1, color: '#555555', fontFamily: 'Noto', fontWeight: 'bold', marginBottom: 4 },
+  // The handwriting face is tall with long descenders, so it needs an explicit
+  // line box and clear space beneath — otherwise it collides with the printed
+  // name on the line below.
+  sigScript: { fontFamily: 'Signature', fontSize: 26, lineHeight: 1.15, color: '#1a3fa0', marginTop: 10, marginBottom: 8 },
+  sigLine: { width: 220, borderTopWidth: 0.75, borderTopColor: '#666666', marginBottom: 5 },
+  sigK: { fontSize: 9.5, color: '#111111', marginBottom: 2 },
 });
 
 export interface AuthorityLetterInput {
@@ -80,58 +76,36 @@ export interface AuthorityLetterInput {
 function authorityDoc(d: AuthorityLetterInput) {
   const f = d.firm;
   const bodies = f.regBodies ?? (f.regBody ? [f.regBody] : []);
-  const LOGO_MAP: Record<string, string> = { ICAEW: ICAEW_LOGO_DATA_URI, ACCA: ACCA_LOGO_DATA_URI, CIOT: CIOT_LOGO_DATA_URI };
   const tagline = f.regBody === 'ICAEW' ? 'Chartered Accountants' : 'Chartered Certified Accountants';
   const advisers = bodies.includes('CIOT') ? 'Chartered Accountants & Chartered Tax Advisers' : tagline;
-  const footerTitle = bodies.length > 1
-    ? `${f.legalName}, Chartered Accountants (${bodies.join(', ')})`
-    : f.regBody === 'ACCA'
-      ? `${f.legalName}, Chartered Certified Accountants (ACCA)`
-      : `${f.legalName}, Chartered Accountants (${f.regBody})`;
   const clientLabel = `${d.clientName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ''}`;
-
-  const Header = () => (
-    <View style={styles.header} fixed>
-      <View style={styles.headerRow}>
-        <Image style={styles.headerLogo} src={GNS_LOGO_DATA_URI} />
-        <View style={styles.headerRight}>
-          <Text style={styles.headerName}>{f.legalName}</Text>
-          <Text style={styles.headerTag}>{tagline}</Text>
-          <Text style={styles.headerContact}>{f.phone}  ·  {f.email}</Text>
-        </View>
-      </View>
-      <View style={[styles.headerRuleAccent, { borderTopColor: f.accentColor }]} />
-      <View style={styles.headerRuleThin} />
-    </View>
-  );
-  const Footer = () => (
-    <View style={styles.footer} fixed>
-      <View style={[styles.footerRuleAccent, { borderTopColor: f.accentColor }]} />
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 4 }}>
-        {bodies.map((b) => LOGO_MAP[b] ? <Image key={b} style={styles.footerLogo} src={LOGO_MAP[b]!} /> : null)}
-      </View>
-      <Text style={styles.footerStrong}>{footerTitle}</Text>
-      <Text style={styles.footerTxt}>Registered in England and Wales, Company Registration No: {f.companyNumber}</Text>
-      <Text style={styles.footerTxt}>{f.address}, {f.city}, {f.postcode}</Text>
-      <Text style={styles.footerTxt}>t: {f.footerTel}  |  m: {f.footerMobile}  |  {f.email}  |  {f.website}</Text>
-    </View>
-  );
+  // Address may arrive as a single comma-joined string; split so it reads as a
+  // normal stacked sender address block.
+  const clientAddressLines = (d.clientAddress ?? '')
+    .split(/\n|,/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   return (
-    <Document title={`Change of Accountants — ${d.clientName}`} author={f.legalName}>
+    // Authored by the client, so the PDF metadata names them, not us.
+    <Document title={`Change of Accountants — ${d.clientName}`} author={d.clientName || d.directorName || 'Client'}>
       <Page size="A4" style={styles.page}>
-        <Header />
-        <Footer />
 
-        <Text style={styles.kicker}>CLIENT AUTHORITY · PRIVATE &amp; CONFIDENTIAL</Text>
-        <Text style={styles.title}>Change of Accountants</Text>
-        <Text style={[styles.meta, { textAlign: 'right' }]}>Date: {d.today}</Text>
+        {/* Sender = the CLIENT. Plain paper, no firm letterhead. */}
+        <View style={styles.senderBlock}>
+          <Text style={styles.senderName}>{d.clientName}</Text>
+          {d.companyNumber ? <Text style={styles.senderLine}>Company No. {d.companyNumber}</Text> : null}
+          {clientAddressLines.map((line, i) => (
+            <Text key={i} style={styles.senderLine}>{line}</Text>
+          ))}
+        </View>
 
-        {/* Outgoing accountant address block */}
-        <View style={{ marginTop: 10, marginBottom: 12 }}>
-          <Text style={styles.lbl}>OUTGOING ACCOUNTANTS</Text>
+        <Text style={[styles.meta, { marginBottom: 18 }]}>{d.today}</Text>
+
+        {/* Recipient: the outgoing accountant */}
+        <View style={{ marginBottom: 18 }}>
           {d.prevFirmContact ? <Text style={styles.addr}>{d.prevFirmContact}</Text> : null}
-          <Text style={[styles.addr, { fontFamily: 'Noto', fontWeight: 'bold' }]}>{d.prevFirmName}</Text>
+          <Text style={styles.addr}>{d.prevFirmName}</Text>
           {d.prevFirmAddress ? <Text style={styles.addr}>{d.prevFirmAddress}</Text> : null}
         </View>
 
@@ -150,8 +124,8 @@ function authorityDoc(d: AuthorityLetterInput) {
           Please provide {f.legalName} with the necessary paperwork at your earliest convenience.
         </Text>
 
-        <View style={[styles.panel, { borderTopColor: f.accentColor }]}>
-          <Text style={styles.lbl}>NEW ACCOUNTANT CONTACT DETAILS</Text>
+        <View style={styles.panel}>
+          <Text style={styles.lbl}>MY NEW ACCOUNTANTS</Text>
           <Text style={[styles.addr, { fontFamily: 'Noto', fontWeight: 'bold' }]}>{f.legalName}</Text>
           <Text style={styles.addr}>{advisers}</Text>
           <Text style={styles.addr}>{f.address}, {f.city}, {f.postcode}</Text>
@@ -166,7 +140,7 @@ function authorityDoc(d: AuthorityLetterInput) {
 
         <Text style={styles.sigScript}>{d.directorName ?? ''}</Text>
         <View style={styles.sigLine} />
-        <Text style={styles.sigK}>Name: {d.directorName ?? ''}</Text>
+        <Text style={styles.sigK}>{d.directorName ?? ''}</Text>
         {d.clientName ? <Text style={styles.sigK}>For and on behalf of {clientLabel}</Text> : null}
         <Text style={styles.sigK}>Date: {d.today}</Text>
       </Page>

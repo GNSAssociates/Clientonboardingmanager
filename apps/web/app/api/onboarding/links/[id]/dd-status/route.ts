@@ -28,7 +28,7 @@ export async function GET(
       mandateStatus: (gc.mandateStatus as string) ?? null,
       failureReason: (gc.mandateFailureReason as string) ?? null,
       signedLetterUrl: link.status === "accepted" && link.signedHtml
-        ? `/api/onboarding/links/${params.id}/letter?signed=1`
+        ? `/api/onboarding/links/${params.id}/letter?signed=1&pdf=1`
         : null,
       uploadUrl: `/onboarding/documents/${params.id}`,
     });

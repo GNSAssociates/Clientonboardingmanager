@@ -63,7 +63,12 @@ const BODY_BADGES: Record<string, string> = {
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN_X = 52;
-const CONTENT_W = PAGE_W - MARGIN_X * 2;
+// Right margin trimmed to 40% of the left (was symmetric at 52pt) — the wide
+// right edge read as lopsided against the left-aligned body text. Everything
+// drawn at `x: MARGIN_X, width: CONTENT_W` follows automatically; only the
+// handful of right-anchored elements reference MARGIN_RIGHT directly.
+const MARGIN_RIGHT = 21;
+const CONTENT_W = PAGE_W - MARGIN_X - MARGIN_RIGHT;
 
 const LOGO_TOP = PAGE_H - 28;
 const LOGO_H = 32;
@@ -276,7 +281,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     }
     const tagline = sanitize(f.tagline ?? "Truly Professional");
     p.drawText(tagline, {
-      x: PAGE_W - MARGIN_X - serifItalic.widthOfTextAtSize(tagline, 12),
+      x: PAGE_W - MARGIN_RIGHT - serifItalic.widthOfTextAtSize(tagline, 12),
       y: TAGLINE_Y,
       size: 12,
       font: serifItalic,
@@ -284,7 +289,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     });
     const reg = f.regNumber ? `${f.regNumberLabel ?? f.regBody} Registration No. ${f.regNumber}` : `Registered in England and Wales No. ${f.companyNumber}`;
     p.drawText(sanitize(reg), {
-      x: PAGE_W - MARGIN_X - font.widthOfTextAtSize(sanitize(reg), 7.5),
+      x: PAGE_W - MARGIN_RIGHT - font.widthOfTextAtSize(sanitize(reg), 7.5),
       y: REGLINE_Y,
       size: 7.5,
       font,
@@ -326,7 +331,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       const gap = 8;
       const sized = imgs.map((im) => ({ im, w: (im.width / im.height) * SIDE_H }));
       const total = sized.reduce((s, x) => s + x.w, 0) + gap * (sized.length - 1);
-      let x = side === "left" ? MARGIN_X : PAGE_W - MARGIN_X - total;
+      let x = side === "left" ? MARGIN_X : PAGE_W - MARGIN_RIGHT - total;
       for (const s of sized) {
         p.drawImage(s.im, { x, y: midY - SIDE_H / 2, width: s.w, height: SIDE_H });
         x += s.w + gap;
@@ -366,7 +371,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       need(LINE);
       let x = MARGIN_X + indent;
       if (opts.align === "center") x = (PAGE_W - fnt.widthOfTextAtSize(line, size)) / 2;
-      else if (opts.align === "right") x = PAGE_W - MARGIN_X - fnt.widthOfTextAtSize(line, size);
+      else if (opts.align === "right") x = PAGE_W - MARGIN_RIGHT - fnt.widthOfTextAtSize(line, size);
       page.drawText(line, { x, y, size, font: fnt, color: opts.color ?? INK });
       y -= LINE;
     }
@@ -697,22 +702,41 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text(`Partner, ${f.legalName}`, { size: 9.5, color: GREY, gap: 8 });
   text("I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.", { gap: 10 });
 
-  // Signed-confirmation stamp — only present when rendering the SIGNED copy.
-  // Styled like Adobe Sign / DocuSign: a blue cursive rendering of the typed
-  // name as the visual "signature", plus a compact audit line underneath.
+  // ── The client's executed signature (SIGNED copy only) ────────────────────
+  // Rendered as a real signature on the contract itself — blue handwriting over
+  // a signature rule — so the document reads as signed at a glance. The green
+  // audit stamp underneath carries the e-signature evidence.
   if (d.signedName) {
-    const boxH = 62;
+    need(150);
+    text("Agreed and accepted for and on behalf of the Client:", { size: 10, color: GREY, gap: 4 });
+
+    const sigSize = 28;
+    y -= sigSize;
+    page.drawText(sanitize(d.signedName), {
+      x: MARGIN_X, y, size: sigSize, font: script, color: rgb(0.10, 0.24, 0.63),
+    });
+    y -= 8;
+    page.drawRectangle({ x: MARGIN_X, y, width: 220, height: 0.6, color: HAIRLINE });
+    y -= 14;
+    text(sanitize(d.signedName), { font: bold, size: 10.5, gap: 1 });
+    const clientLabel = `${d.clientName || d.companyName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ""}`;
+    text(`For and on behalf of ${clientLabel}`, { size: 9.5, color: GREY, gap: 1 });
+    const signedDate = d.signedAt
+      ? new Date(d.signedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+      : d.dateStr;
+    text(`Date: ${signedDate}`, { size: 9.5, color: GREY, gap: 10 });
+
+    // Compact e-signature evidence stamp.
+    const boxH = 44;
     need(boxH + 8);
     page.drawRectangle({
       x: MARGIN_X, y: y - boxH, width: CONTENT_W, height: boxH,
       color: rgb(0.91, 0.96, 0.92), borderColor: rgb(0.36, 0.66, 0.46), borderWidth: 0.9,
     });
     const sx = MARGIN_X + 12;
-    let sy = y - 13;
+    let sy = y - 15;
     page.drawText(sanitize("SIGNED - Electronically executed"), { x: sx, y: sy, size: 9.5, font: serifBold, color: rgb(0.09, 0.42, 0.24) });
-    sy -= 25;
-    page.drawText(sanitize(d.signedName), { x: sx, y: sy, size: 24, font: script, color: rgb(0.10, 0.24, 0.63) });
-    sy -= 13;
+    sy -= 14;
     const when = d.signedAt
       ? new Date(d.signedAt).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
@@ -836,7 +860,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   pages.forEach((p, i) => {
     const label = sanitize(`Page ${i + 1} of ${pages.length}`);
     p.drawText(label, {
-      x: PAGE_W - MARGIN_X - font.widthOfTextAtSize(label, 7),
+      x: PAGE_W - MARGIN_RIGHT - font.widthOfTextAtSize(label, 7),
       y: FOOTER_RULE_Y + 6,
       size: 7,
       font,

@@ -71,7 +71,8 @@ export async function GET(
     `<style>` +
     // Generous reserved margins give the running header/footer a band of their
     // own (the last @page wins over the stored stylesheet).
-    `@page{size:A4;margin:30mm 16mm 26mm !important;}` +
+    // top | right | bottom | left — narrower right margin (see letter-html.ts).
+    `@page{size:A4;margin:30mm 6.4mm 26mm 16mm !important;}` +
     `@media print{` +
     `html,body{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}` +
     `.lh,.rule,.rule2{display:none !important;}` +

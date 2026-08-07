@@ -284,11 +284,16 @@ export function buildLetterHtml(d: LetterData): string {
 <style>
   /* Generous top/bottom margins reserve a band on every page for the running
      header and footer, so page content can never flow underneath them. */
-  @page { size: A4; margin: 30mm 16mm 26mm; }
+  /* top | right | bottom | left — right trimmed to 40% of the old 16mm so the
+     printed text block sits evenly rather than drifting left. */
+  @page { size: A4; margin: 30mm 6.4mm 26mm 16mm; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #fff; color: #24292f; font-family: Georgia, 'Times New Roman', serif;
          font-size: 18.75px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
-  .page { max-width: 820px; margin: 0 auto; padding: 48px 44px 40px 30px; }
+  /* Right padding cut to 40% of its old 44px — it sat noticeably wider than
+     the 30px left edge, which read as a lopsided right margin on screen and
+     in print. */
+  .page { max-width: 820px; margin: 0 auto; padding: 48px 18px 40px 30px; }
   @media (max-width: 700px) { .page { padding: 24px 18px; } }
 
   /* Running header/footer — repeat on every printed (or PDF) page. Chrome and
@@ -622,6 +627,7 @@ export function buildLetterHtml(d: LetterData): string {
     <div class="r">Partner, ${esc(f.legalName)}</div>
   </div>
   <p>I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.</p>
+  <!--CLIENT-SIGNATURE-->
 
   <hr class="divider">
 
@@ -781,9 +787,49 @@ export function buildAuditCertificate(a: AuditData): string {
 }
 
 /** Insert the audit certificate before </body> of a letter document. */
+/**
+ * The client's executed signature, dropped into the letter body itself at the
+ * <!--CLIENT-SIGNATURE--> marker. Without this the signed copy carried only the
+ * audit certificate on a trailing page, so the contract itself still looked
+ * blank where the client should have signed.
+ *
+ * The handwriting face is the same Dancing Script used in the PDFs, served from
+ * /fonts/signature.ttf so the stored HTML stays small; the cursive system-font
+ * stack behind it keeps it looking signed if the file can't be fetched (offline
+ * copy, email client that blocks remote fonts).
+ */
+function buildClientSignatureBlock(a: AuditData): string {
+  const signedOn = new Date(a.signedAtIso).toLocaleDateString('en-GB', {
+    timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const company = `${a.companyName}${a.companyNumber ? ` (Company No. ${a.companyNumber})` : ''}`;
+  return `
+  <style>
+    @font-face { font-family: 'GNSSignature'; src: url('/fonts/signature.ttf') format('truetype'); font-display: swap; }
+    .client-sig { margin: 26px 0 8px; page-break-inside: avoid; }
+    .client-sig .ink { font-family: 'GNSSignature', 'Segoe Script', 'Brush Script MT', cursive;
+                       font-size: 34px; line-height: 1.25; color: #1a3fa0; }
+    .client-sig .line { width: 260px; border-top: 1px solid #9aa1ab; margin: 2px 0 6px; }
+    .client-sig .k { font-size: 13px; color: #4b5563; margin: 0 0 2px; }
+  </style>
+  <div class="client-sig">
+    <div class="ink">${esc(a.signatureName)}</div>
+    <div class="line"></div>
+    <div class="k">${esc(a.signatureName)}</div>
+    <div class="k">For and on behalf of ${esc(company)}</div>
+    <div class="k">Date: ${esc(signedOn)}</div>
+  </div>`;
+}
+
 export function buildSignedHtml(letterHtml: string, audit: AuditData): string {
   const cert = buildAuditCertificate(audit);
-  return letterHtml.includes('</body>')
-    ? letterHtml.replace('</body>', `${cert}</body>`)
-    : letterHtml + cert;
+  const sig = buildClientSignatureBlock(audit);
+  // Letters generated before the marker existed simply won't match; they still
+  // get the audit certificate, exactly as before.
+  const withSig = letterHtml.includes('<!--CLIENT-SIGNATURE-->')
+    ? letterHtml.replace('<!--CLIENT-SIGNATURE-->', sig)
+    : letterHtml;
+  return withSig.includes('</body>')
+    ? withSig.replace('</body>', `${cert}</body>`)
+    : withSig + cert;
 }

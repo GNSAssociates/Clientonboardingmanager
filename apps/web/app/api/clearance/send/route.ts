@@ -71,16 +71,22 @@ export async function POST(req: NextRequest) {
   // Falls back to the firm's default partner when no engagement is on file.
   let actingPartner: string | undefined;
   let engagementDirector: string | undefined;
+  // The authority letter is plain-paper with the CLIENT as sender, so it needs
+  // their own address for the letterhead block.
+  let engagementClientAddress: string | undefined;
   try {
     const rows = (await db.execute(sql`
-      SELECT letter_meta->>'partnerName' AS partner_name, director_name
+      SELECT letter_meta->>'partnerName'   AS partner_name,
+             letter_meta->>'clientAddress' AS client_address,
+             director_name
       FROM onboarding_links
       WHERE client_id = ${clientId}
       ORDER BY created_at DESC
       LIMIT 1
-    `)) as unknown as Array<{ partner_name: string | null; director_name: string | null }>;
+    `)) as unknown as Array<{ partner_name: string | null; client_address: string | null; director_name: string | null }>;
     actingPartner = rows[0]?.partner_name ?? undefined;
     engagementDirector = rows[0]?.director_name ?? undefined;
+    engagementClientAddress = rows[0]?.client_address ?? undefined;
   } catch {
     actingPartner = undefined;
   }
@@ -119,6 +125,7 @@ export async function POST(req: NextRequest) {
     try {
       const authBuffer = await buildAuthorityLetterPdf({
         firm, clientName, companyNumber, directorName: engagementDirector,
+        clientAddress: engagementClientAddress,
         prevFirmName, prevFirmAddress: prevFirmAddress || undefined, today,
       });
       attachments.push({ filename: authorityLetterFilename(clientName), content: authBuffer, contentType: PDF_MIME });

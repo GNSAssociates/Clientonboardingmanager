@@ -453,6 +453,19 @@ export default function EngagementPage() {
             <p className="text-sm text-gray-700">✅ {firm.name} has been notified</p>
           </div>
 
+          {/* The client's own copy of the executed contract. Always offered in
+              engagement mode — the URL is derivable from the token, so it must
+              not depend on the accept response carrying it back. */}
+          {mode === 'engagement' && (
+            <a
+              href={result?.signedLetterUrl || `/api/onboarding/links/${token}/letter?signed=1&pdf=1`}
+              className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-white mb-3"
+              style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
+            >
+              <FileText size={18} /> Download your signed engagement letter (PDF)
+            </a>
+          )}
+
           {mode === 'engagement' && (
             <div className="space-y-3">
               {anyReady && result?.uploadUrl && (
@@ -462,16 +475,6 @@ export default function EngagementPage() {
                   style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
                 >
                   <Upload size={18} /> Upload your ID documents now
-                </a>
-              )}
-              {result?.signedLetterUrl && (
-                <a
-                  href={result.signedLetterUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold border-2 border-gray-300 text-gray-700 hover:border-gray-400"
-                >
-                  <FileText size={18} /> View / download your signed contract
                 </a>
               )}
             </div>
