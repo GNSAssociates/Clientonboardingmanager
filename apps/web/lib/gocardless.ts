@@ -55,6 +55,61 @@ function apiBase(): string {
     : 'https://api.gocardless.com';
 }
 
+export interface BankLookupResult {
+  configured: boolean;
+  ok: boolean;
+  bankName?: string;
+  supportsBacs?: boolean;
+  error?: string;
+}
+
+/**
+ * Validate a UK sort code + account number against GoCardless's Bank Details
+ * Lookup API and return the resolved bank name — exactly what the GoCardless
+ * hosted page shows as the client types. Lightweight single HTTP call (no CPU
+ * work), so it is NPROC-safe; the caller debounces it.
+ */
+export async function lookupBankDetails(
+  firmSlug: string,
+  accountNumber: string,
+  sortCode: string,
+): Promise<BankLookupResult> {
+  const gcToken = tokenForFirm(firmSlug);
+  if (!gcToken) return { configured: false, ok: false };
+  const branchCode = sortCode.replace(/\D/g, '');
+  const accNo = accountNumber.replace(/\D/g, '');
+  if (branchCode.length !== 6 || accNo.length < 6 || accNo.length > 8) {
+    return { configured: true, ok: false, error: 'incomplete' };
+  }
+  try {
+    const res = await fetch(`${apiBase()}/bank_details_lookups`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${gcToken}`,
+        'GoCardless-Version': '2015-07-06',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ bank_details_lookups: { account_number: accNo, branch_code: branchCode, country_code: 'GB' } }),
+    });
+    const json = await res.json().catch(() => ({})) as {
+      bank_details_lookups?: { bank_name?: string | null; available_debit_schemes?: string[] };
+      error?: { message?: string };
+    };
+    if (!res.ok) return { configured: true, ok: false, error: json.error?.message ?? `lookup ${res.status}` };
+    const lk = json.bank_details_lookups;
+    const bankName = lk?.bank_name ?? undefined;
+    if (!bankName) return { configured: true, ok: false, error: 'These bank details were not recognised. Please check and try again.' };
+    return {
+      configured: true,
+      ok: true,
+      bankName,
+      supportsBacs: (lk?.available_debit_schemes ?? []).includes('bacs'),
+    };
+  } catch (e) {
+    return { configured: true, ok: false, error: e instanceof Error ? e.message : 'lookup failed' };
+  }
+}
+
 async function gcPost(token: string, path: string, resource: string, body: Record<string, unknown>, idempotencyKey: string) {
   const res = await fetch(`${apiBase()}${path}`, {
     method: 'POST',

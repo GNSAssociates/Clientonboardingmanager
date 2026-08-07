@@ -87,6 +87,9 @@ export default function EngagementPage() {
   const [ddAccountNo, setDdAccountNo] = useState('');
   const [ddSortCode, setDdSortCode] = useState('');
   const [ddBankAddress, setDdBankAddress] = useState('');
+  // GoCardless-style live bank lookup: resolve the bank name from sort code +
+  // account number as the client types (debounced — NPROC-safe single call).
+  const [bankLookup, setBankLookup] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; bankName?: string; error?: string }>({ status: 'idle' });
 
   // Contact preferences (Data Protection section (c))
   const [contactPrefs, setContactPrefs] = useState<Record<string, boolean>>({ email: true });
@@ -127,6 +130,35 @@ export default function EngagementPage() {
     }, 4000);
     return () => clearInterval(poll);
   }, [ddPending, token]);
+
+  // GoCardless-style live bank lookup — once a full sort code (6 digits) and
+  // account number (6–8 digits) are entered, resolve the bank name via
+  // GoCardless. Debounced by 600ms so we make one call, not one per keystroke.
+  useEffect(() => {
+    const acc = ddAccountNo.replace(/\D/g, '');
+    const sort = ddSortCode.replace(/\D/g, '');
+    if (sort.length !== 6 || acc.length < 6 || acc.length > 8) {
+      setBankLookup({ status: 'idle' });
+      return;
+    }
+    setBankLookup({ status: 'loading' });
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/onboarding/links/${token}/bank-lookup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountNumber: acc, sortCode: sort }),
+        });
+        const data = await res.json() as { configured?: boolean; ok?: boolean; bankName?: string; error?: string };
+        if (data.ok && data.bankName) setBankLookup({ status: 'ok', bankName: data.bankName });
+        else if (data.configured === false) setBankLookup({ status: 'idle' }); // GoCardless not set — stay quiet
+        else setBankLookup({ status: 'error', error: data.error || 'These bank details were not recognised.' });
+      } catch {
+        setBankLookup({ status: 'idle' });
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [ddAccountNo, ddSortCode, token]);
 
   // Auto-size the letter iframe to its content
   const onLetterLoad = () => {
@@ -779,6 +811,25 @@ export default function EngagementPage() {
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
                 </div>
               </div>
+              {/* GoCardless-style resolved-bank confirmation */}
+              {bankLookup.status === 'loading' && (
+                <p className="mt-3 text-sm text-gray-500 flex items-center gap-2">
+                  <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
+                  Checking your bank details…
+                </p>
+              )}
+              {bankLookup.status === 'ok' && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <CheckCircle2 size={18} className="text-green-600 flex-shrink-0" />
+                  <p className="text-sm text-green-800">Direct Debit will be set up with <strong>{bankLookup.bankName}</strong>.</p>
+                </div>
+              )}
+              {bankLookup.status === 'error' && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                  <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+                  <p className="text-sm text-red-700">{bankLookup.error}</p>
+                </div>
+              )}
               <details className="mt-4 group">
                 <summary className="text-xs font-semibold text-purple-700 cursor-pointer select-none list-none flex items-center gap-1">
                   <ChevronRight size={13} className="group-open:rotate-90 transition-transform" />
