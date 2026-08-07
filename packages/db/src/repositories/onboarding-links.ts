@@ -60,6 +60,20 @@ export async function getOnboardingLinkByToken(tx: Tx, token: string) {
   return row ?? null;
 }
 
+/**
+ * Look up a link by the GoCardless mandate id stashed in
+ * acceptanceData.gocardless.mandateId at mandate-creation time — used by the
+ * GoCardless webhook handler, which only receives a mandate id, to find which
+ * client's "pending_dd" acceptance it confirms/fails.
+ */
+export async function getOnboardingLinkByMandateId(tx: Tx, mandateId: string) {
+  const [row] = await tx
+    .select()
+    .from(onboardingLinks)
+    .where(sql`${onboardingLinks.acceptanceData}->'gocardless'->>'mandateId' = ${mandateId}`);
+  return row ?? null;
+}
+
 export async function getOnboardingLinkById(tx: Tx, id: string) {
   const [row] = await tx
     .select()

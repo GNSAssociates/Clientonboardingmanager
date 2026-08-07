@@ -11,10 +11,22 @@
  *   GOCARDLESS_ACCESS_TOKEN_LLP
  *   GOCARDLESS_ACCESS_TOKEN_GALAXY
  *   GOCARDLESS_ENVIRONMENT           — "live" (default) or "sandbox"
+ *   GOCARDLESS_WEBHOOK_SECRET        — default webhook signing secret (all firms)
+ *   GOCARDLESS_WEBHOOK_SECRET_GNS    — per-firm overrides, same pattern as the
+ *   GOCARDLESS_WEBHOOK_SECRET_LLP      access token (each firm's GoCardless
+ *   GOCARDLESS_WEBHOOK_SECRET_GALAXY   account has its own webhook endpoint/secret)
  *
  * Without a token the mandate details are stored in the database for manual
  * setup and this module is a no-op — signing is never blocked.
+ *
+ * Mandate *creation* (this file) is synchronous and only ever reaches
+ * "pending_submission" — true confirmation that the mandate is usable only
+ * arrives later via a GoCardless webhook (see apps/web/app/api/webhooks/
+ * gocardless/route.ts), which is why callers that must gate on a *confirmed*
+ * mandate (not just a created one) hold the client in a "pending_dd" state
+ * until that webhook fires.
  */
+import { createHmac, timingSafeEqual } from 'crypto';
 
 export interface DdDetails {
   accountName: string;
@@ -98,6 +110,10 @@ export async function setupDirectDebitMandate(opts: {
     const mandate = await gcPost(gcToken, '/mandates', 'mandates', {
       scheme: 'bacs',
       links: { customer_bank_account: bankAccount.id },
+      // Lets staff cross-reference a mandate in the GoCardless dashboard back
+      // to the onboarding link; the webhook handler uses our own DB lookup
+      // (by mandate id), not this, so it's a convenience field, not load-bearing.
+      metadata: { onboarding_token: opts.token },
     }, `mand-${opts.token}`);
 
     return {
@@ -111,4 +127,26 @@ export async function setupDirectDebitMandate(opts: {
     console.error('GoCardless mandate setup failed:', e);
     return { configured: true, success: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Verify a GoCardless webhook request's `Webhook-Signature` header (HMAC-SHA256
+ * hex digest of the raw request body). We don't know which firm's GoCardless
+ * account an incoming webhook belongs to until we've located the matching
+ * mandate in our own DB — which happens after signature verification — so we
+ * just try every configured secret and accept the request if any one matches.
+ * Must be called with the raw (unparsed) request body text.
+ */
+export function verifyGoCardlessWebhookSignature(rawBody: string, signatureHeader: string | null | undefined): boolean {
+  if (!signatureHeader) return false;
+  const secrets = ['', '_GNS', '_LLP', '_GALAXY']
+    .map((suffix) => process.env[`GOCARDLESS_WEBHOOK_SECRET${suffix}`]?.trim())
+    .filter((s): s is string => Boolean(s));
+  if (!secrets.length) return false;
+
+  const sigBuf = Buffer.from(signatureHeader, 'hex');
+  return secrets.some((secret) => {
+    const expected = createHmac('sha256', secret).update(rawBody, 'utf8').digest();
+    return expected.length === sigBuf.length && timingSafeEqual(expected, sigBuf);
+  });
 }

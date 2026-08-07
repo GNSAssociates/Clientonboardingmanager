@@ -50,6 +50,10 @@ export default function EngagementPage() {
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<{ signedLetterUrl?: string | null; uploadUrl?: string; mode?: string } | null>(null);
+  // Direct Debit gate: after signing, the contract is only final once GoCardless
+  // confirms the mandate is active (arrives via webhook), so the client waits here.
+  const [ddPending, setDdPending] = useState(false);
+  const [ddFailure, setDdFailure] = useState('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [letterHeight, setLetterHeight] = useState(1200);
 
@@ -99,6 +103,30 @@ export default function EngagementPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  // While the Direct Debit mandate is being confirmed, poll until the webhook
+  // has flipped the link to "accepted" (or recorded a mandate failure).
+  useEffect(() => {
+    if (!ddPending) return;
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/onboarding/links/${token}/dd-status`);
+        const data = await res.json() as {
+          confirmed?: boolean; failureReason?: string | null; mandateStatus?: string | null;
+          signedLetterUrl?: string | null; uploadUrl?: string;
+        };
+        if (data.confirmed) {
+          setResult((prev) => ({ ...prev, signedLetterUrl: data.signedLetterUrl, uploadUrl: data.uploadUrl, mode: 'engagement' }));
+          setDdPending(false);
+          setSubmitted(true);
+        } else if (data.mandateStatus && data.mandateStatus !== 'active' && data.mandateStatus !== 'pending_submission') {
+          setDdFailure(data.failureReason || 'Your bank could not confirm the Direct Debit mandate.');
+          setDdPending(false);
+        }
+      } catch { /* transient network error — keep polling */ }
+    }, 4000);
+    return () => clearInterval(poll);
+  }, [ddPending, token]);
+
   // Auto-size the letter iframe to its content
   const onLetterLoad = () => {
     try {
@@ -134,6 +162,24 @@ export default function EngagementPage() {
         <p className="text-gray-600">
           This engagement letter for <strong>{link.companyName}</strong> has already been signed and completed.
           This link is no longer active. If you need a copy of the signed document, please contact {getFirm(link.firmSlug || 'gns').name}.
+        </p>
+      </div>
+    </div>
+  );
+
+  // Signed, but the Direct Debit mandate is still awaiting bank confirmation —
+  // reconnect them to the waiting screen rather than offering the form again.
+  if (link.status === 'pending_dd' && !ddPending && !ddFailure && !submitted) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
+        <div className="inline-flex mb-6">
+          <div className="animate-spin rounded-full h-14 w-14 border-4 border-gray-200 border-b-purple-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirming your Direct Debit…</h1>
+        <p className="text-gray-600">
+          You&apos;ve already signed for <strong>{link.companyName}</strong>. We&apos;re waiting for your bank to
+          confirm the Direct Debit mandate — we&apos;ll email you the moment it&apos;s through. If you think
+          something has gone wrong, contact {getFirm(link.firmSlug || 'gns').name}.
         </p>
       </div>
     </div>
@@ -319,7 +365,13 @@ export default function EngagementPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error || 'Submission failed');
       setResult(data as { signedLetterUrl?: string | null; uploadUrl?: string; mode?: string });
-      setSubmitted(true);
+      // Direct Debit gate: contract isn't final until the bank confirms the
+      // mandate, so hold the client on the waiting screen and poll for it.
+      if ((data as { pending?: boolean }).pending) {
+        setDdPending(true);
+      } else {
+        setSubmitted(true);
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed');
@@ -327,6 +379,49 @@ export default function EngagementPage() {
       setSubmitting(false);
     }
   };
+
+  // ── Waiting on the bank to confirm the Direct Debit mandate ──────────────
+  if (ddPending || ddFailure) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-10">
+        <div className="max-w-xl w-full bg-white rounded-2xl p-10 shadow-lg text-center">
+          {ddFailure ? (
+            <>
+              <AlertCircle className="text-red-500 mx-auto mb-4" size={56} />
+              <h1 className="text-2xl font-bold text-gray-900 mb-3">Direct Debit not confirmed</h1>
+              <p className="text-gray-600 mb-6">{ddFailure}</p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-left mb-6">
+                <p className="text-sm text-amber-900">
+                  Your signature has been recorded, but your engagement with {firm.legalName} cannot be
+                  completed until a valid Direct Debit mandate is in place. Please contact us on{' '}
+                  <strong>{firm.phone}</strong> or <strong>{firm.email}</strong> and we&apos;ll set this up with you.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="inline-flex mb-6">
+                <div className="animate-spin rounded-full h-14 w-14 border-4 border-gray-200 border-b-purple-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-3">Confirming your Direct Debit…</h1>
+              <p className="text-gray-600 mb-6">
+                Thank you, <strong>{signatureName || link.directorName}</strong>. We&apos;ve submitted your
+                Direct Debit mandate to your bank and are waiting for confirmation. This usually takes a few
+                seconds — please keep this page open.
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-left">
+                <p className="text-sm text-blue-900">
+                  Your engagement with {firm.legalName} is completed automatically the moment the mandate is
+                  confirmed. If this page is still waiting after a few minutes, you can safely close it — we&apos;ll
+                  email you as soon as it&apos;s through.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     const anyReady = DIRECTOR_DOCS.some((d) => (docStatus[d.id] || 'later') === 'ready');

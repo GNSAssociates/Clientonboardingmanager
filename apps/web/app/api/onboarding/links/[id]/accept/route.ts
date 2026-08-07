@@ -4,19 +4,12 @@ import {
   getDb,
   getOnboardingLinkByToken,
   updateOnboardingLink,
-  insertClearanceRequest,
-  initDocumentSubmissions,
 } from "@gns/db";
 import { getFirm } from "@/lib/firms";
-import { sendMail } from "@/lib/mailer";
-import { sendTemplatedMail } from "@/lib/send-templated-mail";
-import { buildClearancePdf, clearancePdfFilename } from "@/lib/clearance-pdf";
-import { buildAuthorityLetterPdf, authorityLetterFilename } from "@/lib/authority-letter-pdf";
-import { buildFirmNewClientEmail } from "@/lib/email-constants";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 import { setupDirectDebitMandate } from "@/lib/gocardless";
-import { archiveToClientFolder } from "@/lib/storage";
+import { runPostAcceptanceEffects, type PostAcceptanceContext } from "@/lib/post-acceptance";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +63,9 @@ export async function POST(
     }
     if (link.status === "accepted") {
       return NextResponse.json({ error: "Already accepted" }, { status: 409 });
+    }
+    if (link.status === "pending_dd") {
+      return NextResponse.json({ error: "Your Direct Debit mandate is already being confirmed — please wait." }, { status: 409 });
     }
 
     const meta = (link.letterMeta ?? {}) as {
@@ -164,17 +160,11 @@ export async function POST(
     }
     const documentSha256 = letterHtml ? createHash("sha256").update(letterHtml).digest("hex") : undefined;
 
-    // ── Mark accepted (the critical write) ────────────────────────────────────
-    await db.transaction((tx) =>
-      updateOnboardingLink(tx, link.id, {
-        status: "accepted",
-        acceptedAt: now,
-        prevAccountantEmail: noPrevAccountant ? null : (prevEmail || null),
-        prevAccountantFirmName: noPrevAccountant ? null : (prevFirmName || null),
-      })
-    );
-
-    // ── GoCardless Direct Debit mandate (auto per firm; no-op until token set) ─
+    // ── GoCardless Direct Debit mandate — created (and, when required to gate
+    //    acceptance, must succeed) BEFORE we write anything, so a rejected
+    //    bank account leaves no half-finished record and the client can just
+    //    correct their details and resubmit. ─────────────────────────────────
+    const requiresDdGate = mode === "engagement" && !isManualPayment && !!directDebit?.accountName;
     let gcResult: Record<string, unknown> | null = null;
     if (mode === "engagement" && directDebit?.accountName) {
       const gc = await setupDirectDebitMandate({
@@ -192,6 +182,31 @@ export async function POST(
       });
       gcResult = gc as unknown as Record<string, unknown>;
     }
+    // Mandate *creation* only ever reaches "pending_submission" — this is not
+    // yet a confirmed mandate. When GoCardless is configured for this firm,
+    // hold the client here until the webhook confirms it's actually active;
+    // an outright creation failure (bad account/sort code, API error) blocks
+    // immediately with nothing written, so they can just correct and retry.
+    const gcConfigured = !!(gcResult && (gcResult as { configured?: boolean }).configured);
+    const gcSucceeded = !!(gcResult && (gcResult as { success?: boolean }).success);
+    if (requiresDdGate && gcConfigured && !gcSucceeded) {
+      return NextResponse.json(
+        { error: (gcResult as { error?: string })?.error || "We could not set up your Direct Debit mandate — please check your account details and try again." },
+        { status: 502 }
+      );
+    }
+    const pendingDd = requiresDdGate && gcConfigured && gcSucceeded;
+
+    // ── Mark accepted — or, when a DD mandate is gating this acceptance,
+    //    "pending_dd" until the GoCardless webhook confirms it's active ──────
+    await db.transaction((tx) =>
+      updateOnboardingLink(tx, link.id, {
+        status: pendingDd ? "pending_dd" : "accepted",
+        acceptedAt: pendingDd ? null : now,
+        prevAccountantEmail: noPrevAccountant ? null : (prevEmail || null),
+        prevAccountantFirmName: noPrevAccountant ? null : (prevFirmName || null),
+      })
+    );
 
     // ── Signed copy with audit certificate ────────────────────────────────────
     const ddSummary = directDebit?.accountName
@@ -245,277 +260,39 @@ export async function POST(
       console.error("Failed to persist acceptance data (non-fatal):", e);
     }
 
-    // ── Archive the SIGNED copy as a proper PDF (contract + Final Audit Report)
-    //    to OneDrive / Dropbox, folder = client name. Non-fatal.
-    if (signedHtml) {
-      try {
-        const { renderLetterPdf } = await import("@/lib/letter-pdf");
-        const signedPdf = await renderLetterPdf({
-          firm, regBody: meta.regBody ?? firm.regBody,
-          companyName: link.companyName ?? "", companyNumber: link.companyNumber ?? undefined,
-          clientAddress: meta.clientAddress, directorName: link.directorName ?? undefined,
-          partnerName: meta.partnerName, services: (link.services ?? []) as LetterService[],
-          customFees: meta.customFees ?? [], scopeRows: meta.scopeRows ?? undefined,
-          ch: meta.ch ?? null,
-          paymentMethod: meta.paymentMethod, includeAnnexA: meta.includeAnnexA,
-          clientType: meta.clientType, clientName: meta.clientName, utr: meta.utr,
-          dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
-          audit: {
-            signatureName: signatureName!.trim(),
-            signedAtIso: now.toISOString(),
-            signerEmail: link.clientEmail,
-            companyName: link.companyName ?? "",
-            companyNumber: link.companyNumber ?? undefined,
-            ipAddress, userAgent, documentSha256,
-            contactPrefs: contactPrefs ?? [], ddSummary,
-            token, firmName: firm.legalName, firmEmail: firm.email,
-            createdAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
-            emailedAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
-            firstViewedAtIso: ((link.letterMeta ?? {}) as Record<string, unknown>).firstViewedAt as string ?? null,
-            firstViewIp: ((link.letterMeta ?? {}) as Record<string, unknown>).firstViewIp as string ?? null,
-          },
-        });
-        await archiveToClientFolder({
-          companyName: link.companyName ?? "client",
-          fileName: `SIGNED - Engagement Letter - ${link.companyName} - ${today}.pdf`,
-          content: signedPdf,
-          mimeType: "application/pdf",
-        });
-      } catch (e) {
-        console.error("Signed-PDF archive failed (non-fatal):", e instanceof Error ? e.message : e);
-      }
-    }
-
-    // ── Director ID docs: ready/later → chase the CLIENT every 2 days;
-    //    'na' → requested from the PREVIOUS ACCOUNTANT via clearance instead ───
-    const DIRECTOR_DOC_MAP: Record<string, { id: string; label: string }> = {
-      photo_id: { id: "passport_photo_page", label: "Photo ID — Passport or Driving Licence" },
-      proof_address: { id: "proof_of_address", label: "Proof of Address" },
-    };
-    try {
-      const toTrack = (directorDocs ?? [])
-        .filter((d) => d.status !== "na" && DIRECTOR_DOC_MAP[d.id])
-        .map((d) => DIRECTOR_DOC_MAP[d.id]!);
-      if (toTrack.length > 0) {
-        await db.transaction((tx) => initDocumentSubmissions(tx, token, toTrack));
-      }
-    } catch (e) {
-      console.error("Failed to init document submissions (non-fatal):", e);
-    }
-
-    // ── Clearance request — items tracked with ids so staff can tick them off ─
-    const mkItem = (id: string, type: string, label: string, year: string) =>
-      ({ id, type, label, year, status: "pending" as const, receivedDate: null, notes: "" });
-    const clearanceItems = [
-      mkItem("bookkeeping", "AA", "Bookkeeping Files / Working Files", "Current"),
-      mkItem("pl_bs", "AA", "P&L and Balance Sheet ledgers (detailed breakdown)", "Previous"),
-      mkItem("trial_balance", "AA", "Current Year YTD Trial Balance", "Current"),
-      mkItem("filed_accounts", "CT", "Detailed P&L, BS, schedules, capital allowances, DLA, s455", "Last 2 years"),
-      mkItem("personal_tax", "SA", "Director's personal tax returns + P60s/P45s", "Last 2 years"),
-      mkItem("online_access", "REFS", "Online access (MTD software, HMRC, Companies House, NEST)", "All"),
-      mkItem("tax_refs", "REFS", "Tax references (UTR, CH Auth Code, VAT cert, PAYE refs, NI)", "All"),
-      mkItem("payroll_rti", "PAYROLL", "Payroll RTI & Pensions records", "Current + 2 years"),
-      mkItem("vat_returns", "VAT", "VAT returns (last 4 quarters) + HMRC correspondence", "Last 4 quarters"),
-      // Director docs marked "not applicable to me" are requested from the previous accountant
-      ...(directorDocs ?? [])
-        .filter((d) => d.status === "na")
-        .map((d) => mkItem(`director_${d.id}`, "REFS", `${d.label} (director's copy held on your file)`, "All")),
-    ];
-
-    if (!noPrevAccountant && prevEmail) {
-      try {
-        await db.transaction((tx) =>
-          insertClearanceRequest(tx, {
-            prevFirmName: prevFirmName || "Previous Accountants",
-            prevFirmEmail: prevEmail,
-            status: "sent",
-            sentAt: now,
-            nextChaseAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-            linkToken: token,
-            responseData: {
-              companyName: link.companyName,
-              companyNumber: link.companyNumber,
-              firmSlug: link.firmSlug,
-              directorName: link.directorName,
-              clientEmail: link.clientEmail,
-              prevPhone: prevPhone || null,
-              directorDocs: directorDocs ?? [],
-              companyDocs: companyDocs ?? [],
-              docItems: clearanceItems,
-            },
-          })
-        );
-      } catch (clearanceErr) {
-        console.error("Failed to auto-create clearance request:", clearanceErr);
-      }
-    }
-
-    const emailErrors: string[] = [];
-    const clearanceUrl = `${appUrl}/clearance/respond/${token}`;
-
-    // EMAIL → PREVIOUS ACCOUNTANT: professional clearance request (editable template)
-    if (!noPrevAccountant && prevEmail) {
-      void clearanceUrl;
-      const clearanceAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
-      // 1) Professional clearance letter (GNS → outgoing accountant).
-      try {
-        const buffer = await buildClearancePdf({
-          firm,
-          clientName: link.companyName ?? "",
-          companyNumber: link.companyNumber ?? undefined,
-          directorName: link.directorName ?? undefined,
-          prevFirmName: prevFirmName || "Previous Accountants",
-          // Signed by the partner who issued this client's engagement letter.
-          partnerName: meta.partnerName,
-          today,
-        });
-        clearanceAttachments.push({
-          filename: clearancePdfFilename(link.companyName ?? "Client"),
-          content: buffer,
-          contentType: "application/pdf",
-        });
-      } catch (e) {
-        console.error("Clearance PDF generation failed (sending without attachment):", e);
-      }
-      // 2) Client authority (change of accountants) letter — the client's written
-      // authority for the outgoing accountant to release records to us.
-      try {
-        const authBuffer = await buildAuthorityLetterPdf({
-          firm,
-          clientName: link.companyName ?? "",
-          companyNumber: link.companyNumber ?? undefined,
-          directorName: link.directorName ?? undefined,
-          prevFirmName: prevFirmName || "Previous Accountants",
-          today,
-        });
-        clearanceAttachments.push({
-          filename: authorityLetterFilename(link.companyName ?? "Client"),
-          content: authBuffer,
-          contentType: "application/pdf",
-        });
-      } catch (e) {
-        console.error("Authority letter generation failed (sending without it):", e);
-      }
-      try {
-        const r = await sendTemplatedMail({
-          key: "prev_clearance_request",
-          firm,
-          token,
-          to: prevEmail,
-          toName: prevFirmName || "Previous Accountant",
-          replyTo: firm.email,
-          attachments: clearanceAttachments,
-          // Firm policy: CC the client and info@ (info@ added centrally by the
-          // template CC map) on the clearance request. No other shared inbox.
-          cc: link.clientEmail || undefined,
-          noGlobalCc: true,
-          vars: {
-            companyName: link.companyName ?? "",
-            companyNumber: link.companyNumber ?? "",
-            directorName: link.directorName ?? "",
-            prevFirmName: prevFirmName || "Previous Accountants",
-            today,
-          },
-        });
-        if (!r.ok) emailErrors.push(`clearance: ${r.error ?? "send failed"}`);
-      } catch (e) {
-        emailErrors.push(`clearance: ${e instanceof Error ? e.message : String(e)}`);
-        console.error("Clearance email failed:", e);
-      }
-    }
-
-    // EMAIL → FIRM: notification
-    try {
-      await sendMail({
-        to: firm.email,
-        subject: mode === "details_only"
-          ? `Previous accountant details received — ${link.companyName}`
-          : mode === "proposal_only"
-          ? `Proposal approved — ${link.companyName} (send engagement letter next)`
-          : `New Client Signed — ${link.companyName}`,
-        html: buildFirmNewClientEmail({
-          firm,
-          companyName: link.companyName ?? "",
-          companyNumber: link.companyNumber ?? "",
-          directorName: link.directorName ?? "",
-          clientEmail: link.clientEmail,
-          services: (link.services ?? []) as Array<{ id: string; name: string; price: number }>,
-          prevFirmName: prevFirmName || undefined,
-          prevEmail: prevEmail || undefined,
-          noPrevAccountant: !!noPrevAccountant,
-          today,
-        }),
+    // ── DD gate active: stop here. The client sits on a "pending_dd" screen
+    //    until the GoCardless webhook confirms the mandate is active, at which
+    //    point apps/web/app/api/webhooks/gocardless/route.ts runs everything
+    //    below (clearance emails, welcome email, PDF archive) for us. ────────
+    if (pendingDd) {
+      return NextResponse.json({
+        success: true,
+        pending: true,
+        mode,
+        mandateId: (gcResult as { mandateId?: string } | null)?.mandateId ?? null,
+        message: "Your Direct Debit details have been submitted. We're waiting for your bank to confirm the mandate — this page will update automatically, usually within a few seconds.",
       });
-    } catch (e) {
-      emailErrors.push(`firm-notify: ${e instanceof Error ? e.message : String(e)}`);
-      console.error("Firm notification email failed:", e);
     }
 
-    // EMAIL → DIRECTOR: welcome + their signed copy (engagement mode only)
-    if (mode === "engagement") {
-      const docUploadUrl = `${appUrl}/onboarding/documents/${token}`;
-      try {
-        const r = await sendTemplatedMail({
-          key: "client_welcome",
-          firm,
-          token,
-          to: link.clientEmail,
-          toName: link.directorName || undefined,
-          replyTo: firm.email,
-          actionUrl: docUploadUrl,
-          vars: {
-            companyName: link.companyName ?? "",
-            directorName: link.directorName ?? "",
-            today,
-            signedContractUrl: `${appUrl}/api/onboarding/links/${token}/letter?signed=1`,
-          },
-        });
-        if (!r.ok) emailErrors.push(`welcome: ${r.error ?? "send failed"}`);
-      } catch (e) {
-        emailErrors.push(`welcome: ${e instanceof Error ? e.message : String(e)}`);
-        console.error("Welcome email failed:", e);
-      }
-    }
-
-    // EMAIL → CLIENT: proposal approved confirmation (proposal-only mode)
-    if (mode === "proposal_only") {
-      try {
-        await sendMail({
-          to: link.clientEmail,
-          toName: link.directorName || undefined,
-          subject: `Proposal approved — thank you, ${link.companyName}`,
-          replyTo: firm.email,
-          html: `<!DOCTYPE html><html><body style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;padding:24px">
-            <p>Dear ${link.directorName || "Director"},</p>
-            <p>Thank you for approving our proposal for <strong>${link.companyName}</strong>. We&apos;re delighted you&apos;d like to proceed.</p>
-            <p>The next step is your engagement letter, which we&apos;ll send shortly to formalise the appointment. If you have any questions in the meantime, just reply to this email or call ${firm.phone}.</p>
-            <p>Kind regards,<br><strong>${firm.name}</strong><br>${firm.email} · ${firm.phone}</p>
-          </body></html>`,
-        });
-      } catch (e) {
-        emailErrors.push(`proposal-confirm: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-
-    if (emailErrors.length) {
-      console.warn("Some emails failed (acceptance still recorded):", emailErrors);
-    }
+    const postCtx: PostAcceptanceContext = {
+      link: { ...link, letterMeta: (link.letterMeta ?? {}) as Record<string, unknown> },
+      token, mode, firm, meta, appUrl, today, now,
+      signatureName: signatureName!.trim(),
+      contactPrefs: contactPrefs ?? [],
+      directorDocs: directorDocs ?? [],
+      companyDocs: companyDocs ?? [],
+      prevFirmName, prevEmail, prevPhone, noPrevAccountant,
+      ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
+    };
+    const postResult = await runPostAcceptanceEffects(postCtx);
 
     return NextResponse.json({
       success: true,
       mode,
-      signedLetterUrl: signedHtml ? `/api/onboarding/links/${token}/letter?signed=1` : null,
-      uploadUrl: `/onboarding/documents/${token}`,
-      gocardless: gcResult && (gcResult as { configured?: boolean }).configured
-        ? { success: (gcResult as { success?: boolean }).success }
-        : null,
-      message: mode === "details_only"
-        ? "Thank you — your previous accountant's details have been received."
-        : mode === "proposal_only"
-          ? "Thank you — your proposal has been approved. We'll send your engagement letter shortly."
-          : !noPrevAccountant
-            ? "Contract signed. Previous accountant notified and firm alerted."
-            : "Contract signed. Welcome to the firm.",
+      signedLetterUrl: postResult.signedLetterUrl,
+      uploadUrl: postResult.uploadUrl,
+      gocardless: gcConfigured ? { success: gcSucceeded } : null,
+      message: postResult.message,
     });
   } catch (error) {
     console.error("Error accepting engagement:", error);
