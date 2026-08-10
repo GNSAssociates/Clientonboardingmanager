@@ -35,7 +35,20 @@ async function uploadToSupabase(
     throw new Error(`Storage upload failed (${res.status}). ${err.slice(0, 160)}`);
   }
 
-  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
+  // These are KYC/ID documents, so the bucket must stay PRIVATE. Return a signed
+  // URL (valid 1 year) instead of a public URL so staff can view the file
+  // without the object being world-readable.
+  const signRes = await fetch(`${supabaseUrl}/storage/v1/object/sign/${bucket}/${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ expiresIn: 60 * 60 * 24 * 365 }),
+  });
+  const signJson = (await signRes.json().catch(() => ({}))) as { signedURL?: string };
+  if (signRes.ok && signJson.signedURL) {
+    return `${supabaseUrl}/storage/v1${signJson.signedURL.replace(/^\/storage\/v1/, "")}`;
+  }
+  // Fall back to the object path if signing is unavailable (still not public).
+  return `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
 }
 
 export async function POST(
