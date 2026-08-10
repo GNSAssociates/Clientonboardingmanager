@@ -44,11 +44,17 @@ export function GET() {
   const gocardlessVarsSeen = Object.keys(process.env)
     .filter((k) => k.toUpperCase().startsWith("GOCARDLESS"))
     .sort();
+  const supabaseVarsSeen = Object.keys(process.env)
+    .filter((k) => k.toUpperCase().includes("SUPABASE"))
+    .sort();
 
   const configured = {
     database: Boolean(process.env.DATABASE_URL),
     anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
-    supabase: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    // Document uploads use these server-side names (NOT NEXT_PUBLIC_*), so the
+    // health flag must check the same ones the upload route reads.
+    supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+    supabaseVarsSeen,
     gocardlessEnvironment: process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "sandbox" : "live",
     gocardless,
     gocardlessVarsSeen,
