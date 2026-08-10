@@ -17,7 +17,11 @@ export async function GET(
   if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const acc = (link.acceptanceData ?? {}) as Record<string, unknown>;
+  const lm = (link.letterMeta ?? {}) as Record<string, unknown>;
   const dd = acc.directDebit as { accountName?: string; accountNumber?: string; sortCode?: string; bankAddress?: string } | null;
+  // What was actually sent to the client — drives the granular status view so a
+  // "details only" authority signature isn't shown as a signed engagement.
+  const sendMode = (lm.sendMode as string) ?? "engagement";
 
   const details = {
     company: {
@@ -29,6 +33,7 @@ export async function GET(
       email: link.clientEmail,
     },
     firm: link.firmSlug,
+    sendMode,
     engagement: {
       status: link.status,
       sentAt: link.sentAt,

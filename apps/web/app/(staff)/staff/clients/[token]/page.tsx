@@ -27,6 +27,7 @@ interface Details {
   company: { name: string | null; number: string | null };
   director: { name: string | null; email: string };
   firm: string | null;
+  sendMode?: string;
   engagement: {
     status: string; sentAt: string | null; acceptedAt: string | null; expiresAt: string;
     services: Array<{ name: string; price: number; oneoff?: boolean }> | null;
@@ -192,6 +193,41 @@ export default function ClientDetailPage() {
 
   const firm = d.firm ? FIRMS[d.firm] : null;
   const signed = d.engagement.status === 'accepted';
+  const sendMode = d.sendMode ?? 'engagement';
+  const isDetailsOnly = sendMode === 'details_only';
+  const hasPrev = Boolean(d.previousAccountant.firmName);
+  const clearanceSent = (emailLog ?? []).some((e) => e.templateKey === 'prev_clearance_request' && e.success);
+  const engagementSent = !isDetailsOnly && (emailLog ?? []).some((e) => (e.templateKey === 'client_engagement' || e.templateKey === 'client_proposal') && e.success);
+
+  const PILL = {
+    green: 'bg-green-50 text-green-700 border-green-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    grey: 'bg-gray-100 text-gray-500 border-gray-200',
+  } as const;
+  // Per-document status — an authority-only ("details only") signature must NOT
+  // read as a signed engagement.
+  const steps: Array<{ label: string; text: string; cls: string }> = [
+    isDetailsOnly
+      ? { label: 'Engagement letter', text: 'Not sent yet', cls: PILL.grey }
+      : signed
+        ? { label: 'Engagement letter', text: 'Signed', cls: PILL.green }
+        : { label: 'Engagement letter', text: engagementSent ? 'Awaiting signature' : 'Draft', cls: engagementSent ? PILL.blue : PILL.grey },
+    isDetailsOnly
+      ? (signed
+          ? { label: 'Accountant authority', text: 'Signed', cls: PILL.green }
+          : { label: 'Accountant authority', text: 'Awaiting signature', cls: PILL.blue })
+      : (hasPrev
+          ? { label: 'Previous accountant', text: 'Provided', cls: PILL.green }
+          : signed
+            ? { label: 'Previous accountant', text: 'None declared', cls: PILL.grey }
+            : { label: 'Previous accountant', text: 'Pending', cls: PILL.amber }),
+    clearanceSent
+      ? { label: 'Professional clearance', text: 'Sent', cls: PILL.green }
+      : hasPrev
+        ? { label: 'Professional clearance', text: signed ? 'Sending…' : 'Pending', cls: PILL.amber }
+        : { label: 'Professional clearance', text: 'Not required', cls: PILL.grey },
+  ];
   const monthly = (d.engagement.services ?? []).filter((s) => !s.oneoff);
   const oneoff = (d.engagement.services ?? []).filter((s) => s.oneoff);
   const gc = d.directDebit?.gocardless;
@@ -214,7 +250,7 @@ export default function ClientDetailPage() {
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {firm && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${firm.color}18`, color: firm.color }}>{firm.label}</span>}
               <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${signed ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
-                {signed ? 'Signed' : 'Awaiting signature'}
+                {signed ? (isDetailsOnly ? 'Authority signed' : 'Signed') : 'Awaiting signature'}
               </span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{d.company.name}</h1>
@@ -228,6 +264,14 @@ export default function ClientDetailPage() {
                 {d.engagement.signedAt && <> on {new Date(d.engagement.signedAt).toLocaleString('en-GB')}</>}
               </p>
             )}
+            {/* Granular per-document status — what's signed vs still pending */}
+            <div className="flex flex-wrap gap-2 mt-3">
+              {steps.map((s) => (
+                <span key={s.label} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium ${s.cls}`}>
+                  <span className="opacity-70 font-normal">{s.label}:</span> {s.text}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Link
