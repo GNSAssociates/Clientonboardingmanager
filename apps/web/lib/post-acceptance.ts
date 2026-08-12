@@ -356,6 +356,25 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
     console.warn("Some emails failed (acceptance still recorded):", emailErrors);
   }
 
+  // ── Shared client record: push the client into the Invoice Summarizer app so
+  //    it exists in both systems. Only for a genuine engagement acceptance (not
+  //    a proposal approval or a details-only submission). Non-fatal + fire it
+  //    without blocking the response.
+  if (mode !== "proposal_only" && mode !== "details_only" && link.companyName) {
+    try {
+      const { syncClientToInvoiceApp } = await import("@/lib/client-sync");
+      await syncClientToInvoiceApp({
+        name: link.companyName,
+        companyNumber: link.companyNumber,
+        email: link.clientEmail,
+        directorName: link.directorName,
+        firmSlug: link.firmSlug,
+      });
+    } catch (e) {
+      console.warn("Client sync step failed (non-fatal):", e instanceof Error ? e.message : String(e));
+    }
+  }
+
   return {
     signedLetterUrl: signedHtml ? `/api/onboarding/links/${token}/letter?signed=1&pdf=1` : null,
     uploadUrl: `/onboarding/documents/${token}`,
