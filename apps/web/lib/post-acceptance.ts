@@ -100,8 +100,14 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
   //    to OneDrive / Dropbox, folder = client name. Non-fatal.
   if (signedHtml) {
     try {
-      const { renderLetterPdf } = await import("@/lib/letter-pdf");
-      const signedPdf = await renderLetterPdf({
+      // Build the signed copy with pdf-lib (buildEngagementPdf) — the SAME engine
+      // as the sent letter (links/[id]/letter route). The old renderLetterPdf uses
+      // @react-pdf/renderer, which does NOT run on the cPanel/Passenger host, so it
+      // threw here and the signed engagement letter was never archived to the
+      // client's OneDrive/Dropbox folder. buildEngagementPdf renders the client's
+      // executed signature + an e-signature audit stamp on the contract itself.
+      const { buildEngagementPdf } = await import("@/lib/engagement-pdf");
+      const signedPdf = await buildEngagementPdf({
         firm, regBody: meta.regBody ?? firm.regBody,
         companyName: link.companyName ?? "", companyNumber: link.companyNumber ?? undefined,
         clientAddress: meta.clientAddress, directorName: link.directorName ?? undefined,
@@ -111,20 +117,10 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         paymentMethod: meta.paymentMethod, includeAnnexA: meta.includeAnnexA,
         clientType: meta.clientType, clientName: meta.clientName, utr: meta.utr,
         dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
-        audit: {
-          signatureName: signatureName.trim(),
-          signedAtIso: now.toISOString(),
-          signerEmail: link.clientEmail,
-          companyName: link.companyName ?? "",
-          companyNumber: link.companyNumber ?? undefined,
-          ipAddress, userAgent, documentSha256,
-          contactPrefs: contactPrefs ?? [], ddSummary,
-          token, firmName: firm.legalName, firmEmail: firm.email,
-          createdAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
-          emailedAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
-          firstViewedAtIso: (link.letterMeta?.firstViewedAt as string) ?? null,
-          firstViewIp: (link.letterMeta?.firstViewIp as string) ?? null,
-        },
+        // Signed-copy fields: the client's executed signature, timestamp and IP.
+        signedName: signatureName.trim() || link.directorName || undefined,
+        signedAt: now.toISOString(),
+        signedIp: ipAddress,
       });
       await archiveToClientFolder({
         companyName: link.companyName ?? "client",

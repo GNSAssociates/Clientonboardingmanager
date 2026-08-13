@@ -172,8 +172,11 @@ export async function POST(req: NextRequest) {
     let archivePath: string | null = null;
     if (showsLetter) {
       try {
-        const { renderLetterPdf } = await import("@/lib/letter-pdf");
-        const pdf = await renderLetterPdf({
+        // pdf-lib (buildEngagementPdf) — the engine that runs on cPanel. The old
+        // renderLetterPdf uses @react-pdf/renderer, which throws on the host, so
+        // the sent letter was never archived to the client's OneDrive folder.
+        const { buildEngagementPdf } = await import("@/lib/engagement-pdf");
+        const pdf = await buildEngagementPdf({
           firm, regBody: letterRegBody, companyName, companyNumber,
           clientAddress: letterMeta.clientAddress, directorName,
           partnerName: letterMeta.partnerName, services: serviceDetails ?? [],

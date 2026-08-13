@@ -25,9 +25,11 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    const { renderLetterPdf } = await import("@/lib/letter-pdf");
+    // Diagnose the REAL production PDF engine (pdf-lib), not the legacy
+    // @react-pdf/renderer path, which does not run on the cPanel host.
+    const { buildEngagementPdf } = await import("@/lib/engagement-pdf");
     const firm = getFirm("gns");
-    const pdf = await renderLetterPdf({
+    const pdf = await buildEngagementPdf({
       firm,
       regBody: firm.regBody,
       companyName: "DIAGNOSTIC TEST LTD",
@@ -37,11 +39,10 @@ export async function GET(req: NextRequest) {
       services: [{ name: "Annual Accounts and Corporation Tax", price: 150, frequency: "monthly" }],
       customFees: [],
       dateStr: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
-      audit: null,
     });
     return NextResponse.json({
       ok: true,
-      engine: "@react-pdf/renderer",
+      engine: "pdf-lib",
       bytes: pdf.length,
       magic: pdf.subarray(0, 5).toString("latin1"),
     });
