@@ -96,6 +96,11 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
   } = ctx;
   const db = getDb();
 
+  // Hold the generated PDFs so they can be BOTH archived AND attached to the
+  // client's welcome email further down (built once, reused).
+  let signedEngagementPdf: Buffer | null = null;
+  let authorityPdf: Buffer | null = null;
+
   // ── Archive the SIGNED copy as a proper PDF (contract + Final Audit Report)
   //    to OneDrive / Dropbox, folder = client name. Non-fatal.
   if (signedHtml) {
@@ -139,6 +144,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
           firstViewIp: (link.letterMeta?.firstViewIp as string) ?? null,
         },
       });
+      signedEngagementPdf = signedPdf; // reuse for the client welcome email
       await archiveToClientFolder({
         companyName: link.companyName ?? "client",
         fileName: `SIGNED - Engagement Letter - ${link.companyName} - ${today}.pdf`,
@@ -255,6 +261,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         prevFirmAddress: prevFirmAddress || undefined,
         today,
       });
+      authorityPdf = authBuffer; // reuse for the client welcome email
       clearanceAttachments.push({
         filename: authorityLetterFilename(link.companyName ?? "Client"),
         content: authBuffer,
@@ -331,6 +338,25 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
   const docUploadUrl = `${appUrl}/onboarding/documents/${token}`;
   if (mode === "engagement") {
     try {
+      // Attach BOTH signed documents so the client receives them directly, not
+      // just as links: the signed engagement letter (with the e-signature
+      // Certificate of Completion) and, where there was a previous accountant,
+      // the change-of-accountants authority letter they signed.
+      const welcomeAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+      if (signedEngagementPdf) {
+        welcomeAttachments.push({
+          filename: `Signed Engagement Letter - ${link.companyName} - ${today}.pdf`,
+          content: signedEngagementPdf,
+          contentType: "application/pdf",
+        });
+      }
+      if (authorityPdf) {
+        welcomeAttachments.push({
+          filename: authorityLetterFilename(link.companyName ?? "Client"),
+          content: authorityPdf,
+          contentType: "application/pdf",
+        });
+      }
       const r = await sendTemplatedMail({
         key: "client_welcome",
         firm,
@@ -339,6 +365,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         toName: link.directorName || undefined,
         replyTo: firm.email,
         actionUrl: docUploadUrl,
+        attachments: welcomeAttachments.length ? welcomeAttachments : undefined,
         vars: {
           companyName: link.companyName ?? "",
           directorName: link.directorName ?? "",
