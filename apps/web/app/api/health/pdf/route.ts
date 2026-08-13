@@ -7,10 +7,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * PDF-engine diagnostic (operator-only). Tries the real @react-pdf engagement
- * letter generator and reports whether it works on THIS host, plus the exact
- * error + stack if it doesn't — so we know whether it's fixable or we must fall
- * back to a pdf-lib rebuild. Locked behind AUTH_SHIM_SECRET; 404 otherwise.
+ * PDF-engine diagnostic (operator-only). Renders the real production engagement
+ * letter generator (pdf-lib / buildEngagementPdf) and reports whether it works on
+ * THIS host, plus the exact error + stack if it doesn't. Locked behind
+ * AUTH_SHIM_SECRET; 404 otherwise.
  */
 function authorized(req: NextRequest): boolean {
   const secret = process.env.AUTH_SHIM_SECRET ?? "";
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const err = e as Error;
     return NextResponse.json({
       ok: false,
-      engine: "@react-pdf/renderer",
+      engine: "pdf-lib",
       error: err?.message ?? String(e),
       name: err?.name,
       stack: (err?.stack ?? "").split("\n").slice(0, 8),
