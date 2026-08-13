@@ -260,6 +260,15 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         content: authBuffer,
         contentType: "application/pdf",
       });
+      // Also archive the client authority letter to the client's own folder, so
+      // both signed documents (signed engagement letter + authority letter) are
+      // filed together in the client's records. Non-fatal.
+      await archiveToClientFolder({
+        companyName: link.companyName ?? "client",
+        fileName: `${authorityLetterFilename(link.companyName ?? "Client").replace(/\.pdf$/i, "")} - ${today}.pdf`,
+        content: authBuffer,
+        mimeType: "application/pdf",
+      }).catch((e) => console.warn("Authority letter archive failed (non-fatal):", e instanceof Error ? e.message : e));
     } catch (e) {
       console.error("Authority letter generation failed (sending without it):", e);
     }
