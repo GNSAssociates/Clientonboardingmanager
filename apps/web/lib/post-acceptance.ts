@@ -121,6 +121,23 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         signedName: signatureName.trim() || link.directorName || undefined,
         signedAt: now.toISOString(),
         signedIp: ipAddress,
+        // Full e-signature audit trail → appends an Adobe-style Certificate of
+        // Completion page (agreement history, signature details, SHA-256
+        // fingerprint, legal basis) to the archived/presented signed copy.
+        audit: {
+          signatureName: signatureName.trim(),
+          signedAtIso: now.toISOString(),
+          signerEmail: link.clientEmail,
+          companyName: link.companyName ?? "",
+          companyNumber: link.companyNumber ?? undefined,
+          ipAddress, userAgent, documentSha256,
+          contactPrefs: contactPrefs ?? [], ddSummary,
+          token, firmName: firm.legalName, firmEmail: firm.email,
+          createdAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
+          emailedAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
+          firstViewedAtIso: (link.letterMeta?.firstViewedAt as string) ?? null,
+          firstViewIp: (link.letterMeta?.firstViewIp as string) ?? null,
+        },
       });
       await archiveToClientFolder({
         companyName: link.companyName ?? "client",

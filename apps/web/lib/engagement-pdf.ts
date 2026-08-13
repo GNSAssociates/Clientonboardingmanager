@@ -29,6 +29,7 @@ import {
   scopeRowsForServices,
   type LetterData,
   type LetterService,
+  type AuditData,
 } from "./letter-html";
 import { renderVars, templateDef } from "./email-templates-lib";
 import { buildSchedulesHtml } from "./service-schedules";
@@ -187,6 +188,10 @@ export interface EngagementPdfInput extends LetterData {
   signedName?: string;
   signedAt?: string;
   signedIp?: string;
+  /** Full e-signature audit trail. When present, an Adobe Sign-style
+   *  "Certificate of Completion" page is appended (agreement history, signature
+   *  details, document fingerprint, legal basis). */
+  audit?: AuditData | null;
 }
 
 export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buffer> {
@@ -852,6 +857,85 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
         ["QuickBooks Subscription", "£25+VAT (Monthly)"],
       ].map(([a, b]) => [{ text: a! }, { text: b!, align: "right" as const }]),
       { rowBg: (i) => (i % 2 ? TABLE_ALT_BG : null) },
+    );
+  }
+
+  // ── e-Sign Certificate of Completion (SIGNED copy) ─────────────────────────
+  // Adobe Sign-style audit trail appended as the final page, so the archived and
+  // client-presented signed copy is a complete, tamper-evident e-signed record.
+  if (d.audit) {
+    const a = d.audit;
+    const fmt = (iso?: string | null) =>
+      iso ? new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London" }) + " (UK)" : "";
+    newPage();
+
+    const badgeH = 42;
+    need(badgeH + 12);
+    page.drawRectangle({
+      x: MARGIN_X, y: y - badgeH, width: CONTENT_W, height: badgeH,
+      color: rgb(0.94, 0.98, 0.95), borderColor: rgb(0.36, 0.66, 0.46), borderWidth: 1,
+    });
+    page.drawText(sanitize("e-Sign Audit Trail — Certificate of Completion"), {
+      x: MARGIN_X + 12, y: y - 18, size: 12.5, font: serifBold, color: rgb(0.09, 0.42, 0.24),
+    });
+    page.drawText(
+      sanitize("This contract was executed by electronic signature. The audit record below forms part of the signed document."),
+      { x: MARGIN_X + 12, y: y - 31, size: 7.8, font, color: rgb(0.13, 0.4, 0.24) },
+    );
+    y -= badgeH + 16;
+
+    heading2("Agreement history", false);
+    const events: Array<[string, string | null | undefined]> = [
+      [`Document created by ${a.firmName ?? f.legalName}`, a.createdAtIso],
+      [`Document emailed to ${a.signerEmail} for signature`, a.emailedAtIso ?? a.createdAtIso],
+      [`Document viewed by ${a.signerEmail}`, a.firstViewedAtIso],
+      [`Document e-signed by ${a.signatureName}`, a.signedAtIso],
+      ["Agreement completed", a.signedAtIso],
+    ];
+    for (const [label, whenIso] of events) {
+      if (!whenIso) continue;
+      need(24);
+      page.drawRectangle({ x: MARGIN_X, y: y - 9, width: 2, height: 20, color: rgb(0.8, 0.82, 0.86) });
+      page.drawText(sanitize(label), { x: MARGIN_X + 8, y, size: 8.5, font: bold, color: INK });
+      y -= 10.5;
+      page.drawText(sanitize(fmt(whenIso)), { x: MARGIN_X + 8, y, size: 7.5, font, color: GREY });
+      y -= 13;
+    }
+    y -= 6;
+
+    heading2("Signature details", false);
+    const rows: Array<[string, string | undefined]> = [
+      ["Signatory (typed signature)", a.signatureName],
+      ["Signatory email", a.signerEmail],
+      ["Signing on behalf of", `${a.companyName}${a.companyNumber ? ` (Company No. ${a.companyNumber})` : ""}`],
+      ["Date & time (UTC)", a.signedAtIso ? new Date(a.signedAtIso).toISOString() : undefined],
+      ["Date & time (UK)", fmt(a.signedAtIso)],
+      ["Network (IP) address", a.ipAddress],
+      ["Document fingerprint (SHA-256)", a.documentSha256],
+      ["Direct Debit mandate", a.ddSummary ?? undefined],
+      ["Transaction ID", a.token ? `GNS-${a.token.substring(0, 20).toUpperCase()}` : undefined],
+    ];
+    const labelW = CONTENT_W * 0.34;
+    for (const [k, v] of rows) {
+      if (!v) continue;
+      const valLines = wrap(sanitize(v), font, 8, CONTENT_W - labelW - 4);
+      const rowH = Math.max(valLines.length * 10.5, 12);
+      need(rowH + 3);
+      page.drawText(sanitize(k), { x: MARGIN_X, y, size: 8, font: bold, color: rgb(0.23, 0.27, 0.33) });
+      let vy = y;
+      for (const vl of valLines) {
+        page.drawText(vl, { x: MARGIN_X + labelW, y: vy, size: 8, font, color: INK });
+        vy -= 10.5;
+      }
+      y -= rowH;
+      page.drawRectangle({ x: MARGIN_X, y: y + 3, width: CONTENT_W, height: 0.4, color: rgb(0.93, 0.93, 0.94) });
+      y -= 5;
+    }
+    y -= 8;
+
+    text(
+      "Legal notice: signed electronically under the Electronic Communications Act 2000, the UK eIDAS Regulations (SI 2016/696) and the Law Commission's 2019 Statement on the Electronic Execution of Documents. The signatory verified their email against the address the signing link was issued to and confirmed intent to be bound before signing. The fingerprint is the SHA-256 hash of the contract at the point of signature; any later alteration produces a different fingerprint. Personal data is processed under UK GDPR Art. 6(1)(b) and (c).",
+      { size: 7.2, color: GREY },
     );
   }
 

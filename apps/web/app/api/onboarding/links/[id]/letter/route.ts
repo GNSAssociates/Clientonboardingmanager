@@ -143,6 +143,26 @@ export async function GET(
             signedName: (acc.signatureName as string) || link.directorName || undefined,
             signedAt: (acc.signedAt as string) || undefined,
             signedIp: (audit.ipAddress as string) || undefined,
+            // Full audit trail → Adobe-style Certificate of Completion page on
+            // the client-facing signed download, matching the archived copy.
+            audit: {
+              signatureName: (acc.signatureName as string) || link.directorName || "",
+              signedAtIso: (acc.signedAt as string) || new Date(link.sentAt).toISOString(),
+              signerEmail: link.clientEmail,
+              companyName: link.companyName ?? "",
+              companyNumber: link.companyNumber ?? undefined,
+              ipAddress: (audit.ipAddress as string) || undefined,
+              userAgent: (audit.userAgent as string) || undefined,
+              documentSha256: (audit.documentSha256 as string) || undefined,
+              ddSummary: (audit.ddSummary as string) ?? undefined,
+              token: link.token,
+              firmName: firm.legalName,
+              firmEmail: firm.email,
+              createdAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
+              emailedAtIso: link.sentAt ? new Date(link.sentAt).toISOString() : null,
+              firstViewedAtIso: (m.firstViewedAt as string) ?? null,
+              firstViewIp: (m.firstViewIp as string) ?? null,
+            },
           }
         : {};
       const pdf = await buildEngagementPdf({
