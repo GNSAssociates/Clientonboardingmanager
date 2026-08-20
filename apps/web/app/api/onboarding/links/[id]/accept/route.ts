@@ -181,6 +181,11 @@ export async function POST(
           bankAddress: directDebit.bankAddress,
         },
         token,
+        // Structured billing address (from the Companies House autofill / manual
+        // entry) so the GoCardless customer carries a proper address.
+        address: (meta as Record<string, unknown>).clientAddressStructured as {
+          line1?: string; line2?: string; city?: string; region?: string; postcode?: string;
+        } | undefined,
       });
       gcResult = gc as unknown as Record<string, unknown>;
     }

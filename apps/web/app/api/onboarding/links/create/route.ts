@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       businessAddress, // registered/correspondence address (non-company types)
       utr,             // Unique Taxpayer Reference
       oneoffScopes,    // { [oneoffId]: scope-of-work text }
+      clientAddressStructured, // structured billing address (GoCardless field shape)
     } = body as {
       firmSlug?: string; entityId?: string; companyName?: string; companyNumber?: string;
       companyAddress?: string; directorName?: string; directorEmail?: string;
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
       clientName?: string; businessAddress?: string; utr?: string;
       oneoffScopes?: Record<string, string>;
+      clientAddressStructured?: { line1?: string; line2?: string; city?: string; region?: string; postcode?: string; country?: string };
     };
 
     if (!firmSlug || !companyName || !directorEmail) {
@@ -97,6 +99,7 @@ export async function POST(req: NextRequest) {
       sendMode: string; regBody: string; partnerName: string;
       customFees: CustomFee[]; scopeRows: ScopeRow[] | null;
       clientAddress: string; ch: ChDetails | null;
+      clientAddressStructured?: { line1?: string; line2?: string; city?: string; region?: string; postcode?: string; country?: string };
       paymentMethod: string; includeAnnexA: boolean; clientType: string;
       clientName?: string; utr?: string; oneoffScopes?: Record<string, string>;
       scheduledSendAt?: string; emailPending?: boolean;
@@ -107,6 +110,7 @@ export async function POST(req: NextRequest) {
       customFees: customFees ?? [],
       scopeRows: scopeRows ?? null,
       clientAddress: businessAddress || companyAddress || ch?.address || "",
+      clientAddressStructured: clientAddressStructured ?? undefined,
       ch: ch ?? null,
       paymentMethod: paymentMethod === "manual" ? "manual" : "dd",
       includeAnnexA: includeAnnexA !== false,

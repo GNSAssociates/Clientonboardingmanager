@@ -54,6 +54,17 @@ export async function GET(
   const addr = data.registered_office_address || {};
   const address = [addr.address_line_1, addr.address_line_2, addr.locality, addr.region, addr.postal_code]
     .filter(Boolean).join(", ");
+  // Structured address in GoCardless's field shape, so the form can autofill
+  // separate line1/line2/city/region/postcode inputs (not one free-text blob)
+  // and the same fields map straight onto a GoCardless customer.
+  const addressStructured = {
+    line1: addr.address_line_1 || "",
+    line2: addr.address_line_2 || "",
+    city: addr.locality || "",
+    region: addr.region || "",
+    postcode: addr.postal_code || "",
+    country: addr.country || "United Kingdom",
+  };
 
   // ── Officers ───────────────────────────────────────────────────────────────
   type ChOfficer = {
@@ -119,6 +130,7 @@ export async function GET(
     name: data.company_name,
     type: data.type ?? null,
     address,
+    addressStructured,
     registeredOffice: addr,
     status: data.company_status,
     officers,            // active directors (name only) — backward compatible

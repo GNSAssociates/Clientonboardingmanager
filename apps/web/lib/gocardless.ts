@@ -140,17 +140,29 @@ export async function setupDirectDebitMandate(opts: {
   email: string;
   dd: DdDetails;
   token: string; // onboarding link token — used for idempotency
+  /** Structured billing address (GoCardless field shape). Optional — sent on the
+   *  customer when present so mandates carry a proper address for BACS. */
+  address?: {
+    line1?: string; line2?: string; city?: string; region?: string; postcode?: string;
+  };
 }): Promise<GcResult> {
   const gcToken = tokenForFirm(opts.firmSlug);
   if (!gcToken) return { configured: false, success: false };
 
   try {
+    const a = opts.address;
     const customer = await gcPost(gcToken, '/customers', 'customers', {
       email: opts.email,
       given_name: opts.directorName.split(' ')[0] || opts.directorName,
       family_name: opts.directorName.split(' ').slice(1).join(' ') || opts.directorName,
       company_name: opts.companyName,
       country_code: 'GB',
+      // GoCardless customer address fields (only included when we have them).
+      ...(a?.line1?.trim() ? { address_line1: a.line1.trim() } : {}),
+      ...(a?.line2?.trim() ? { address_line2: a.line2.trim() } : {}),
+      ...(a?.city?.trim() ? { city: a.city.trim() } : {}),
+      ...(a?.region?.trim() ? { region: a.region.trim() } : {}),
+      ...(a?.postcode?.trim() ? { postal_code: a.postcode.trim() } : {}),
     }, `cust-${opts.token}`);
 
     const bankAccount = await gcPost(gcToken, '/customer_bank_accounts', 'customer_bank_accounts', {

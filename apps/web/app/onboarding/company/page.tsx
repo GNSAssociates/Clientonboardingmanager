@@ -13,10 +13,14 @@ interface Director {
   email?: string;
 }
 
+interface AddressStructured {
+  line1: string; line2: string; city: string; region: string; postcode: string; country: string;
+}
 interface CompanyData {
   number: string;
   name: string;
   address: string;
+  addressStructured?: AddressStructured;
   status: string;
   directors: Director[];
   incorporationDate: string | null;
@@ -89,6 +93,7 @@ function CompanyPageInner() {
         );
         setCompany({
           number: data.number, name: data.name, address: data.address, status: data.status,
+          addressStructured: data.addressStructured ?? undefined,
           directors, incorporationDate: data.incorporationDate ?? null,
           aaDue: data.aaDue ?? null, csDue: data.csDue ?? null,
           sicCodes: data.sicCodes ?? [], natureOfBusiness: data.natureOfBusiness ?? null,
@@ -154,6 +159,7 @@ function CompanyPageInner() {
         number: data.number,
         name: data.name,
         address: data.address,
+        addressStructured: data.addressStructured ?? undefined,
         status: data.status,
         directors,
         incorporationDate: data.incorporationDate ?? null,
@@ -232,6 +238,9 @@ function CompanyPageInner() {
       businessAddress: businessAddressParam || company.address,
       utr: utrParam,
       oneoffScopes: oneoffScopesParam,
+      // Structured billing address (GoCardless field shape) from the CH autofill,
+      // so the mandate carries a proper address rather than a free-text blob.
+      clientAddressStructured: company.addressStructured,
       ch: company.manual ? null : {
         number: company.number,
         status: company.status,
