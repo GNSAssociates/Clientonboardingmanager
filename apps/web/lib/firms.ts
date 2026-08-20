@@ -28,6 +28,8 @@ export interface FirmConfig {
   partnerName: string;
   partnerName2?: string;
   partnerTitle: string;
+  /** Selectable acting partners for THIS firm (drives the partner dropdown). */
+  partners?: string[];
   partnerDesignation?: string;
   partnerDesignation2?: string;
   mtdEmail: string;
@@ -64,6 +66,7 @@ export const FIRMS: Record<string, FirmConfig> = {
     partnerName: 'Lekh Nath Ghimire',
     partnerDesignation: 'FCCA, ACA, CTA, MBA',
     partnerTitle: 'For and on behalf of GNS Associates Limited',
+    partners: ['Lekh Nath Ghimire', 'Subash Ghimire'],
     mtdEmail: 'info@gnsassociates.co.uk',
     nestOrgName: 'GNS Associates Ltd',
     nestDelegateId: 'TPA008702283',
@@ -94,11 +97,12 @@ export const FIRMS: Record<string, FirmConfig> = {
     regNumber: '5371891',
     regNumberLabel: 'ACCA',
     footerShowFax: false,
-    partnerName: 'Subash Ghimire',
-    partnerDesignation: 'FCCA, MBA',
-    partnerName2: 'Mahesh Giri',
-    partnerDesignation2: 'FCCA, MA',
+    partnerName: 'Mahesh Giri',
+    partnerDesignation: 'FCCA, MA',
+    partnerName2: 'Subash Ghimire',
+    partnerDesignation2: 'FCCA, MBA',
     partnerTitle: 'Partner',
+    partners: ['Mahesh Giri', 'Subash Ghimire'],
     mtdEmail: 'sg@gnsassociates.co.uk',
     nestOrgName: 'GNS Associates Ltd',
     nestDelegateId: 'TPA008702283',
@@ -129,6 +133,7 @@ export const FIRMS: Record<string, FirmConfig> = {
     partnerName: 'Mahesh Giri',
     partnerDesignation: 'FCCA, MA',
     partnerTitle: 'Director',
+    partners: ['Mahesh Giri'],
     mtdEmail: 'info@gnsassociates.co.uk',
     nestOrgName: 'Galaxy GNS Accountants Ltd',
     nestDelegateId: '',

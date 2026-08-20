@@ -56,7 +56,7 @@ function CompanyPageInner() {
   const [company, setCompany] = useState<CompanyData | null>(null);
 
   // Letter options: acting partner, send mode, letter body, live preview
-  const [partnerName, setPartnerName] = useState<string>(LETTER_PARTNERS[0]!);
+  const [partnerName, setPartnerName] = useState<string>(firm.partners?.[0] ?? LETTER_PARTNERS[0]!);
   const [sendMode, setSendMode] = useState<'engagement' | 'proposal' | 'proposal_only' | 'details_only'>('engagement');
   const [regBody, setRegBody] = useState<'ACCA' | 'ICAEW'>(firm.regBody === 'ICAEW' ? 'ICAEW' : 'ACCA');
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
@@ -768,7 +768,7 @@ function CompanyPageInner() {
                         onChange={(e) => setPartnerName(e.target.value)}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
-                        {LETTER_PARTNERS.map((p) => <option key={p} value={p}>{p}</option>)}
+                        {(firm.partners ?? LETTER_PARTNERS).map((p) => <option key={p} value={p}>{p}</option>)}
                       </select>
                     </div>
                     <div>
@@ -776,10 +776,11 @@ function CompanyPageInner() {
                       <select
                         value={regBody}
                         onChange={(e) => setRegBody(e.target.value as 'ACCA' | 'ICAEW')}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        disabled={firm.regBodies.filter((b) => b === 'ACCA' || b === 'ICAEW').length <= 1}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:text-gray-600"
                       >
-                        <option value="ACCA">ACCA — Chartered Certified Accountants</option>
-                        <option value="ICAEW">ICAEW — Chartered Accountants</option>
+                        {firm.regBodies.includes('ACCA') && <option value="ACCA">ACCA — Chartered Certified Accountants</option>}
+                        {firm.regBodies.includes('ICAEW') && <option value="ICAEW">ICAEW — Chartered Accountants</option>}
                       </select>
                     </div>
                   </div>
