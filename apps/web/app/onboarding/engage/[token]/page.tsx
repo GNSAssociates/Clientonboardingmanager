@@ -82,14 +82,14 @@ export default function EngagementPage() {
   const [esignConsent, setEsignConsent] = useState(false);
   const [signatureName, setSignatureName] = useState('');
 
-  // Direct debit mandate details (compulsory)
-  const [ddName, setDdName] = useState('');
-  const [ddAccountNo, setDdAccountNo] = useState('');
-  const [ddSortCode, setDdSortCode] = useState('');
-  const [ddBankAddress, setDdBankAddress] = useState('');
-  // GoCardless-style live bank lookup: resolve the bank name from sort code +
-  // account number as the client types (debounced — NPROC-safe single call).
-  const [bankLookup, setBankLookup] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; bankName?: string; error?: string }>({ status: 'idle' });
+  // Direct Debit is set up through GoCardless's own hosted page (Billing
+  // Requests). We never touch the client's bank details — GoCardless collects
+  // them and tells us only whether the mandate was created. The signature is
+  // GATED on ddConfirmed being true (see canSubmit).
+  const [ddConfirmed, setDdConfirmed] = useState(false);
+  const [ddSetupLoading, setDdSetupLoading] = useState(false);
+  const [ddSetupError, setDdSetupError] = useState('');
+  const [ddChecking, setDdChecking] = useState(false);
 
   // Contact preferences (Data Protection section (c))
   const [contactPrefs, setContactPrefs] = useState<Record<string, boolean>>({ email: true });
@@ -131,34 +131,92 @@ export default function EngagementPage() {
     return () => clearInterval(poll);
   }, [ddPending, token]);
 
-  // GoCardless-style live bank lookup — once a full sort code (6 digits) and
-  // account number (6–8 digits) are entered, resolve the bank name via
-  // GoCardless. Debounced by 600ms so we make one call, not one per keystroke.
+  // Persist the client's form entries across the GoCardless redirect. When they
+  // click "Set up Direct Debit" the browser navigates away to GoCardless's
+  // hosted page and back, which would otherwise wipe everything they've typed.
+  const ddFormKey = `gns_engage_${token}`;
+  const restoredRef = useRef(false);
   useEffect(() => {
-    const acc = ddAccountNo.replace(/\D/g, '');
-    const sort = ddSortCode.replace(/\D/g, '');
-    if (sort.length !== 6 || acc.length < 6 || acc.length > 8) {
-      setBankLookup({ status: 'idle' });
-      return;
-    }
-    setBankLookup({ status: 'loading' });
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/onboarding/links/${token}/bank-lookup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accountNumber: acc, sortCode: sort }),
-        });
-        const data = await res.json() as { configured?: boolean; ok?: boolean; bankName?: string; error?: string };
-        if (data.ok && data.bankName) setBankLookup({ status: 'ok', bankName: data.bankName });
-        else if (data.configured === false) setBankLookup({ status: 'idle' }); // GoCardless not set — stay quiet
-        else setBankLookup({ status: 'error', error: data.error || 'These bank details were not recognised.' });
-      } catch {
-        setBankLookup({ status: 'idle' });
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    try {
+      const raw = sessionStorage.getItem(ddFormKey);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof s.prevFirmName === 'string') setPrevFirmName(s.prevFirmName);
+        if (typeof s.prevEmail === 'string') setPrevEmail(s.prevEmail);
+        if (typeof s.prevPhone === 'string') setPrevPhone(s.prevPhone);
+        if (typeof s.prevAddress === 'string') setPrevAddress(s.prevAddress);
+        if (typeof s.noPrevAccountant === 'boolean') setNoPrevAccountant(s.noPrevAccountant);
+        if (s.docStatus && typeof s.docStatus === 'object') setDocStatus(s.docStatus as Record<string, string>);
+        if (s.contactPrefs && typeof s.contactPrefs === 'object') setContactPrefs(s.contactPrefs as Record<string, boolean>);
+        if (typeof s.signatureName === 'string' && s.signatureName) setSignatureName(s.signatureName);
+        if (typeof s.authorised === 'boolean') setAuthorised(s.authorised);
+        if (typeof s.esignConsent === 'boolean') setEsignConsent(s.esignConsent);
       }
-    }, 600);
-    return () => clearTimeout(t);
-  }, [ddAccountNo, ddSortCode, token]);
+    } catch { /* ignore */ }
+    // If we've just returned from GoCardless, verify the mandate was created.
+    const qp = new URLSearchParams(window.location.search);
+    if (qp.get('dd') === 'return') {
+      setVerified(true); // already passed OTP before leaving; don't re-gate
+      checkDdStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Poll GoCardless (via our server) for the billing-request result — used both
+  // on return from the hosted flow and while we wait for confirmation.
+  const checkDdStatus = async () => {
+    setDdChecking(true);
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}/dd-status`);
+      const data = await res.json() as { ddConfirmed?: boolean };
+      if (data.ddConfirmed) { setDdConfirmed(true); setDdSetupError(''); }
+      return Boolean(data.ddConfirmed);
+    } catch { return false; }
+    finally { setDdChecking(false); }
+  };
+
+  // Keep checking for a short while after returning, since GoCardless can take
+  // a moment to flip the billing request to "fulfilled".
+  useEffect(() => {
+    const qp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    if (!qp || qp.get('dd') !== 'return' || ddConfirmed) return;
+    let n = 0;
+    const iv = setInterval(async () => {
+      n += 1;
+      const ok = await checkDdStatus();
+      if (ok || n >= 15) clearInterval(iv);
+    }, 3000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ddConfirmed]);
+
+  const persistForm = () => {
+    try {
+      sessionStorage.setItem(ddFormKey, JSON.stringify({
+        prevFirmName, prevEmail, prevPhone, prevAddress, noPrevAccountant,
+        docStatus, contactPrefs, signatureName, authorised, esignConsent,
+      }));
+    } catch { /* ignore */ }
+  };
+
+  // Kick off GoCardless hosted Direct Debit setup: save the form, ask our
+  // server to create the billing request + flow, then redirect to GoCardless.
+  const startDirectDebit = async () => {
+    setDdSetupLoading(true);
+    setDdSetupError('');
+    persistForm();
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}/dd-start`, { method: 'POST' });
+      const data = await res.json() as { authorisationUrl?: string; message?: string; error?: string };
+      if (!res.ok || !data.authorisationUrl) throw new Error(data.message || data.error || 'Could not start Direct Debit setup.');
+      window.location.href = data.authorisationUrl;
+    } catch (err) {
+      setDdSetupError(err instanceof Error ? err.message : 'Could not start Direct Debit setup.');
+      setDdSetupLoading(false);
+    }
+  };
 
   // Auto-size the letter iframe to its content
   const onLetterLoad = () => {
@@ -339,9 +397,9 @@ export default function EngagementPage() {
   const firm = getFirm(link.firmSlug || 'gns');
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  const ddValid = isManualPayment || (ddName.trim().length > 1
-    && ddAccountNo.replace(/\D/g, '').length >= 6
-    && ddSortCode.replace(/\D/g, '').length === 6);
+  // Direct Debit is valid only once GoCardless has confirmed the mandate
+  // (ddConfirmed) — this is the hard gate the client cannot sign without.
+  const ddValid = isManualPayment || ddConfirmed;
 
   const prevOk = noPrevAccountant || (prevFirmName && prevEmail && prevPhone && prevAddress.trim());
 
@@ -390,15 +448,16 @@ export default function EngagementPage() {
           signatureName: signatureName.trim(),
           confirmEmail: verifyEmail.trim(),
           contactPrefs: CONTACT_PREFS.filter((p) => contactPrefs[p.id]).map((p) => p.id),
-          directDebit: (mode === 'engagement' && !isManualPayment) ? {
-            accountName: ddName, accountNumber: ddAccountNo, sortCode: ddSortCode, bankAddress: ddBankAddress,
-          } : null,
+          // No bank details cross our servers — GoCardless holds them. We only
+          // signal that the mandate was confirmed via the hosted flow.
+          directDebitConfirmed: (mode === 'engagement' && !isManualPayment) ? ddConfirmed : null,
           authorised,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error || 'Submission failed');
       setResult(data as { signedLetterUrl?: string | null; uploadUrl?: string; mode?: string });
+      try { sessionStorage.removeItem(ddFormKey); } catch { /* ignore */ }
       // Direct Debit gate: contract isn't final until the bank confirms the
       // mandate, so hold the client on the waiting screen and poll for it.
       if ((data as { pending?: boolean }).pending) {
@@ -780,67 +839,68 @@ export default function EngagementPage() {
               )}
             </div>
 
-            {/* Direct Debit — only for DD payment method */}
+            {/* Direct Debit — set up securely on GoCardless's hosted page.
+                We never see or store bank details; the signature is gated on
+                GoCardless confirming the mandate (ddConfirmed). */}
             {!isManualPayment && (
-            <div data-field="directDebit" className="bg-white rounded-2xl p-5 sm:p-8 border-2 border-gray-300">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Direct Debit Details (GoCardless) *</h2>
+            <div data-field="directDebit" className={`bg-white rounded-2xl p-5 sm:p-8 border-2 ${ddConfirmed ? 'border-green-400' : 'border-gray-300'}`}>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Direct Debit Setup (GoCardless) *</h2>
               <p className="text-sm text-gray-500 mb-5">
-                Required to complete the contract — your monthly fees are collected by Direct Debit, protected by the Direct Debit Guarantee.
+                Required to complete the contract. Your fees are collected by Direct Debit, protected by the Direct Debit
+                Guarantee. You&apos;ll set this up securely on GoCardless — <strong>{firm.name} never sees your bank details</strong>.
               </p>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Account Holder&apos;s Name *</label>
-                  <input type="text" value={ddName} onChange={(e) => setDdName(e.target.value)} required
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+
+              {ddConfirmed ? (
+                <div className="flex items-center gap-3 rounded-xl border border-green-300 bg-green-50 px-5 py-4">
+                  <CheckCircle2 size={26} className="text-green-600 flex-shrink-0" />
+                  <div>
+                    <p className="font-bold text-green-800">Direct Debit set up ✓</p>
+                    <p className="text-sm text-green-700">Your mandate is confirmed with GoCardless. You can now sign below.</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Account Number *</label>
-                  <input type="text" inputMode="numeric" maxLength={8} value={ddAccountNo}
-                    onChange={(e) => setDdAccountNo(e.target.value.replace(/\D/g, ''))} required
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Sort Code *</label>
-                  <input type="text" inputMode="numeric" maxLength={8} placeholder="00-00-00" value={ddSortCode}
-                    onChange={(e) => setDdSortCode(e.target.value)} required
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Address as per Bank</label>
-                  <input type="text" value={ddBankAddress} onChange={(e) => setDdBankAddress(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                </div>
-              </div>
-              {/* GoCardless-style resolved-bank confirmation */}
-              {bankLookup.status === 'loading' && (
-                <p className="mt-3 text-sm text-gray-500 flex items-center gap-2">
-                  <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
-                  Checking your bank details…
-                </p>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={startDirectDebit}
+                    disabled={ddSetupLoading || ddChecking}
+                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-white disabled:opacity-60"
+                    style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
+                  >
+                    {ddSetupLoading
+                      ? 'Opening secure GoCardless page…'
+                      : ddChecking
+                      ? 'Checking your Direct Debit…'
+                      : 'Set up Direct Debit'}
+                  </button>
+                  {ddChecking && !ddSetupLoading && (
+                    <p className="mt-3 text-sm text-gray-500 flex items-center gap-2">
+                      <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
+                      Waiting for GoCardless to confirm your mandate…
+                    </p>
+                  )}
+                  {ddSetupError && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                      <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+                      <p className="text-sm text-red-700">{ddSetupError}</p>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={checkDdStatus}
+                    className="mt-3 text-sm text-purple-700 hover:text-purple-900 font-medium"
+                  >
+                    Already set it up? Check status
+                  </button>
+                </>
               )}
-              {bankLookup.status === 'ok' && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                  <CheckCircle2 size={18} className="text-green-600 flex-shrink-0" />
-                  <p className="text-sm text-green-800">Direct Debit will be set up with <strong>{bankLookup.bankName}</strong>.</p>
-                </div>
-              )}
-              {bankLookup.status === 'error' && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                  <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
-                  <p className="text-sm text-red-700">{bankLookup.error}</p>
-                </div>
-              )}
+
               <details className="mt-4 group">
                 <summary className="text-xs font-semibold text-purple-700 cursor-pointer select-none list-none flex items-center gap-1">
                   <ChevronRight size={13} className="group-open:rotate-90 transition-transform" />
-                  Direct Debit authorisation &amp; guarantee — read before signing
+                  Direct Debit Guarantee
                 </summary>
                 <div className="text-xs text-gray-600 mt-2 leading-relaxed space-y-2 pl-4">
-                  <p>
-                    I authorise {firm.name} to collect my fees using GoCardless Direct Debit and I hereby authorise the use of my
-                    above bank details for the Direct Debit mandate on my behalf. My details are transmitted securely and used
-                    solely for that purpose.
-                  </p>
                   <p>
                     <strong>The Direct Debit Guarantee</strong> — This Guarantee is offered by all banks and building societies
                     that accept instructions to pay Direct Debits. If there are any changes to the amount, date or frequency of
@@ -970,7 +1030,7 @@ export default function EngagementPage() {
                 {!authorised && 'Please tick the declaration. '}
                 {!esignConsent && 'Please agree to sign electronically. '}
                 {signatureName.trim().length <= 1 && 'Type your full name in the signature box. '}
-                {!isManualPayment && !ddValid && 'Complete your Direct Debit details (account name, number and 6-digit sort code). '}
+                {!isManualPayment && !ddValid && 'Set up your Direct Debit with GoCardless above — this must be confirmed before you can sign. '}
                 {!prevOk && 'Fill in your previous accountant details or confirm you have none.'}
               </p>
             )}

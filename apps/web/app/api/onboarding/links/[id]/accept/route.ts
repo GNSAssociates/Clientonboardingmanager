@@ -8,7 +8,7 @@ import {
 import { getFirm } from "@/lib/firms";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
-import { setupDirectDebitMandate } from "@/lib/gocardless";
+import { getBillingRequestStatus } from "@/lib/gocardless";
 import { runPostAcceptanceEffects, type PostAcceptanceContext } from "@/lib/post-acceptance";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,6 @@ export async function POST(
     companyDocs,
     signatureName,
     contactPrefs,
-    directDebit,
     authorised,
   } = body as {
     prevFirmName?: string;
@@ -44,7 +43,7 @@ export async function POST(
     companyDocs?: DocStatus[];
     signatureName?: string;
     contactPrefs?: string[];
-    directDebit?: { accountName?: string; accountNumber?: string; sortCode?: string; bankAddress?: string } | null;
+    directDebitConfirmed?: boolean | null;
     authorised?: boolean;
     confirmEmail?: string;
   };
@@ -95,8 +94,6 @@ export async function POST(
       return NextResponse.json({ error: "Previous accountant details are required" }, { status: 400 });
     }
 
-    const cleanSortCode = (directDebit?.sortCode ?? "").replace(/\D/g, "");
-    const cleanAccountNo = (directDebit?.accountNumber ?? "").replace(/\D/g, "");
     // Only the person the link was emailed to may sign — the signer must
     // confirm the email address the signing link was issued to.
     const normalise = (s: string | undefined | null) => (s ?? "").trim().toLowerCase();
@@ -115,17 +112,28 @@ export async function POST(
     if (!signatureName || signatureName.trim().length < 2) {
       return NextResponse.json({ error: "Signature (typed full name) is required" }, { status: 400 });
     }
+    // ── Direct Debit gate (server-authoritative) ─────────────────────────────
+    // The client sets up the mandate on GoCardless's hosted page (Billing
+    // Requests) BEFORE signing. We never see bank details — we verify with
+    // GoCardless that the billing request is fulfilled (a mandate exists), and
+    // refuse to record the signature otherwise. This enforces the firm's rule:
+    // "if DD is not succeeded, the engagement cannot be signed."
+    const acc = (link.acceptanceData ?? {}) as Record<string, unknown>;
+    const storedGc = (acc.gocardless ?? {}) as Record<string, unknown>;
+    let ddMandateId = (storedGc.mandateId as string | undefined) ?? undefined;
+    let ddConfirmed = Boolean(storedGc.ddConfirmed);
     if (mode === "engagement" && !isManualPayment) {
-      // Direct Debit mandate is a compulsory part of the contract (unless the
-      // engagement was set up for manual invoicing)
-      if (!directDebit?.accountName?.trim()) {
-        return NextResponse.json({ error: "Direct Debit: account holder's name is required" }, { status: 400 });
+      const billingRequestId = storedGc.billingRequestId as string | undefined;
+      if (!ddConfirmed && billingRequestId) {
+        // Re-check live so a client can't submit a stale/unconfirmed flag.
+        const st = await getBillingRequestStatus(link.firmSlug || "gns", billingRequestId);
+        if (st.fulfilled) { ddConfirmed = true; ddMandateId = st.mandateId ?? ddMandateId; }
       }
-      if (cleanAccountNo.length < 6 || cleanAccountNo.length > 8) {
-        return NextResponse.json({ error: "Direct Debit: a valid UK account number (6–8 digits) is required" }, { status: 400 });
-      }
-      if (cleanSortCode.length !== 6) {
-        return NextResponse.json({ error: "Direct Debit: a valid 6-digit sort code is required" }, { status: 400 });
+      if (!ddConfirmed) {
+        return NextResponse.json(
+          { error: "Please set up your Direct Debit with GoCardless before signing — it has not been confirmed yet." },
+          { status: 400 }
+        );
       }
     }
 
@@ -162,53 +170,21 @@ export async function POST(
     }
     const documentSha256 = letterHtml ? createHash("sha256").update(letterHtml).digest("hex") : undefined;
 
-    // ── GoCardless Direct Debit mandate — created (and, when required to gate
-    //    acceptance, must succeed) BEFORE we write anything, so a rejected
-    //    bank account leaves no half-finished record and the client can just
-    //    correct their details and resubmit. ─────────────────────────────────
-    const requiresDdGate = mode === "engagement" && !isManualPayment && !!directDebit?.accountName;
-    let gcResult: Record<string, unknown> | null = null;
-    if (mode === "engagement" && directDebit?.accountName) {
-      const gc = await setupDirectDebitMandate({
-        firmSlug: link.firmSlug || "gns",
-        companyName: link.companyName ?? "",
-        directorName: signatureName || link.directorName || "",
-        email: link.clientEmail,
-        dd: {
-          accountName: directDebit.accountName,
-          accountNumber: cleanAccountNo,
-          sortCode: cleanSortCode,
-          bankAddress: directDebit.bankAddress,
-        },
-        token,
-        // Structured billing address (from the Companies House autofill / manual
-        // entry) so the GoCardless customer carries a proper address.
-        address: (meta as Record<string, unknown>).clientAddressStructured as {
-          line1?: string; line2?: string; city?: string; region?: string; postcode?: string;
-        } | undefined,
-      });
-      gcResult = gc as unknown as Record<string, unknown>;
-    }
-    // Mandate *creation* only ever reaches "pending_submission" — this is not
-    // yet a confirmed mandate. When GoCardless is configured for this firm,
-    // hold the client here until the webhook confirms it's actually active;
-    // an outright creation failure (bad account/sort code, API error) blocks
-    // immediately with nothing written, so they can just correct and retry.
-    const gcConfigured = !!(gcResult && (gcResult as { configured?: boolean }).configured);
-    const gcSucceeded = !!(gcResult && (gcResult as { success?: boolean }).success);
-    if (requiresDdGate && gcConfigured && !gcSucceeded) {
-      return NextResponse.json(
-        { error: (gcResult as { error?: string })?.error || "We could not set up your Direct Debit mandate — please check your account details and try again." },
-        { status: 502 }
-      );
-    }
-    const pendingDd = requiresDdGate && gcConfigured && gcSucceeded;
+    // ── GoCardless Direct Debit — the mandate was already created and confirmed
+    //    on GoCardless's hosted page (verified above), so there is nothing to
+    //    submit here. We simply carry the confirmed mandate/billing-request ids
+    //    forward into the acceptance record. No "pending_dd" wait is needed. ──
+    const gcResult: Record<string, unknown> | null =
+      (mode === "engagement" && !isManualPayment)
+        ? { ...storedGc, configured: true, success: true, ddConfirmed, mandateId: ddMandateId }
+        : null;
+    const pendingDd = false;
 
     // ── Signed copy with audit certificate ────────────────────────────────────
     // Built BEFORE the status write: it's pure CPU work, and the status write
     // must not land without the mandate id beside it (see the single write below).
-    const ddSummary = directDebit?.accountName
-      ? `${directDebit.accountName} · ****${cleanAccountNo.slice(-4)} · ${cleanSortCode.slice(0, 2)}-**-**`
+    const ddSummary = ddMandateId
+      ? `GoCardless Direct Debit mandate ${ddMandateId} (confirmed)`
       : null;
     let signedHtml: string | null = null;
     if (mode === "engagement" && letterHtml) {
@@ -257,7 +233,6 @@ export async function POST(
           signatureName: signatureName || link.directorName || null,
           signedAt: now.toISOString(),
           contactPrefs: contactPrefs ?? [],
-          directDebit: directDebit ?? null,
           gocardless: gcResult,
           directorDocs: directorDocs ?? [],
           companyDocs: companyDocs ?? [],
@@ -267,20 +242,6 @@ export async function POST(
         },
       })
     );
-
-    // ── DD gate active: stop here. The client sits on a "pending_dd" screen
-    //    until the GoCardless webhook confirms the mandate is active, at which
-    //    point apps/web/app/api/webhooks/gocardless/route.ts runs everything
-    //    below (clearance emails, welcome email, PDF archive) for us. ────────
-    if (pendingDd) {
-      return NextResponse.json({
-        success: true,
-        pending: true,
-        mode,
-        mandateId: (gcResult as { mandateId?: string } | null)?.mandateId ?? null,
-        message: "Your Direct Debit details have been submitted. We're waiting for your bank to confirm the mandate — this page will update automatically, usually within a few seconds.",
-      });
-    }
 
     const postCtx: PostAcceptanceContext = {
       link: { ...link, letterMeta: (link.letterMeta ?? {}) as Record<string, unknown> },
@@ -299,7 +260,7 @@ export async function POST(
       mode,
       signedLetterUrl: postResult.signedLetterUrl,
       uploadUrl: postResult.uploadUrl,
-      gocardless: gcConfigured ? { success: gcSucceeded } : null,
+      gocardless: gcResult ? { success: true } : null,
       message: postResult.message,
     });
   } catch (error) {

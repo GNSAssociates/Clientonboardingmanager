@@ -197,6 +197,88 @@ export async function setupDirectDebitMandate(opts: {
 }
 
 /**
+ * BILLING REQUESTS flow (modern GoCardless). Accounts that return 403 on the
+ * direct /customers + /mandates endpoints must use this: we create a billing
+ * request (a BACS mandate authorisation) + a hosted flow, then redirect the
+ * client to GoCardless's secure page to enter their bank details and confirm.
+ * When they finish, the billing request becomes `fulfilled` and a mandate is
+ * created — that is our "DD set up" signal (verified on redirect-return AND by
+ * webhook). No bank details ever touch our servers.
+ */
+export async function createDirectDebitBillingRequest(opts: {
+  firmSlug: string;
+  companyName: string;
+  directorName: string;
+  email: string;
+  token: string;
+  redirectUri: string;
+  exitUri: string;
+}): Promise<{ configured: boolean; success: boolean; authorisationUrl?: string; billingRequestId?: string; error?: string }> {
+  const gcToken = tokenForFirm(opts.firmSlug);
+  if (!gcToken) return { configured: false, success: false };
+  try {
+    const br = await gcPost(gcToken, '/billing_requests', 'billing_requests', {
+      mandate_request: { scheme: 'bacs', currency: 'GBP' },
+      metadata: { onboarding_token: opts.token },
+    }, `br-${opts.token}`);
+
+    const flow = await gcPost(gcToken, '/billing_request_flows', 'billing_request_flows', {
+      redirect_uri: opts.redirectUri,
+      exit_uri: opts.exitUri,
+      // Pre-fill what we know so the hosted page is faster for the client.
+      prefilled_customer: {
+        email: opts.email,
+        given_name: opts.directorName.split(' ')[0] || opts.directorName,
+        family_name: opts.directorName.split(' ').slice(1).join(' ') || undefined,
+        company_name: opts.companyName || undefined,
+      },
+      links: { billing_request: br.id },
+    }, `brf-${opts.token}`);
+
+    return {
+      configured: true,
+      success: true,
+      authorisationUrl: String((flow as { authorisation_url?: string }).authorisation_url ?? ''),
+      billingRequestId: String(br.id),
+    };
+  } catch (e) {
+    console.error('GoCardless billing request failed:', e);
+    return { configured: true, success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Fetch a billing request's status. `fulfilled` = the client completed the DD
+ * setup and a mandate was created (our sign-gate condition).
+ */
+export async function getBillingRequestStatus(
+  firmSlug: string,
+  billingRequestId: string,
+): Promise<{ configured: boolean; status?: string; fulfilled?: boolean; mandateId?: string; error?: string }> {
+  const gcToken = tokenForFirm(firmSlug);
+  if (!gcToken) return { configured: false };
+  try {
+    const res = await fetch(`${apiBase()}/billing_requests/${billingRequestId}`, {
+      headers: { Authorization: `Bearer ${gcToken}`, 'GoCardless-Version': '2015-07-06' },
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      billing_requests?: { status?: string; links?: { mandate_request_mandate?: string } };
+    };
+    if (!res.ok) return { configured: true, error: `GoCardless ${res.status}` };
+    const br = json.billing_requests ?? {};
+    const mandateId = br.links?.mandate_request_mandate;
+    return {
+      configured: true,
+      status: br.status,
+      fulfilled: br.status === 'fulfilled',
+      mandateId: mandateId ? String(mandateId) : undefined,
+    };
+  } catch (e) {
+    return { configured: true, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
  * Verify a GoCardless webhook request's `Webhook-Signature` header (HMAC-SHA256
  * hex digest of the raw request body). We don't know which firm's GoCardless
  * account an incoming webhook belongs to until we've located the matching
