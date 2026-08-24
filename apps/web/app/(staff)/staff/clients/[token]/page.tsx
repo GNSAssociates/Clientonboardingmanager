@@ -6,6 +6,7 @@ import KycPanel from './_kyc';
 import {
   RefreshCw, ChevronLeft, Eye, Download, FileSignature, FileJson, Banknote,
   CheckCircle2, XCircle, AlertTriangle, RotateCw, FilePlus2, UserSearch, FileText, Cloud, Mail,
+  Copy, Check, Send, IdCard, Link2,
 } from 'lucide-react';
 
 interface EmailLogRow {
@@ -127,6 +128,148 @@ function SendTemplateForm({ token, details, onSent }: { token: string; details: 
       </button>
       <button onClick={() => setOpen(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
       {msg && <span className={`text-xs ${msg === 'Sent.' ? 'text-green-600' : 'text-red-600'}`}>{msg}</span>}
+    </div>
+  );
+}
+
+
+/**
+ * Client links + follow-up actions.
+ *
+ * Everything a fee-earner needs to chase ONE client without leaving their
+ * profile: the two shareable links (engagement + ID portal) with copy buttons,
+ * and the two chase actions (resend the engagement letter, chase the director
+ * for their ID documents). Previously these lived only on the dashboard, so the
+ * client profile had no way to follow up at all.
+ */
+function ClientLinksPanel({
+  token,
+  signed,
+  onSent,
+}: {
+  token: string;
+  signed: boolean;
+  onSent: () => void;
+}) {
+  const [copied, setCopied] = useState<string>('');
+  const [busy, setBusy] = useState<string>('');
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const engageUrl = origin ? `${origin}/onboarding/engage/${token}` : '';
+  const docsUrl = origin ? `${origin}/onboarding/documents/${token}` : '';
+
+  const copy = async (which: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(which);
+      setTimeout(() => setCopied(''), 1800);
+    } catch {
+      setMsg({ text: 'Could not copy — select the link and copy manually.', ok: false });
+    }
+  };
+
+  // Resend the engagement letter email to the director.
+  const resendEngagement = async () => {
+    setBusy('engage'); setMsg(null);
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}/resend`, { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.message || j.error || 'Send failed');
+      setMsg({ text: 'Engagement email re-sent to the director.', ok: true });
+      onSent();
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Send failed', ok: false });
+    } finally { setBusy(''); }
+  };
+
+  // Chase the director for their outstanding ID documents.
+  const chaseDocs = async () => {
+    setBusy('docs'); setMsg(null);
+    try {
+      const res = await fetch(`/api/documents/${token}/followup`, { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Send failed');
+      setMsg({ text: 'ID document reminder sent to the director.', ok: true });
+      onSent();
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Send failed', ok: false });
+    } finally { setBusy(''); }
+  };
+
+  const LinkRow = ({ label, url, which, hint }: { label: string; url: string; which: string; hint: string }) => (
+    <div className="border border-gray-200 rounded-xl p-3">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <p className="text-xs font-semibold text-gray-700">{label}</p>
+        <button
+          type="button"
+          onClick={() => copy(which, url)}
+          disabled={!url}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+        >
+          {copied === which ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy link</>}
+        </button>
+      </div>
+      <p className="text-[11px] text-gray-400 mb-1">{hint}</p>
+      <code className="block text-[11px] text-gray-600 bg-gray-50 rounded px-2 py-1 break-all">{url || '…'}</code>
+    </div>
+  );
+
+  return (
+    <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
+      <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+        <Link2 size={16} className="text-purple-600" /> Client Links &amp; Follow-up
+      </h2>
+      <p className="text-xs text-gray-500 mb-4">
+        Share these with the director, or chase them from here — no need to go back to the dashboard.
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+        <LinkRow
+          label="Engagement letter (sign)"
+          url={engageUrl}
+          which="engage"
+          hint="Where the director reviews and signs."
+        />
+        <LinkRow
+          label="ID document portal"
+          url={docsUrl}
+          which="docs"
+          hint="Where the director uploads their ID and proof of address."
+        />
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={resendEngagement}
+          disabled={busy !== '' || signed}
+          title={signed ? 'Already signed — no follow-up needed.' : 'Re-send the engagement letter email'}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-purple-300 text-purple-700 hover:border-purple-500 hover:bg-purple-50 disabled:opacity-50"
+        >
+          <Send size={13} /> {busy === 'engage' ? 'Sending…' : 'Follow up — resend engagement'}
+        </button>
+        <button
+          type="button"
+          onClick={chaseDocs}
+          disabled={busy !== ''}
+          title="Email the director about their outstanding ID documents"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-amber-300 text-amber-700 hover:border-amber-500 hover:bg-amber-50 disabled:opacity-50"
+        >
+          <IdCard size={13} /> {busy === 'docs' ? 'Sending…' : 'Chase director — ID documents'}
+        </button>
+      </div>
+
+      {signed && (
+        <p className="text-[11px] text-gray-400 mt-2">
+          This engagement is signed, so the engagement follow-up is disabled. You can still chase outstanding ID documents.
+        </p>
+      )}
+      {msg && (
+        <p className={`text-xs mt-3 ${msg.ok ? 'text-green-700' : 'text-red-600'}`}>{msg.text}</p>
+      )}
     </div>
   );
 }
@@ -323,6 +466,9 @@ export default function ClientDetailPage() {
         </div>
         {!signed && <p className="text-xs text-gray-400 mt-3">The signed copy with the audit report appears here as soon as the client signs.</p>}
       </div>
+
+      {/* Client links + follow-up actions */}
+      <ClientLinksPanel token={token} signed={signed} onSent={load} />
 
       {/* AI ID verification (KYC) */}
       <KycPanel token={token} expectedName={d?.director?.name} />
