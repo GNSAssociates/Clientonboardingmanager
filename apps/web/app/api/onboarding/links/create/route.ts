@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, createOnboardingLink, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { randomBytes } from "crypto";
 import { getFirm } from "@/lib/firms";
+import { ensureClientFolder } from "@/lib/onedrive";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
@@ -250,6 +251,16 @@ export async function POST(req: NextRequest) {
         console.error("Email send failed (link still created):", emailErr instanceof Error ? emailErr.message : emailErr);
       }
     }
+
+    // Create the client's OneDrive folder NOW, at client creation — previously it
+    // only appeared the first time somebody opened the OneDrive link, so a brand
+    // new client had nowhere for staff to file anything. Best-effort and
+    // non-blocking: the client is created whether or not OneDrive is reachable.
+    void ensureClientFolder(companyName ?? "", undefined, "active")
+      .then((url) => {
+        if (url) console.log(`✓ OneDrive folder ready for ${companyName}`);
+      })
+      .catch((e) => console.error("OneDrive folder creation failed (link still created):", e));
 
     console.log(`✓ Onboarding link created (${mode}): ${engagementUrl} | email sent: ${emailSent} | archive: ${archivePath ?? "off"}`);
 

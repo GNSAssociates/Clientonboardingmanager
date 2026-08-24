@@ -69,13 +69,23 @@ export default function ClientsPage() {
     } finally { setBusy(null); }
   };
 
+  // Archive, never delete. Nothing is destroyed: the record is hidden from this
+  // list and the client's OneDrive folder moves to "03 Completed Clients", so the
+  // engagement, signed letter and AML trail all remain intact.
   const del = async (r: LinkRow) => {
-    if (!confirm(`Delete ${r.companyName ?? 'this client'} and all their data? This cannot be undone.`)) return;
+    if (!confirm(`Archive ${r.companyName ?? 'this client'}?\n\nThey will be removed from this list and their OneDrive folder moved to "Completed Clients". Nothing is deleted — the signed letter and ID documents are kept.`)) return;
     setBusy(r.id); setToast('');
     try {
       const res = await fetch(`/api/onboarding/links/${r.token}`, { method: 'DELETE' });
-      if (res.ok) { setToast(`🗑️ ${r.companyName} deleted`); load(); }
-      else setToast('❌ Delete failed');
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setToast(
+          j.oneDriveMoved === false
+            ? `📦 ${r.companyName} archived (OneDrive folder not moved: ${j.oneDriveReason ?? 'unknown'})`
+            : `📦 ${r.companyName} archived`,
+        );
+        load();
+      } else setToast('❌ Archive failed');
     } finally { setBusy(null); }
   };
 
@@ -360,7 +370,7 @@ export default function ClientsPage() {
                   <button onClick={() => editClient(r)} disabled={busy === r.id} className="p-2 text-gray-400 hover:text-blue-600" title="Edit client details">
                     <Pencil size={15} />
                   </button>
-                  <button onClick={() => del(r)} disabled={busy === r.id} className="p-2 text-gray-400 hover:text-red-500" title="Delete client">
+                  <button onClick={() => del(r)} disabled={busy === r.id} className="p-2 text-gray-400 hover:text-amber-600" title="Archive client (nothing is deleted)">
                     <Trash2 size={15} />
                   </button>
                   <Link href={detailHref} className="p-2 text-gray-400 hover:text-gray-700">

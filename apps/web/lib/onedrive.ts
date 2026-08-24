@@ -94,26 +94,95 @@ export async function probeOneDrive(userEmail?: string): Promise<{ ok: boolean; 
  * fails (e.g. policy blocks sharing links). Returns null when OneDrive is not
  * configured or the folder doesn't exist yet. Never throws.
  */
-export async function getOneDriveFolderLink(companyName: string, userEmail?: string): Promise<string | null> {
-  const token = await getGraphToken();
-  if (!token) return null;
-  const user = userEmail?.trim() || process.env.ONEDRIVE_USER_EMAIL?.trim() || 'info@gnsassociates.co.uk';
-  const root = process.env.ONEDRIVE_ROOT_FOLDER?.trim() || 'Client Onboarding';
-  const folderPath = `${sanitize(root)}/${sanitize(companyName)}`;
-  const encodedPath = folderPath.split('/').map(encodeURIComponent).join('/');
-  const itemUrl = `${GRAPH}/users/${encodeURIComponent(user)}/drive/root:/${encodedPath}`;
+/**
+ * Client lifecycle stages, mirrored as folders in OneDrive so the drive tells the
+ * same story as the app dashboard. A client folder MOVES between these; it is
+ * never deleted, which also keeps the AML record intact.
+ */
+export const CLIENT_STAGES = {
+  active: '01 Active Clients',
+  info_received: '02 Client Info Received',
+  completed: '03 Completed Clients',
+} as const;
+export type ClientStage = keyof typeof CLIENT_STAGES;
+
+function graphUser(userEmail?: string): string {
+  return userEmail?.trim() || process.env.ONEDRIVE_USER_EMAIL?.trim() || 'info@gnsassociates.co.uk';
+}
+function graphRoot(): string {
+  return sanitize(process.env.ONEDRIVE_ROOT_FOLDER?.trim() || 'Client Onboarding');
+}
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+function stagePath(companyName: string, stage: ClientStage): string {
+  return `${graphRoot()}/${sanitize(CLIENT_STAGES[stage])}/${sanitize(companyName)}`;
+}
+/** Pre-stage layout: folders used to sit directly under the root. */
+function legacyPath(companyName: string): string {
+  return `${graphRoot()}/${sanitize(companyName)}`;
+}
+
+async function itemAt(path: string, user: string, token: string): Promise<{ id: string; webUrl?: string } | null> {
   try {
-    // First confirm the folder exists and get its id + webUrl
-    const res = await fetch(`${itemUrl}?$select=id,webUrl`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(
+      `${GRAPH}/users/${encodeURIComponent(user)}/drive/root:/${encodePath(path)}?$select=id,webUrl`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
     if (!res.ok) return null;
     const item = await res.json() as { id?: string; webUrl?: string };
-    if (!item.id) return item.webUrl ?? null;
+    return item.id ? { id: item.id, webUrl: item.webUrl } : null;
+  } catch {
+    return null;
+  }
+}
 
-    // Create an organization-scoped sharing link so any staff can open it
+/**
+ * Find the client folder wherever it currently lives — any stage, or the legacy
+ * flat location. Clients created before stages existed still resolve, so nothing
+ * has to be migrated by hand.
+ */
+async function findClientFolder(
+  companyName: string,
+  user: string,
+  token: string,
+): Promise<{ path: string; id: string; webUrl?: string } | null> {
+  const candidates: string[] = [
+    ...(Object.keys(CLIENT_STAGES) as ClientStage[]).map((s) => stagePath(companyName, s)),
+    legacyPath(companyName),
+  ];
+  for (const path of candidates) {
+    const item = await itemAt(path, user, token);
+    if (item) return { path, ...item };
+  }
+  return null;
+}
+
+async function createFolderPath(segments: string[], user: string, token: string): Promise<void> {
+  let parentPath = '';
+  for (const seg of segments) {
+    const childrenUrl = parentPath
+      ? `${GRAPH}/users/${encodeURIComponent(user)}/drive/root:/${encodePath(parentPath)}:/children`
+      : `${GRAPH}/users/${encodeURIComponent(user)}/drive/root/children`;
+    try {
+      // conflictBehavior "fail" -> 409 when it already exists, which is fine:
+      // we only need the folder to exist, not to recreate it.
+      await fetch(childrenUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: seg, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+      });
+    } catch (e) {
+      console.error('OneDrive create folder error:', e);
+    }
+    parentPath = parentPath ? `${parentPath}/${seg}` : seg;
+  }
+}
+
+async function shareLinkFor(id: string, user: string, token: string, fallback?: string): Promise<string | null> {
+  try {
     const linkRes = await fetch(
-      `${GRAPH}/users/${encodeURIComponent(user)}/drive/items/${item.id}/createLink`,
+      `${GRAPH}/users/${encodeURIComponent(user)}/drive/items/${id}/createLink`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -124,47 +193,105 @@ export async function getOneDriveFolderLink(companyName: string, userEmail?: str
       const linkData = await linkRes.json() as { link?: { webUrl?: string } };
       if (linkData.link?.webUrl) return linkData.link.webUrl;
     }
-
-    // Fallback: return the raw webUrl (may require access request)
-    return item.webUrl ?? null;
   } catch (e) {
-    console.error('OneDrive folder link error:', e);
-    return null;
+    console.error('OneDrive createLink error:', e);
   }
+  return fallback ?? null;
 }
 
 /**
- * Ensure the client's OneDrive folder exists — creates the "Client Onboarding"
- * root and the {Company} subfolder if missing — so staff can open the folder
- * even before anything has been archived. Returns the shareable link (or null
- * when unconfigured). Never throws.
+ * Organisation-scoped sharing link to the client folder, wherever it sits.
+ * Returns null when OneDrive is not configured or the folder does not exist yet.
+ * Never throws.
  */
-export async function ensureClientFolder(companyName: string, userEmail?: string): Promise<string | null> {
+export async function getOneDriveFolderLink(companyName: string, userEmail?: string): Promise<string | null> {
   const token = await getGraphToken();
   if (!token) return null;
-  const user = userEmail?.trim() || process.env.ONEDRIVE_USER_EMAIL?.trim() || 'info@gnsassociates.co.uk';
-  const root = process.env.ONEDRIVE_ROOT_FOLDER?.trim() || 'Client Onboarding';
-  const segments = [sanitize(root), sanitize(companyName)].filter(Boolean);
+  const user = graphUser(userEmail);
+  const found = await findClientFolder(companyName, user, token);
+  if (!found) return null;
+  return shareLinkFor(found.id, user, token, found.webUrl);
+}
 
-  let parentPath = '';
-  for (const seg of segments) {
-    const childrenUrl = parentPath
-      ? `${GRAPH}/users/${encodeURIComponent(user)}/drive/root:/${parentPath.split('/').map(encodeURIComponent).join('/')}:/children`
-      : `${GRAPH}/users/${encodeURIComponent(user)}/drive/root/children`;
-    try {
-      // conflictBehavior "fail" → a 409 when it already exists, which is fine:
-      // we only need the folder to exist, not to recreate it.
-      await fetch(childrenUrl, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: seg, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
-      });
-    } catch (e) {
-      console.error('ensureClientFolder create error:', e);
-    }
-    parentPath = parentPath ? `${parentPath}/${seg}` : seg;
-  }
+/**
+ * Ensure the client folder exists and return its shareable link.
+ *
+ * Called when the CLIENT IS CREATED, not merely when someone opens OneDrive, so
+ * the drive is ready from day one. If the folder already exists in any stage (or
+ * the legacy flat location) it is left exactly where it is.
+ */
+export async function ensureClientFolder(
+  companyName: string,
+  userEmail?: string,
+  stage: ClientStage = 'active',
+): Promise<string | null> {
+  const token = await getGraphToken();
+  if (!token) return null;
+  const user = graphUser(userEmail);
+
+  const found = await findClientFolder(companyName, user, token);
+  if (found) return shareLinkFor(found.id, user, token, found.webUrl);
+
+  await createFolderPath(
+    [graphRoot(), sanitize(CLIENT_STAGES[stage]), sanitize(companyName)].filter(Boolean),
+    user,
+    token,
+  );
   return getOneDriveFolderLink(companyName, userEmail);
+}
+
+/**
+ * Move the client folder into another stage. Used instead of deleting: an
+ * archived client keeps every document in OneDrive, the folder just moves out of
+ * the active list so neither dashboard is cluttered. No-op when already in place.
+ */
+export async function moveClientFolderToStage(
+  companyName: string,
+  stage: ClientStage,
+  userEmail?: string,
+): Promise<{ moved: boolean; reason?: string }> {
+  const token = await getGraphToken();
+  if (!token) return { moved: false, reason: 'OneDrive not configured' };
+  const user = graphUser(userEmail);
+
+  const found = await findClientFolder(companyName, user, token);
+  if (!found) return { moved: false, reason: 'Client folder not found' };
+
+  const target = stagePath(companyName, stage);
+  if (found.path === target) return { moved: true };
+
+  // Make sure the destination stage folder exists before moving into it.
+  await createFolderPath([graphRoot(), sanitize(CLIENT_STAGES[stage])], user, token);
+
+  try {
+    const res = await fetch(`${GRAPH}/users/${encodeURIComponent(user)}/drive/items/${found.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parentReference: { path: `/drive/root:/${graphRoot()}/${sanitize(CLIENT_STAGES[stage])}` },
+        name: sanitize(companyName),
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      return { moved: false, reason: `Graph ${res.status} ${detail.slice(0, 200)}` };
+    }
+    return { moved: true };
+  } catch (e) {
+    return { moved: false, reason: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Resolve the folder path to upload into, creating it under Active if absent. */
+async function clientFolderPathForUpload(companyName: string, user: string, token: string): Promise<string> {
+  const found = await findClientFolder(companyName, user, token);
+  if (found) return found.path;
+  await createFolderPath(
+    [graphRoot(), sanitize(CLIENT_STAGES.active), sanitize(companyName)].filter(Boolean),
+    user,
+    token,
+  );
+  return stagePath(companyName, 'active');
 }
 
 /**
@@ -182,10 +309,12 @@ export async function uploadToOneDrive(opts: {
   const token = await getGraphToken();
   if (!token) return null;
 
-  const user = opts.userEmail?.trim() || process.env.ONEDRIVE_USER_EMAIL?.trim() || 'info@gnsassociates.co.uk';
-  const root = process.env.ONEDRIVE_ROOT_FOLDER?.trim() || 'Client Onboarding';
-  const itemPath = `${sanitize(root)}/${sanitize(opts.companyName)}/${sanitize(opts.fileName)}`;
-  const encodedPath = itemPath.split('/').map(encodeURIComponent).join('/');
+  const user = graphUser(opts.userEmail);
+  // Upload into the client folder wherever it currently lives (any stage, or the
+  // legacy flat location), so files follow the client as their stage changes.
+  const folderPath = await clientFolderPathForUpload(opts.companyName, user, token);
+  const itemPath = `${folderPath}/${sanitize(opts.fileName)}`;
+  const encodedPath = encodePath(itemPath);
   const base = `${GRAPH}/users/${encodeURIComponent(user)}/drive/root:/${encodedPath}`;
 
   const buf: Buffer = typeof opts.content === 'string'

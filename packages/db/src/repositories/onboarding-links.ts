@@ -1,8 +1,15 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, lt, ne, sql } from "drizzle-orm";
 import { onboardingLinks } from "../schema/onboarding-links";
 import type { Tx } from "../client";
 
 export type OnboardingLinkRow = typeof onboardingLinks.$inferSelect;
+
+/**
+ * Archived clients are never deleted (AML record-keeping) — they are simply
+ * hidden from the working lists. Use listAllLinks/listLinksByFirmSlug with
+ * includeArchived: true to see them.
+ */
+export const ARCHIVED_STATUS = "archived";
 
 export async function createOnboardingLink(
   tx: Tx,

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkByToken, upsertDocumentSubmission } from "@gns/db";
-import { getDocType } from "@/lib/document-types";
+import { getDb, getOnboardingLinkByToken, upsertDocumentSubmission, getDocumentCompletionStatus } from "@gns/db";
+import { getDocType, REQUIRED_DOC_IDS } from "@/lib/document-types";
 import { archiveToClientFolder } from "@/lib/storage";
+import { moveClientFolderToStage } from "@/lib/onedrive";
 
 // Supabase Storage REST upload (no SDK needed)
 async function uploadToSupabase(
@@ -122,6 +123,23 @@ export async function POST(
         mimeType: file.type,
       })
     );
+
+    // Once every required ID document is in, advance the client's OneDrive folder
+    // to "02 Client Info Received" so the drive reflects the same stage the app
+    // shows. Best-effort: never fail an upload because the drive was unreachable.
+    try {
+      const completion = await db.transaction((tx) =>
+        getDocumentCompletionStatus(tx, params.token, REQUIRED_DOC_IDS)
+      );
+      if (completion.isComplete) {
+        const moved = await moveClientFolderToStage(link.companyName ?? "", "info_received");
+        if (!moved.moved && moved.reason) {
+          console.warn("Stage move skipped:", moved.reason);
+        }
+      }
+    } catch (e) {
+      console.error("Stage move failed (upload still saved):", e);
+    }
 
     return NextResponse.json({
       success: true,

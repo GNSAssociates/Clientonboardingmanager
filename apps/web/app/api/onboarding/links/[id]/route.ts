@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
+import { moveClientFolderToStage } from "@/lib/onedrive";
 import { getSession } from "@/lib/auth/session";
 
 // Staff edits: pause/resume the client document chase, move a client to another
@@ -146,14 +147,31 @@ export async function DELETE(
     const link = await db.transaction((tx) => getOnboardingLinkByToken(tx, token));
     if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    await db.execute(sql`DELETE FROM professional_clearance_requests WHERE link_token = ${token}`);
-    await db.execute(sql`DELETE FROM document_submissions WHERE onboarding_token = ${token}`);
-    await db.execute(sql`DELETE FROM onboarding_links WHERE token = ${token}`);
+    // ARCHIVE, never delete. This is a regulated practice: the engagement, the
+    // signed letter and the AML/KYC trail must survive. Archiving hides the client
+    // from the working lists and moves their OneDrive folder into
+    // "03 Completed Clients", so neither dashboard is cluttered while every
+    // document stays exactly where it was.
+    await db.execute(sql`UPDATE onboarding_links SET status = 'archived' WHERE token = ${token}`);
 
-    return NextResponse.json({ success: true });
+    const moved = await moveClientFolderToStage(link.companyName ?? "", "completed").catch(
+      (e: unknown) => ({ moved: false, reason: e instanceof Error ? e.message : String(e) }),
+    );
+    if (!moved.moved && moved.reason) {
+      // The client IS archived in the app either way — moving the drive folder is
+      // a best-effort tidy-up, so report it rather than failing the request.
+      console.warn("Archive: OneDrive folder not moved:", moved.reason);
+    }
+
+    return NextResponse.json({
+      success: true,
+      archived: true,
+      oneDriveMoved: moved.moved,
+      oneDriveReason: moved.moved ? undefined : moved.reason,
+    });
   } catch (error) {
-    console.error("Error deleting client:", error);
-    return NextResponse.json({ error: "Failed to delete client" }, { status: 500 });
+    console.error("Error archiving client:", error);
+    return NextResponse.json({ error: "Failed to archive client" }, { status: 500 });
   }
 }
 
