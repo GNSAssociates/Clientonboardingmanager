@@ -204,6 +204,20 @@
       "when": 1782479400000,
       "tag": "0028_custom_email_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1782479500000,
+      "tag": "0029_auth_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1782479600000,
+      "tag": "0030_module_access",
+      "breakpoints": true
     }
   ]
 }

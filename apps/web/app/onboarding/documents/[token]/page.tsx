@@ -253,11 +253,23 @@ export default function DocumentUploadPage() {
   const loadDocs = useCallback(async () => {
     try {
       const res = await fetch(`/api/documents/${token}`);
-      if (!res.ok) throw new Error('Not found');
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Distinguish a genuinely bad link (404) from a server fault (500).
+        // Collapsing both into "invalid link" previously hid a real outage.
+        if (res.status === 404) {
+          setPageError('This document upload link is invalid or has expired.');
+        } else {
+          setPageError(
+            'We could not open your document portal just now. Please try again in a few minutes — if it keeps happening, contact us and quote this: ' +
+              (json.message || `error ${res.status}`),
+          );
+        }
+        return;
+      }
       setData(json);
     } catch {
-      setPageError('This document upload link is invalid or has expired.');
+      setPageError('We could not reach the server. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -307,7 +319,9 @@ export default function DocumentUploadPage() {
     <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-md bg-white rounded-2xl p-10 shadow text-center">
         <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Link Not Found</h1>
+        <h1 className="text-xl font-bold text-gray-900 mb-2">
+          {pageError.startsWith('This document upload link') ? 'Link Not Found' : 'Portal Unavailable'}
+        </h1>
         <p className="text-gray-500">{pageError}</p>
       </div>
     </div>

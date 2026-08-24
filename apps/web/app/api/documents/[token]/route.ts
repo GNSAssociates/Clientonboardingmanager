@@ -56,7 +56,16 @@ export async function GET(
       },
     });
   } catch (err) {
+    // Surface the real reason. This page used to swallow every failure as
+    // "link invalid or expired", which hid a genuine server fault from both the
+    // client and us for a long time.
     console.error("Documents GET error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "server_error",
+        message: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    );
   }
 }

@@ -1,14 +1,53 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { documentSubmissions } from "../schema/document-submissions";
 import type { Tx } from "../client";
 
 export type DocumentSubmissionRow = typeof documentSubmissions.$inferSelect;
+
+
+/**
+ * Create the table if it is missing, then continue.
+ *
+ * Migrations are NOT run automatically on this deployment (the database lives on
+ * the cPanel host and CI cannot reach it), so a table added in a later migration
+ * can be absent on the live database. When that happened for this table, every
+ * query threw and the client-facing document portal showed "link is invalid or
+ * has expired" — the director could never upload their ID.
+ *
+ * This mirrors migrations/0022_document_submissions.sql exactly and is safe to
+ * run on every request: IF NOT EXISTS makes it a no-op once the table is there.
+ */
+export async function ensureDocumentSubmissionsTable(tx: Tx): Promise<void> {
+  await tx.execute(sql`
+    CREATE TABLE IF NOT EXISTS document_submissions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      onboarding_token TEXT NOT NULL,
+      doc_type TEXT NOT NULL,
+      doc_label TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      file_name TEXT,
+      file_url TEXT,
+      file_size_bytes INTEGER,
+      mime_type TEXT,
+      uploaded_at TIMESTAMPTZ,
+      follow_up_count INTEGER NOT NULL DEFAULT 0,
+      last_follow_up_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await tx.execute(sql`CREATE INDEX IF NOT EXISTS doc_sub_token_idx ON document_submissions(onboarding_token)`);
+  await tx.execute(sql`CREATE INDEX IF NOT EXISTS doc_sub_type_idx ON document_submissions(doc_type)`);
+  await tx.execute(sql`CREATE INDEX IF NOT EXISTS doc_sub_status_idx ON document_submissions(status)`);
+}
 
 export async function initDocumentSubmissions(
   tx: Tx,
   onboardingToken: string,
   docTypes: Array<{ id: string; label: string }>,
 ): Promise<DocumentSubmissionRow[]> {
+  await ensureDocumentSubmissionsTable(tx);
+
   // Insert pending rows only for doc types that don't already exist
   const existing = await tx
     .select()
@@ -65,6 +104,10 @@ export async function upsertDocumentSubmission(
     );
 
   if (existing.length > 0) {
+  // self-heal (upsert): the table may be missing on a database that never ran
+  // migration 0022 — creating it here keeps client uploads working.
+  await ensureDocumentSubmissionsTable(tx);
+
     const [updated] = await tx
       .update(documentSubmissions)
       .set({
