@@ -25,6 +25,10 @@ export interface WizardDraftState {
   paymentMethod?: string;
   includeInLetter?: Record<string, boolean>;
   includeAnnexA?: boolean;
+  /** Opt-in Direct Debit clause in the engagement letter (default off). */
+  includeDdClause?: boolean;
+  /** Optional note printed inside that clause. */
+  ddClauseNote?: string;
   softwareItems?: Array<{ name: string; price: number }>;
   clientType?: string;
   clientName?: string;

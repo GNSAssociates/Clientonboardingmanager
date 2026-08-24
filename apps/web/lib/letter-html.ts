@@ -58,6 +58,10 @@ export interface LetterData {
   appUrl?: string; // absolute base for images; relative paths used when absent
   regBody?: string; // ACCA | ICAEW — overrides the firm default for the letter body
   paymentMethod?: string; // 'dd' (default) | 'manual' — manual invoices instead of Direct Debit
+  // Direct Debit clause is OPT-IN: the arrangement is normally handled outside the
+  // letter, so the clause appears only when the fee-earner asks for it.
+  includeDdClause?: boolean;
+  ddClauseNote?: string;
   includeAnnexA?: boolean; // default true; when false the SSC annex is omitted
   clientType?: string; // 'limited' | 'llp' | 'sole_trader' | 'btl' | 'partnership' | 'individual'
   clientName?: string; // client / business / trading name (for non-company types)
@@ -503,13 +507,15 @@ export function buildLetterHtml(d: LetterData): string {
     <p style="text-align:left">The Client's fees are invoiced monthly and are payable within 14 days of the invoice date.
     Fees for one-off and ad-hoc work are invoiced on completion and payable upfront. No Direct Debit mandate is
     required for this engagement.</p>
-  </div>` : `
+  </div>` : d.includeDdClause ? `
   <div class="dd sans">
     <div class="t">Direct Debit — GoCardless Mandate</div>
     <p style="text-align:left">The Client's fees are collected by GoCardless Direct Debit. By signing this contract the Client authorises
-    ${esc(f.name)} to collect fees using GoCardless direct debit and authorises the use of the bank details provided at
-    signing for direct debit setup on the Client's behalf. Payments are protected by the Direct Debit Guarantee.</p>
-  </div>`}
+    ${esc(f.name)} to collect fees using GoCardless direct debit. The mandate is set up by the Client directly with
+    GoCardless, who hold the bank details; ${esc(f.name)} never receives or stores them. Payments are protected by the
+    Direct Debit Guarantee.</p>
+    ${d.ddClauseNote ? `<p style="text-align:left">${esc(d.ddClauseNote)}</p>` : ''}
+  </div>` : ''}
 
   <div class="imp sans">
     <div class="t">Important!</div>

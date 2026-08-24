@@ -212,6 +212,9 @@ function CompanyPageInner() {
     const { serviceDetails, customFees, scopeRows } = parseParams();
     const paymentMethodParam = searchParams.get('paymentMethod') || 'dd';
     const includeAnnexAParam = searchParams.get('includeAnnexA') !== '0';
+    // DD contract clause is opt-IN: absent or '0' means not included.
+    const includeDdClauseParam = searchParams.get('includeDdClause') === '1';
+    const ddClauseNoteParam = searchParams.get('ddClauseNote') ?? '';
     const clientTypeParam = searchParams.get('clientType') || 'limited';
     const clientNameParam = searchParams.get('clientName') || '';
     const businessAddressParam = searchParams.get('businessAddress') || '';
@@ -233,6 +236,8 @@ function CompanyPageInner() {
       scopeRows,
       paymentMethod: paymentMethodParam,
       includeAnnexA: includeAnnexAParam,
+      includeDdClause: includeDdClauseParam,
+      ddClauseNote: ddClauseNoteParam,
       clientType: clientTypeParam,
       clientName: clientNameParam || company.name,
       businessAddress: businessAddressParam || company.address,
@@ -298,6 +303,8 @@ function CompanyPageInner() {
         paymentMethod: searchParams.get('paymentMethod') || 'dd',
         includeInLetter,
         includeAnnexA: searchParams.get('includeAnnexA') !== '0',
+        includeDdClause: searchParams.get('includeDdClause') === '1',
+        ddClauseNote: searchParams.get('ddClauseNote') ?? '',
         softwareItems,
         clientType: searchParams.get('clientType') || 'limited',
         clientName: searchParams.get('clientName') || company.name,

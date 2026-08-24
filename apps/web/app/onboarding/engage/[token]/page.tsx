@@ -722,6 +722,27 @@ export default function EngagementPage() {
           </form>
         ) : (
         <>
+        {/* Orientation banner. Clients paying by Direct Debit must complete the
+            mandate BEFORE the signature unlocks, so say so up front in two
+            sentences rather than letting them discover it at the bottom. */}
+        {mode === 'engagement' && !isManualPayment && !ddConfirmed && (
+          <div className="p-5 rounded-xl border-2 border-amber-300 bg-amber-50">
+            <p className="font-bold text-amber-900 mb-1">How to complete this in three steps</p>
+            <p className="text-sm text-amber-900">
+              Read the engagement letter below, fill in the short form, then set up your Direct Debit.
+              <strong> The Direct Debit must be confirmed before the signature box will unlock</strong> — it takes about two minutes and you&apos;ll be brought straight back here.
+            </p>
+          </div>
+        )}
+        {mode === 'engagement' && !isManualPayment && ddConfirmed && (
+          <div className="p-5 rounded-xl border-2 border-green-300 bg-green-50">
+            <p className="font-bold text-green-900 mb-1">Direct Debit confirmed — you can sign</p>
+            <p className="text-sm text-green-900">
+              Your mandate is in place. Read the engagement letter below, complete the remaining details, then sign at the bottom of the page.
+            </p>
+          </div>
+        )}
+
         {/* ═══════ THE CONTRACT — canonical letter document ═══════ */}
         <div className="bg-white shadow-lg border border-gray-300 rounded-sm overflow-hidden">
           <iframe
@@ -860,18 +881,37 @@ export default function EngagementPage() {
                 </div>
               ) : (
                 <>
+                  {/* Plain, step-by-step instructions. The DD mandate is a hard
+                      gate on signing, so the client must understand exactly what
+                      to do and that they will be brought back here. */}
+                  <div className="mb-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+                    <p className="text-sm font-bold text-amber-900 mb-2">
+                      This must be completed before you can sign.
+                    </p>
+                    <ol className="text-sm text-amber-900 space-y-1 list-decimal list-inside">
+                      <li>Click <strong>Set up Direct Debit</strong> below — it opens GoCardless&apos;s secure page.</li>
+                      <li>Enter your bank details there and confirm the mandate.</li>
+                      <li>
+                        GoCardless brings you <strong>straight back to this page</strong> automatically and this box turns
+                        green — the signature section below then unlocks.
+                      </li>
+                    </ol>
+                    <p className="text-xs text-amber-800 mt-2">
+                      Anything you have already filled in on this form is saved while you&apos;re away.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={startDirectDebit}
                     disabled={ddSetupLoading || ddChecking}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-white disabled:opacity-60"
+                    className="flex items-center justify-center gap-2 w-full py-4 rounded-xl font-bold text-white text-base shadow-lg hover:shadow-xl transition-shadow disabled:opacity-60"
                     style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
                   >
                     {ddSetupLoading
                       ? 'Opening secure GoCardless page…'
                       : ddChecking
                       ? 'Checking your Direct Debit…'
-                      : 'Set up Direct Debit'}
+                      : 'Set up Direct Debit — takes about 2 minutes'}
                   </button>
                   {ddChecking && !ddSetupLoading && (
                     <p className="mt-3 text-sm text-gray-500 flex items-center gap-2">

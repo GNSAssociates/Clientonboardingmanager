@@ -227,6 +227,11 @@ function ServicesPageInner() {
 
   // Include Annex A schedule of charges
   const [includeAnnexA, setIncludeAnnexA] = useState(true);
+  // Direct Debit clause in the contract — OPT-IN. Most engagements do not spell
+  // the DD arrangement out in the letter, so this stays OFF unless the fee-earner
+  // deliberately turns it on and (optionally) adds a note.
+  const [includeDdClause, setIncludeDdClause] = useState(false);
+  const [ddClauseNote, setDdClauseNote] = useState('');
 
   // Software subscription items
   const [softwareItems, setSoftwareItems] = useState<SoftwareItem[]>([{ name: 'QuickBooks', price: 25 }]);
@@ -365,6 +370,8 @@ function ServicesPageInner() {
         if (d.paymentMethod) setPaymentMethod(d.paymentMethod as PaymentMethod);
         if (d.includeInLetter) setIncludeInLetter(d.includeInLetter as Record<string, boolean>);
         if (d.includeAnnexA !== undefined) setIncludeAnnexA(d.includeAnnexA as boolean);
+        if (d.includeDdClause !== undefined) setIncludeDdClause(d.includeDdClause as boolean);
+        if (typeof d.ddClauseNote === 'string') setDdClauseNote(d.ddClauseNote);
         if (d.softwareItems?.length) setSoftwareItems(d.softwareItems as SoftwareItem[]);
         if (d.clientType) setClientType(d.clientType as string);
         if (d.clientName) setClientName(d.clientName);
@@ -425,7 +432,7 @@ function ServicesPageInner() {
     }, 1200);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, selectedOneoff, prices, customFees, scopeRows, companyNumber, directorEmail, firmSlug, draftToken, frequencies, paymentMethod, includeInLetter, includeAnnexA, softwareItems, clientType, clientName, businessAddress, oneoffScopes, utr]);
+  }, [selected, selectedOneoff, prices, customFees, scopeRows, companyNumber, directorEmail, firmSlug, draftToken, frequencies, paymentMethod, includeInLetter, includeAnnexA, includeDdClause, ddClauseNote, softwareItems, clientType, clientName, businessAddress, oneoffScopes, utr]);
 
   const updateScope = (i: number, field: keyof ScopeRow, value: string) =>
     setScopeRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -550,6 +557,8 @@ function ServicesPageInner() {
     if (scopeChanged) q.set('scopeRows', JSON.stringify(scopeRows));
     q.set('paymentMethod', paymentMethod);
     q.set('includeAnnexA', includeAnnexA ? '1' : '0');
+    q.set('includeDdClause', includeDdClause ? '1' : '0');
+    if (includeDdClause && ddClauseNote.trim()) q.set('ddClauseNote', ddClauseNote.trim());
     q.set('frequencies', JSON.stringify(frequencies));
     q.set('softwareItems', JSON.stringify(softwareItems));
     q.set('includeInLetter', JSON.stringify(includeInLetter));
