@@ -913,10 +913,9 @@ function ServicesPageInner() {
               {selected.includes(service.id) && (
                 <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* TODO: reposition the "£" glyph (e.g. as an input adornment / prefix)
-                        once the design for this row is finalised — left as-is for now,
-                        including for the new "Management Fees" line. */}
-                    <span className="text-sm text-gray-600">£</span>
+                    {/* No currency glyph: every figure on this page is GBP, and a
+                        floating "£" beside the box was being read as part of the
+                        amount. The frequency selector beside it labels the field. */}
                     <input
                       type="number"
                       value={prices[service.id] || ''}
@@ -937,7 +936,6 @@ function ServicesPageInner() {
                   {CH_FEE_SERVICES.has(service.id) && (
                     <div className="flex items-center gap-2 flex-wrap border-t border-purple-100 pt-3">
                       <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wide w-full">ANNUAL Companies House fee (no VAT) — separate disbursement</span>
-                      <span className="text-sm text-gray-600">£</span>
                       <input
                         type="number"
                         value={chFees[service.id] || ''}
@@ -946,20 +944,7 @@ function ServicesPageInner() {
                         min="0" placeholder="0"
                       />
                       <span className="text-xs text-gray-500">Annual Confirmation Statement Fees Payable to Companies House once in a year-This will be a non vat recharge</span>
-                      <p className="w-full text-right text-xs font-semibold text-gray-700 pt-1">
-                        Section total (annual): £{(toAnnual(prices[service.id] || 0, frequencies[service.id]) + (chFees[service.id] || 0)).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        <span className="font-normal text-gray-500"> — GNS £{toAnnual(prices[service.id] || 0, frequencies[service.id]).toLocaleString('en-GB')} +VAT · CH £{(chFees[service.id] || 0).toLocaleString('en-GB')} no VAT</span>
-                      </p>
                     </div>
-                  )}
-                  {(frequencies[service.id] || 'monthly') !== 'monthly' && (
-                    <p className="text-xs text-gray-500">
-                      = £{((prices[service.id] || 0) / ((frequencies[service.id] || 'monthly') === 'quarterly' ? 3 : 12)).toFixed(0)}/month
-                      {' · '}£{((prices[service.id] || 0) * ((frequencies[service.id] || 'monthly') === 'quarterly' ? 4 : 1)).toFixed(0)}/year
-                    </p>
-                  )}
-                  {(frequencies[service.id] || 'monthly') === 'monthly' && (
-                    <p className="text-xs text-gray-500">= £{((prices[service.id] || 0) * 12).toLocaleString('en-GB')}/year</p>
                   )}
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={includeInLetter[service.id] !== false}
@@ -1077,7 +1062,6 @@ function ServicesPageInner() {
                               {item.note && <p className="text-xs text-gray-500">{item.note}</p>}
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <span className="text-sm text-gray-600">£</span>
                               <input
                                 type="number"
                                 value={prices[item.id] || ''}
@@ -1157,7 +1141,6 @@ function ServicesPageInner() {
                     />
                     <div className="flex items-center gap-3 mt-2">
                       <div className="flex items-center gap-1">
-                        <span className="text-sm text-gray-600">£</span>
                         <input
                           type="number"
                           value={c.price || ''}
@@ -1189,28 +1172,26 @@ function ServicesPageInner() {
             <div>
               <p className="text-sm text-gray-600">Monthly Services</p>
               <p className="text-2xl font-bold text-gray-900">
-                £{packageMonthly.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {packageMonthly.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 <span className="text-lg text-gray-500 ml-1">/month</span>
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                {selected.length} service{selected.length !== 1 ? 's' : ''} · £{packageAnnual.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/year{chAnnual > 0 ? ' (incl. CH fee, no VAT)' : ''} · {paymentMethod === 'dd' ? 'Direct Debit' : 'Manual invoice'}
+                {selected.length} service{selected.length !== 1 ? 's' : ''} · {paymentMethod === 'dd' ? 'Direct Debit' : 'Manual invoice'}{chAnnual > 0 ? ' · incl. CH fee (no VAT)' : ''}
               </p>
             </div>
             <div className="text-right">
-              {oneoffTotal > 0 ? (
-                <>
-                  <p className="text-xs text-gray-500 mb-2">One-off / Additional</p>
-                  <p className="text-2xl font-bold text-purple-600">£{oneoffTotal.toLocaleString('en-GB')}</p>
-                  <p className="text-xs text-purple-600">
-                    {selectedOneoff.length + customFees.filter((c) => (c.title || c.description || '').trim()).length} item{(selectedOneoff.length + customFees.filter((c) => (c.title || c.description || '').trim()).length) !== 1 ? 's' : ''}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-gray-500 mb-2">Annual equivalent</p>
-                  <p className="text-2xl font-bold text-purple-600">£{packageAnnual.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                  <p className="text-xs text-purple-600">+ VAT{chAnnual > 0 ? ' (excl. CH fee)' : ''}</p>
-                </>
+              {/* The annual total is always shown. It used to be replaced by the
+                  one-off figure whenever a one-off fee existed, so the recurring
+                  annual total silently disappeared. */}
+              <p className="text-xs text-gray-500 mb-2">Total per annum</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {packageAnnual.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-purple-600">+ VAT{chAnnual > 0 ? ' (excl. CH fee)' : ''}</p>
+              {oneoffTotal > 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  One-off / additional: {oneoffTotal.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
               )}
             </div>
           </div>
