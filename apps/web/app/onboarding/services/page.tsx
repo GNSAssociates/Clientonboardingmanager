@@ -640,6 +640,45 @@ function ServicesPageInner() {
               </button>
             </div>
           </div>
+          {/* Direct Debit terms in the contract — OPT-IN, sitting directly under
+              Payment Method so the decision is made in the same breath as choosing
+              DD. Default OFF: the DD arrangement is normally handled outside the
+              engagement letter, so it is NOT part of the scope unless asked for. */}
+          {paymentMethod === 'dd' && (
+            <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Include Direct Debit terms in the engagement letter</p>
+                  <p className="text-xs text-gray-500">
+                    Off by default — not included in the scope. Turn on to add a short Direct Debit
+                    clause, plus your own note, to the contract.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                  <input type="checkbox" checked={includeDdClause}
+                    onChange={(e) => setIncludeDdClause(e.target.checked)} className="sr-only peer" />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
+                </label>
+              </div>
+              {includeDdClause && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    Note to appear in the agreement (optional)
+                  </label>
+                  <textarea
+                    value={ddClauseNote}
+                    onChange={(e) => setDdClauseNote(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Fees are collected on the 1st of each month by Direct Debit."
+                    className="w-full px-3 py-2 border border-purple-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Printed in the Direct Debit section of the engagement letter.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-gray-700">Include Annex A (Schedule of Service Charges)</p>

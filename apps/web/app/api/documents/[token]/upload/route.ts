@@ -15,7 +15,9 @@ async function uploadToSupabase(
   const bucket = "client-documents";
 
   if (!supabaseUrl || !serviceKey) {
-    throw new Error("Document storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing). Please contact us.");
+    // Not an error any more: this deployment may archive to OneDrive instead.
+    // The caller decides what to do when no Supabase bucket is configured.
+    return "";
   }
 
   const url = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
@@ -99,19 +101,55 @@ export async function POST(
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${params.token}/${docType}_${Date.now()}_${safeName}`;
 
-    const fileUrl = await uploadToSupabase(path, arrayBuffer, file.type);
+    // Two possible destinations. Supabase Storage is used when configured;
+    // otherwise the client's OneDrive folder IS the store, not just a mirror.
+    // Previously an unconfigured Supabase threw before OneDrive was even
+    // attempted, so on this deployment the director could never upload their ID
+    // at all — the file went nowhere and the portal just failed.
+    let fileUrl = "";
+    let storageConfigured = false;
+    let lastError = "";
 
-    // Mirror into the client's OneDrive folder — truly non-fatal: a OneDrive
-    // misconfiguration must never fail the client's upload.
     try {
-      await archiveToClientFolder({
+      fileUrl = await uploadToSupabase(path, arrayBuffer, file.type);
+      if (fileUrl) storageConfigured = true;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+      console.error("Supabase upload failed, will try OneDrive:", lastError);
+    }
+
+    // Always archive to the client's OneDrive folder when it is configured —
+    // that is where the practice expects every client document to live.
+    try {
+      const archived = await archiveToClientFolder({
         companyName: link.companyName ?? params.token.substring(0, 8),
         fileName: `${docTypeDef.label} - ${safeName}`,
         content: arrayBuffer,
         mimeType: file.type,
       });
+      if (archived) {
+        storageConfigured = true;
+        // With no Supabase bucket, record the OneDrive location so staff can
+        // still find the document from the client's record.
+        if (!fileUrl) fileUrl = `onedrive:${archived.path}`;
+      }
     } catch (e) {
-      console.error("OneDrive archive failed (upload still saved):", e);
+      lastError = e instanceof Error ? e.message : String(e);
+      console.error("OneDrive archive failed:", lastError);
+    }
+
+    if (!storageConfigured) {
+      // Nowhere to put it. Say so plainly rather than recording a document we
+      // did not actually keep.
+      return NextResponse.json(
+        {
+          error:
+            "We could not store your document because no document storage is configured on the server. " +
+            "Please contact us so we can collect it another way." +
+            (lastError ? ` (${lastError.slice(0, 160)})` : ""),
+        },
+        { status: 503 },
+      );
     }
 
     // Persist to DB
