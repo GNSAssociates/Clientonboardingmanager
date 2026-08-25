@@ -183,6 +183,7 @@ const SCOPE_MAP: Record<string, number> = {
   cis: 3,
   self_assessment: 4,
   confirmation_statement: 5,
+  management_fees: 6,
 };
 
 function ServicesPageInner() {

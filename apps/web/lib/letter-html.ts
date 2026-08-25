@@ -129,6 +129,7 @@ export const DEFAULT_SCOPE_ROWS: ScopeRow[] = [
   { service: 'CIS', threshold: 'NA', excess: '£10+VAT per subcontractor per month' },
   { service: 'Self-Assessment (Excluding: Buy-to-Let)', threshold: '2 persons including directors', excess: '£200+VAT per year for additional person · Rental Property: To be Agreed Later' },
   { service: 'Confirmation Statement Filing to Companies House', threshold: 'Once a Year', excess: '£50+VAT for additional filing' },
+  { service: 'Management / Advisory Support', threshold: 'Ongoing management and advisory support as agreed', excess: 'Additional project work to be agreed separately' },
 ];
 
 // Which scope row belongs to which purchasable service. Rows for services the
@@ -141,6 +142,7 @@ const SCOPE_ROW_SERVICE: Array<string | null> = [
   'cis',
   'self_assessment',
   'confirmation_statement',
+  'management_fees',
 ];
 
 /**
@@ -178,6 +180,11 @@ export function buildLetterHtml(d: LetterData): string {
   const isManual = d.paymentMethod === 'manual'; // manual invoicing vs Direct Debit
   const showAnnexA = d.includeAnnexA !== false;  // annex included unless explicitly turned off
   const terms = CLIENT_TYPE_TERMS[d.clientType ?? 'limited'] ?? CLIENT_TYPE_TERMS.limited!;
+  // Only a company or LLP carries the Companies Act obligations set out in the
+  // "Statutory responsibilities" and "Our service to you" sections. Sending
+  // those to a buy-to-let landlord or a sole trader states duties they do not
+  // have, so the block is omitted for them.
+  const isCompanyClient = (d.clientType ?? 'limited') === 'limited' || (d.clientType ?? 'limited') === 'llp';
 
   // Staff-editable text blocks (/staff/templates) — intro paragraphs and the
   // "Agreement of terms" closing clauses. The caller resolves the DB override
@@ -491,13 +498,13 @@ export function buildLetterHtml(d: LetterData): string {
     </thead>
     <tbody>
       <!-- Section LABEL only. It used to repeat the very same annual/monthly
-           figures printed in the "Total Recurring Monthly Fees" row below, so the
+           figures printed in the "Total Fees" row below, so the
            table showed each total twice and read as though fees were doubled. -->
       <tr><td colspan="5"><strong>Recurring Fees Agreed (Monthly)</strong></td></tr>
       ${monthlyRows}
       ${oneoffHeader}
       ${oneoffRows}
-      <tr class="total"><td>Total Recurring Monthly Fees</td><td class="r">${gbp(totalAnnual)}</td><td class="r">—</td><td class="r">${gbp(totalMonthly)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
+      <tr class="total"><td>Total Fees</td><td class="r">${gbp(totalAnnual)}</td><td class="r">—</td><td class="r">${gbp(totalMonthly)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
       ${totalOneoff > 0 ? `<tr class="total"><td>Total One-off Charges (payable upfront)</td><td class="r">—</td><td class="r">${gbp(totalOneoff)}</td><td class="r">—</td><td style="font-size:10.5px">One off Upfront</td></tr>` : ''}
       ${chRows}
     </tbody>
@@ -550,6 +557,11 @@ export function buildLetterHtml(d: LetterData): string {
   <p>We have set out the agreed scope and objectives of your instructions within this letter of engagement. Any subsequent changes will be discussed with you and where appropriate a new letter of engagement will be agreed. We shall proceed on the basis of the instructions we have received from you and will rely on you to tell us as soon as possible if anything occurs which renders any information previously given to us as incorrect or inaccurate. We shall not be responsible for any failure to advise or comment on any matter that falls outside the specific scope of your instructions. We cannot accept any responsibility for any event, loss or situation unless it is one against which it is the expressed purpose of these instructions to provide protection.</p>
   <h3>Your responsibility to us</h3>
   <p>The advice that we give can only be as good as the information on which it is based. In so far as that information is provided by you, or by third parties with your permission, your responsibility arises as soon as possible if any circumstances or facts alter, as any alteration may have a significant impact on the advice given. If the circumstances change therefore or your needs alter, advise us of the alteration as soon as possible in writing.</p>
+  ${isCompanyClient ? `
+  <!-- Companies Act 2006 obligations. Only a company or LLP has directors,
+       an audit exemption under s477, shareholders' meetings or an AGM, so this
+       whole block is omitted for a sole trader, landlord, partnership or
+       individual — for whom none of it is true. -->
   <h3>Statutory responsibilities</h3>
   <p>As directors of the company, you are required by statute to prepare accounts (financial statements) for each financial year, which give a true and fair view of the state of affairs of the company and of its profit or loss for that period. In preparing those accounts you must:</p>
   <ul>
@@ -578,6 +590,7 @@ export function buildLetterHtml(d: LetterData): string {
   <p>We will attach to the accounts a report developed by the Consultative Committee of Accountancy Bodies (CCAB) which explains what work has been done by us, the professional requirements we have to fulfil and the standard to which the work has been carried out. To ensure that anyone reading the accounts is aware that we have not carried out an audit, we will attach to the accounts a report stating this fact.</p>
   <p>The intended users of the report are the directors. The report will be addressed to the directors.</p>
   <p>Once we have issued our report we have no further direct responsibility in relation to the accounts for that financial year. However, we expect that you will inform us of any material event occurring between the date of our report and that of the annual general meeting that may affect the accounts.</p>
+  ` : ''}
   <h3>Limitation of liability</h3>
   <p>We specifically draw your attention to the limitation of liability paragraphs in our standard terms and conditions which set out the basis on which we limit our liability to you and to others. You should read this in conjunction with the limitation of third party rights paragraphs in our standard terms and conditions which exclude liability to third parties. These are important provisions which you should read and consider carefully.</p>
   <p>There are no third parties that we have agreed should be entitled to rely on the work done pursuant to this engagement letter.</p>
