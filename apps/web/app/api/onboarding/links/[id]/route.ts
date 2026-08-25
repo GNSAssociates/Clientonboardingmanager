@@ -135,17 +135,46 @@ export async function GET(
 
 // Delete a client / onboarding record and everything linked to it. Staff only.
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Default is ARCHIVE. Permanent deletion is opt-in and ADMIN-ONLY: it destroys
+  // the signed engagement letter and the AML/KYC trail, which a regulated practice
+  // must normally retain. It exists for clearing test/dummy records.
+  const permanent = req.nextUrl.searchParams.get("permanent") === "1";
+  if (permanent && !session.isAdmin) {
+    return NextResponse.json(
+      { error: "Only an admin can permanently delete a client. Archive it instead." },
+      { status: 403 },
+    );
+  }
 
   const token = params.id;
   try {
     const db = getDb();
     const link = await db.transaction((tx) => getOnboardingLinkByToken(tx, token));
     if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    if (permanent) {
+      // Hard delete — everything linked to this token goes. Used to clear dummy
+      // records during setup/testing. The OneDrive folder is deliberately NOT
+      // touched: deleting client folders from the practice drive is far more
+      // dangerous than leaving an empty one behind, and it can be removed by hand.
+      await db.execute(sql`DELETE FROM professional_clearance_requests WHERE link_token = ${token}`);
+      await db.execute(sql`DELETE FROM document_submissions WHERE onboarding_token = ${token}`);
+      await db.execute(sql`DELETE FROM onboarding_links WHERE token = ${token}`);
+      console.warn(
+        `PERMANENT DELETE of onboarding link ${token} (${link.companyName ?? "unnamed"}) by ${session.userId}`,
+      );
+      return NextResponse.json({
+        success: true,
+        permanent: true,
+        note: "Database records deleted. Any OneDrive folder was left in place.",
+      });
+    }
 
     // ARCHIVE, never delete. This is a regulated practice: the engagement, the
     // signed letter and the AML/KYC trail must survive. Archiving hides the client

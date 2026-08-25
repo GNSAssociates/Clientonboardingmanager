@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { RefreshCw, Users, Filter, Plus, FilePlus2, ArrowRight, Search, BellRing, Trash2, Eraser, PlayCircle, Banknote, Pencil, Building2 } from 'lucide-react';
+import { RefreshCw, Users, Filter, Plus, FilePlus2, ArrowRight, Search, BellRing, Trash2, Eraser, PlayCircle, Banknote, Pencil, Building2, XOctagon } from 'lucide-react';
 
 interface LinkRow {
   id: string;
@@ -86,6 +86,32 @@ export default function ClientsPage() {
         );
         load();
       } else setToast('❌ Archive failed');
+    } finally { setBusy(null); }
+  };
+
+  // PERMANENT delete — admin only, enforced server-side. Destroys the signed
+  // engagement letter and the AML/KYC trail, so it is deliberately awkward: the
+  // company name must be typed exactly. Intended for clearing dummy/test records,
+  // not for real clients (archive those instead).
+  const hardDelete = async (r: LinkRow) => {
+    const name = r.companyName ?? 'this client';
+    const typed = prompt(
+      `PERMANENTLY DELETE "${name}"?\n\n` +
+        'This destroys the record, the signed engagement letter and the document/AML trail. ' +
+        'It cannot be undone. For a real client use Archive instead.\n\n' +
+        `Type the company name exactly to confirm:`,
+    );
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== String(name).trim().toLowerCase()) {
+      setToast('❌ Name did not match — nothing was deleted.');
+      return;
+    }
+    setBusy(r.id); setToast('');
+    try {
+      const res = await fetch(`/api/onboarding/links/${r.token}?permanent=1`, { method: 'DELETE' });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) { setToast(`🗑️ ${name} permanently deleted`); load(); }
+      else setToast(`❌ ${j.error || 'Delete failed'}`);
     } finally { setBusy(null); }
   };
 
@@ -372,6 +398,9 @@ export default function ClientsPage() {
                   </button>
                   <button onClick={() => del(r)} disabled={busy === r.id} className="p-2 text-gray-400 hover:text-amber-600" title="Archive client (nothing is deleted)">
                     <Trash2 size={15} />
+                  </button>
+                  <button onClick={() => hardDelete(r)} disabled={busy === r.id} className="p-2 text-gray-300 hover:text-red-600" title="Permanently delete (admin only) — destroys the record and its AML trail. Use Archive for real clients.">
+                    <XOctagon size={15} />
                   </button>
                   <Link href={detailHref} className="p-2 text-gray-400 hover:text-gray-700">
                     <ArrowRight size={16} />
