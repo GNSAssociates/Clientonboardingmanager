@@ -55,6 +55,11 @@ function CompanyPageInner() {
   const NON_CH_TYPES = new Set(['btl', 'sole_trader', 'individual', 'partnership']);
   const clientType = searchParams.get('clientType') || 'limited';
   const needsCH = !NON_CH_TYPES.has(clientType);
+  // For an individual or a buy-to-let landlord the client and the signatory are
+  // the same person, so asking for the name twice is just a second chance to
+  // typo it. A sole trader may trade under a different name, and a partnership
+  // has a partnership name plus a named partner, so those keep both fields.
+  const personIsClient = clientType === 'individual' || clientType === 'btl';
 
   // Wording follows the client type, so the form reads correctly for a person as
   // well as for a company.
@@ -240,6 +245,16 @@ function CompanyPageInner() {
     }
   };
 
+  // What still has to be filled in before this step can be completed.
+  // A company number is only required where one can exist; the separate person
+  // name only when the client is not themselves the signatory.
+  const manualIncomplete =
+    !manualName ||
+    !manualAddress ||
+    (!personIsClient && !manualDirector) ||
+    !directorEmail ||
+    (needsCH && !companyNumber);
+
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCompany({
@@ -247,7 +262,10 @@ function CompanyPageInner() {
       name: manualName.trim(),
       address: manualAddress.trim(),
       status: 'active',
-      directors: manualDirector.trim() ? [{ name: manualDirector.trim() }] : [],
+      // For an individual the single name field is both the client and the signatory.
+      directors: (personIsClient ? manualName : manualDirector).trim()
+        ? [{ name: (personIsClient ? manualName : manualDirector).trim() }]
+        : [],
       incorporationDate: null,
       aaDue: null,
       csDue: null,
@@ -255,7 +273,7 @@ function CompanyPageInner() {
       natureOfBusiness: null,
       manual: true,
     });
-    setSelectedDirector(manualDirector.trim());
+    setSelectedDirector((personIsClient ? manualName : manualDirector).trim());
     setStep('preview');
   };
 
@@ -655,6 +673,7 @@ function CompanyPageInner() {
                 />
               </div>
 
+              {!personIsClient && (
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">{L.personLabel} *</label>
                 <input
@@ -666,6 +685,7 @@ function CompanyPageInner() {
                   required
                 />
               </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">{L.emailLabel} *</label>
@@ -679,10 +699,14 @@ function CompanyPageInner() {
                 />
               </div>
 
+              {/* A company number is only required where one can exist, and the
+                  person's name is only a separate field when the client is not
+                  themselves the signatory. Requiring both unconditionally left
+                  Continue permanently disabled for individuals. */}
               <div className="flex items-center justify-between gap-4 pt-2">
                 <button
                   type="button"
-                  onClick={() => { setStep('input'); setError(''); }}
+                  onClick={() => { if (needsCH) { setStep('input'); setError(''); } else { window.history.back(); } }}
                   className="flex items-center gap-2 px-6 py-3 text-gray-700 hover:text-gray-900 font-semibold"
                 >
                   <ChevronLeft size={20} />
@@ -690,13 +714,13 @@ function CompanyPageInner() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!manualName || !manualAddress || !manualDirector || !directorEmail || !companyNumber}
+                  disabled={manualIncomplete}
                   className={`flex items-center gap-2 px-8 py-3 rounded-lg font-semibold transition-all ${
-                    !manualName || !manualAddress || !manualDirector || !directorEmail || !companyNumber
+                    manualIncomplete
                       ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       : 'text-white hover:shadow-lg hover:scale-[1.02]'
                   }`}
-                  style={!manualName || !manualAddress || !manualDirector || !directorEmail || !companyNumber ? {} : { background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
+                  style={manualIncomplete ? {} : { background: `linear-gradient(to right, ${firm.accentColor}, #1e3a8a)` }}
                 >
                   Continue <ChevronRight size={20} />
                 </button>
