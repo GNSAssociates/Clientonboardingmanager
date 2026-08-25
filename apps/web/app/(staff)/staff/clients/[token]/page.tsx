@@ -6,7 +6,7 @@ import KycPanel from './_kyc';
 import {
   RefreshCw, ChevronLeft, Eye, Download, FileSignature, FileJson, Banknote,
   CheckCircle2, XCircle, AlertTriangle, RotateCw, FilePlus2, UserSearch, FileText, Cloud, Mail,
-  Copy, Check, Send, IdCard, Link2,
+  Copy, Check, Send, IdCard, Link2, Clock3,
 } from 'lucide-react';
 
 interface EmailLogRow {
@@ -29,15 +29,25 @@ interface Details {
   director: { name: string | null; email: string };
   firm: string | null;
   sendMode?: string;
+  paymentMethod?: string;
+  gocardless?: { mandateId?: string; ddConfirmed?: boolean; success?: boolean; configured?: boolean; error?: string } | null;
   engagement: {
     status: string; sentAt: string | null; acceptedAt: string | null; expiresAt: string;
     services: Array<{ name: string; price: number; oneoff?: boolean }> | null;
     signatureName: string | null; signedAt: string | null; contactPreferences: string[];
   };
-  previousAccountant: { firmName: string | null; email: string | null; phone: string | null };
+  previousAccountant: {
+    firmName: string | null; email: string | null; phone: string | null;
+    address?: string | null; noPreviousAccountant?: boolean; missing?: string[];
+  };
+  uploadedDocs?: {
+    required: number;
+    receivedRequired: number;
+    items: Array<{ id: string; label: string; required: boolean; received: boolean; fileName: string | null; uploadedAt: string | null }>;
+  };
   directDebit: {
     accountName: string | null; accountNumber: string | null; sortCode: string | null; bankAddress: string | null;
-    gocardless: { configured?: boolean; success?: boolean; mandateId?: string; error?: string } | null;
+    gocardless: { configured?: boolean; success?: boolean; ddConfirmed?: boolean; mandateId?: string; error?: string } | null;
   } | null;
   documents: { director: Array<{ label: string; status: string }>; company: Array<{ label: string; status: string }> };
   stopClientChase?: boolean;
@@ -338,6 +348,7 @@ export default function ClientDetailPage() {
   const signed = d.engagement.status === 'accepted';
   const sendMode = d.sendMode ?? 'engagement';
   const isDetailsOnly = sendMode === 'details_only';
+  const isManualPayment = d.paymentMethod === 'manual';
   const hasPrev = Boolean(d.previousAccountant.firmName);
   const clearanceSent = (emailLog ?? []).some((e) => e.templateKey === 'prev_clearance_request' && e.success);
   const engagementSent = !isDetailsOnly && (emailLog ?? []).some((e) => (e.templateKey === 'client_engagement' || e.templateKey === 'client_proposal') && e.success);
@@ -373,7 +384,9 @@ export default function ClientDetailPage() {
   ];
   const monthly = (d.engagement.services ?? []).filter((s) => !s.oneoff);
   const oneoff = (d.engagement.services ?? []).filter((s) => s.oneoff);
-  const gc = d.directDebit?.gocardless;
+  // New records keep the mandate at the top level (no bank details are stored);
+  // older ones nested it under directDebit.
+  const gc = d.gocardless ?? d.directDebit?.gocardless;
 
   const docBadge = (status: string) =>
     status === 'ready' ? 'bg-green-50 text-green-700'
@@ -505,70 +518,82 @@ export default function ClientDetailPage() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Direct Debit / GoCardless */}
+        {/* Direct Debit — GoCardless mandate status.
+            The client sets the mandate up on GoCardless's own hosted page, so the
+            practice never receives or stores bank details. This card therefore
+            reports the MANDATE, not account numbers (older records captured
+            before that change still show their masked summary). */}
         <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
-          <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2"><Banknote size={16} className="text-purple-600" /> Direct Debit Mandate</h2>
-          <p className="text-xs text-gray-400 mb-4">Full details shown to staff only — use to retry if the client&apos;s input failed.</p>
-          {d.directDebit ? (
-            <>
-              <dl className="text-sm space-y-2">
-                <div className="flex justify-between"><dt className="text-gray-500">Account holder</dt><dd className="font-semibold text-gray-900">{d.directDebit.accountName ?? '—'}</dd></div>
-                <div className="flex justify-between"><dt className="text-gray-500">Account number</dt><dd className="font-mono font-semibold text-gray-900">{d.directDebit.accountNumber ?? '—'}</dd></div>
-                <div className="flex justify-between"><dt className="text-gray-500">Sort code</dt><dd className="font-mono font-semibold text-gray-900">{d.directDebit.sortCode ?? '—'}</dd></div>
-                {d.directDebit.bankAddress && <div className="flex justify-between"><dt className="text-gray-500">Address as per bank</dt><dd className="text-gray-900 text-right">{d.directDebit.bankAddress}</dd></div>}
-              </dl>
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                {gc?.success ? (
-                  <div className="rounded-xl border-2 border-green-200 bg-green-50 p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CheckCircle2 size={18} className="text-green-600" />
-                      <span className="text-sm font-bold text-green-800">GoCardless Active</span>
-                    </div>
-                    <p className="text-xs text-green-700">Direct Debit Mandate — <span className="font-mono font-semibold">{gc.mandateId}</span></p>
-                  </div>
-                ) : gc?.configured ? (
-                  <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <XCircle size={18} className="text-red-600" />
-                      <span className="text-sm font-bold text-red-800">GoCardless Failed</span>
-                    </div>
-                    <p className="text-xs text-red-700">{gc.error || 'Mandate setup did not complete — retry below.'}</p>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle size={18} className="text-amber-600" />
-                      <span className="text-sm font-bold text-amber-800">Not Configured</span>
-                    </div>
-                    <p className="text-xs text-amber-700">GoCardless token not set — bank details stored for manual setup or retry once configured.</p>
-                  </div>
-                )}
-                {!gc?.success && (
-                  <button onClick={retryGc} disabled={retrying}
-                    className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-white bg-gray-900 hover:bg-gray-700 disabled:opacity-50">
-                    {retrying ? <RefreshCw size={13} className="animate-spin" /> : <RotateCw size={13} />}
-                    Retry GoCardless Setup
-                  </button>
-                )}
-                {msg && <p className="text-xs mt-2 text-gray-700">{msg}</p>}
+          <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2"><Banknote size={16} className="text-purple-600" /> Direct Debit</h2>
+          <p className="text-xs text-gray-400 mb-4">Set up by the client on GoCardless — we never see or store bank details.</p>
+
+          {isManualPayment ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-sm font-semibold text-gray-700">Manual invoicing</p>
+              <p className="text-xs text-gray-500 mt-1">This engagement is invoiced manually — no Direct Debit is required.</p>
+            </div>
+          ) : gc?.mandateId || gc?.ddConfirmed || gc?.success ? (
+            <div className="rounded-xl border-2 border-green-200 bg-green-50 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle2 size={18} className="text-green-600" />
+                <span className="text-sm font-bold text-green-800">Mandate confirmed</span>
               </div>
-            </>
+              {gc?.mandateId && (
+                <p className="text-xs text-green-700">Mandate — <span className="font-mono font-semibold">{gc.mandateId}</span></p>
+              )}
+            </div>
+          ) : signed ? (
+            <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <XCircle size={18} className="text-red-600" />
+                <span className="text-sm font-bold text-red-800">Signed without a confirmed mandate</span>
+              </div>
+              <p className="text-xs text-red-700">{gc?.error || 'No mandate recorded — set one up before collecting fees.'}</p>
+            </div>
           ) : (
-            <p className="text-sm text-gray-500">No bank details yet — collected when the client signs.</p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock3 size={16} className="text-amber-600" />
+                <span className="text-sm font-bold text-amber-800">Not set up yet</span>
+              </div>
+              <p className="text-xs text-amber-700">The client sets this up on the engagement page. They cannot sign until it is confirmed.</p>
+            </div>
           )}
+
+          {/* Legacy records only: bank details captured before the hosted flow. */}
+          {d.directDebit?.accountNumber && (
+            <p className="text-xs text-gray-400 mt-3">
+              Legacy record — account ending {String(d.directDebit.accountNumber).slice(-4)}
+            </p>
+          )}
+          {msg && <p className="text-xs mt-2 text-gray-700">{msg}</p>}
         </div>
 
         {/* Previous accountant */}
         <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><UserSearch size={16} className="text-purple-600" /> Previous Accountant</h2>
-          {d.previousAccountant.firmName || d.previousAccountant.email ? (
-            <dl className="text-sm space-y-2">
-              <div className="flex justify-between"><dt className="text-gray-500">Firm</dt><dd className="font-semibold text-gray-900">{d.previousAccountant.firmName ?? '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Email</dt><dd className="text-gray-900">{d.previousAccountant.email ?? '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Phone</dt><dd className="text-gray-900">{d.previousAccountant.phone ?? '—'}</dd></div>
-            </dl>
+          {d.previousAccountant.noPreviousAccountant ? (
+            <p className="text-sm text-gray-500">Client confirmed they have no previous accountant — no clearance needed.</p>
+          ) : d.previousAccountant.firmName || d.previousAccountant.email ? (
+            <>
+              <dl className="text-sm space-y-2">
+                <div className="flex justify-between gap-4"><dt className="text-gray-500">Firm</dt><dd className="font-semibold text-gray-900 text-right">{d.previousAccountant.firmName ?? '—'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-gray-500">Email</dt><dd className="text-gray-900 text-right break-all">{d.previousAccountant.email ?? '—'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-gray-500">Phone</dt><dd className="text-gray-900 text-right">{d.previousAccountant.phone ?? '—'}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-gray-500">Address</dt><dd className="text-gray-900 text-right whitespace-pre-line">{d.previousAccountant.address ?? '—'}</dd></div>
+              </dl>
+              {/* Small, factual line so staff can see at a glance whether the
+                  clearance request can actually be sent. */}
+              {(d.previousAccountant.missing?.length ?? 0) > 0 ? (
+                <p className="text-[11px] text-amber-700 mt-3">
+                  Still outstanding: {d.previousAccountant.missing!.join(', ')}
+                </p>
+              ) : (
+                <p className="text-[11px] text-green-700 mt-3">All details received.</p>
+              )}
+            </>
           ) : (
-            <p className="text-sm text-gray-500">{signed ? 'Client confirmed they have no previous accountant.' : 'Collected when the client signs.'}</p>
+            <p className="text-sm text-gray-500">{signed ? 'Not provided.' : 'Collected when the client signs.'}</p>
           )}
           <Link href="/staff/clearance" className="inline-block mt-4 text-xs text-blue-600 hover:underline">Open clearance tracker →</Link>
         </div>
@@ -598,15 +623,32 @@ export default function ClientDetailPage() {
         {/* Director documents */}
         <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
           <h2 className="font-semibold text-gray-900 mb-4">Director ID Documents</h2>
-          {(d.documents.director ?? []).length === 0 ? (
-            <p className="text-sm text-gray-500">Statuses appear when the client signs.</p>
-          ) : (
+          {/* What was REQUESTED vs what has actually ARRIVED. The list used to show
+              only the client's intention at signing ("I'll send it later"), which
+              never changed even after they uploaded, so staff could not tell what
+              was genuinely outstanding. */}
+          {d.uploadedDocs && (
+            <p className={`text-xs mb-3 font-semibold ${
+              d.uploadedDocs.receivedRequired >= d.uploadedDocs.required ? 'text-green-700' : 'text-amber-700'
+            }`}>
+              {d.uploadedDocs.receivedRequired} of {d.uploadedDocs.required} required documents received
+              {d.uploadedDocs.receivedRequired < d.uploadedDocs.required
+                ? ` · ${d.uploadedDocs.required - d.uploadedDocs.receivedRequired} still needed`
+                : ' · complete'}
+            </p>
+          )}
+          {d.uploadedDocs && d.uploadedDocs.items.length > 0 ? (
             <div className="space-y-2">
-              {d.documents.director.map((doc, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-700">{doc.label}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${docBadge(doc.status)}`}>
-                    {doc.status === 'ready' ? 'Ready to upload' : doc.status === 'na' ? 'Via prev. accountant' : 'Chasing every 2 days'}
+              {d.uploadedDocs.items.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-gray-700">
+                    {doc.label}
+                    {doc.required && <span className="text-[10px] text-gray-400 ml-1">required</span>}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${
+                    doc.received ? 'bg-green-100 text-green-700' : doc.required ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {doc.received ? 'Received' : doc.required ? 'Outstanding' : 'Optional'}
                   </span>
                 </div>
               ))}
@@ -624,6 +666,10 @@ export default function ClientDetailPage() {
                 {d.stopClientChase && <p className="text-xs text-amber-700 mt-2">⏸ 2-day document reminders paused for this client.</p>}
               </div>
             </div>
+          ) : (
+            <p className="text-sm text-gray-500">
+              {signed ? 'No documents requested for this client.' : 'The document list appears once the client signs.'}
+            </p>
           )}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkById, updateOnboardingLink } from "@gns/db";
+import { getDb, getOnboardingLinkById, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { getFirm } from "@/lib/firms";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
@@ -20,7 +20,23 @@ export async function POST(
 
   try {
     const db = getDb();
-    const link = await db.transaction((tx) => getOnboardingLinkById(tx, params.id));
+
+    // The [id] segment is a TOKEN nearly everywhere in this API (the client
+    // profile, the engage page, the document portal all pass the token), but this
+    // route looked the link up by database id only. Passing a 64-char token to a
+    // uuid column throws, which surfaced as "Failed to resend link" whenever the
+    // button was pressed from a client's profile. Accept either.
+    const resolveLink = async () => {
+      const byToken = await db.transaction((tx) => getOnboardingLinkByToken(tx, params.id)).catch(() => null);
+      if (byToken) return byToken;
+      // Only try the id lookup when it actually looks like a uuid, so a token can
+      // never reach the uuid column and blow up the request.
+      const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.id);
+      if (!looksLikeUuid) return null;
+      return db.transaction((tx) => getOnboardingLinkById(tx, params.id)).catch(() => null);
+    };
+
+    const link = await resolveLink();
     if (!link) return NextResponse.json({ error: "Link not found" }, { status: 404 });
 
     if (link.status === "accepted") {
@@ -69,7 +85,7 @@ export async function POST(
     }
 
     await db.transaction((tx) =>
-      updateOnboardingLink(tx, params.id, { resendCount: resendCount.toString(), lastResentAt: new Date() })
+      updateOnboardingLink(tx, link.id, { resendCount: resendCount.toString(), lastResentAt: new Date() })
     );
 
     return NextResponse.json({
@@ -83,6 +99,12 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error resending link:", error);
-    return NextResponse.json({ error: "Failed to resend link" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Failed to resend link",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
+    );
   }
 }
