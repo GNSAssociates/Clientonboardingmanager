@@ -186,6 +186,56 @@ export function buildLetterHtml(d: LetterData): string {
   // have, so the block is omitted for them.
   const isCompanyClient = (d.clientType ?? 'limited') === 'limited' || (d.clientType ?? 'limited') === 'llp';
 
+  /**
+   * Statutory responsibilities for clients who are NOT a company or LLP.
+   *
+   * The Companies Act block above states directors' duties, s477 audit exemption
+   * and AGM obligations — none of which a landlord, sole trader, partnership or
+   * individual has. Rather than leave those clients with no statement of their
+   * duties at all, this sets out the ones that genuinely apply.
+   *
+   * Sourced from:
+   *  - ACCA / Joint Professional Bodies engagement letters: the taxpayer is
+   *    legally responsible for the return being correct and complete, for filing
+   *    by the due date and for paying on time.
+   *  - HMRC CH14550: "for the purposes of the record keeping requirement, 'trade'
+   *    includes the letting of property" — so a landlord keeps records for the
+   *    BUSINESS period (5 years after the 31 January deadline), NOT the 22 months
+   *    that applies to ordinary personal income. Getting this wrong understates
+   *    the client's obligation.
+   *  - HMRC Making Tax Digital for Income Tax: mandatory from April 2026 where
+   *    qualifying income (gross self-employment + property income, before
+   *    expenses) exceeds £50,000; £30,000 from April 2027; £20,000 from April 2028.
+   */
+  const recordsSubject =
+    (d.clientType ?? '') === 'btl' ? 'rental income and allowable expenses for each let property'
+    : (d.clientType ?? '') === 'sole_trader' ? 'business income and expenses'
+    : (d.clientType ?? '') === 'partnership' ? 'the partnership\'s income and expenses'
+    : 'income and expenses relevant to your tax return';
+
+  const partnershipExtra = (d.clientType ?? '') === 'partnership'
+    ? '<p>In addition to the partnership return, each partner remains personally responsible for including their share of the partnership profits on their own Self Assessment return and for paying the tax due on it.</p>'
+    : '';
+
+  const nonCompanyDuties = `
+  <h3>Your statutory responsibilities</h3>
+  <p>You are legally responsible for:</p>
+  <ul>
+    <li>ensuring that your Self Assessment tax return is correct and complete;</li>
+    <li>filing it by the due date — normally 31 January following the end of the tax year; and</li>
+    <li>paying the tax due on time.</li>
+  </ul>
+  <p>Failure to do so may result in automatic penalties, surcharges and interest. The taxpayer who signs the return cannot delegate this legal responsibility to anyone else, including us. You are therefore responsible for the accuracy of the information you provide to us, and for reviewing and approving the return before it is submitted on your behalf.</p>
+  <p>It is your responsibility to keep complete and accurate records of ${recordsSubject}, and to retain them for at least five years after the 31 January submission deadline for the tax year concerned. HMRC treats the letting of property as a trade for record-keeping purposes, so this longer retention period applies to rental records as well as to trading records.</p>
+  <p>You are also responsible for telling us about all sources of income, gains and reliefs that need to be reported. We can only prepare your return from the records and information you give us; where information is incomplete or provided late we may be unable to file by the deadline, and any resulting penalties or interest will remain your responsibility.</p>
+  <p>Where your qualifying income from self-employment and property exceeds the Making Tax Digital for Income Tax threshold, you are required to keep digital records and to submit quarterly updates to HMRC using compatible software. We will tell you if we believe this applies to you and can agree the additional work separately, but the obligation to comply rests with you.</p>
+  ${partnershipExtra}
+  <h3>Our service to you</h3>
+  <p>We will prepare your Self Assessment tax return, and the supporting schedules, from the books, records and information you provide. Our work is not an audit and we will not independently verify the accuracy or completeness of what you give us. Accordingly, our work will not provide any assurance that your records are free from misstatement, irregularity or error, and we cannot undertake to discover any such matters.</p>
+  <p>We will send the return to you for your approval before submitting it to HMRC. Nothing will be filed without your authority.</p>
+  `;
+
+
   // Staff-editable text blocks (/staff/templates) — intro paragraphs and the
   // "Agreement of terms" closing clauses. The caller resolves the DB override
   // (template-overrides.server.ts) and passes the raw text in; falls back to
@@ -590,7 +640,7 @@ export function buildLetterHtml(d: LetterData): string {
   <p>We will attach to the accounts a report developed by the Consultative Committee of Accountancy Bodies (CCAB) which explains what work has been done by us, the professional requirements we have to fulfil and the standard to which the work has been carried out. To ensure that anyone reading the accounts is aware that we have not carried out an audit, we will attach to the accounts a report stating this fact.</p>
   <p>The intended users of the report are the directors. The report will be addressed to the directors.</p>
   <p>Once we have issued our report we have no further direct responsibility in relation to the accounts for that financial year. However, we expect that you will inform us of any material event occurring between the date of our report and that of the annual general meeting that may affect the accounts.</p>
-  ` : ''}
+  ` : nonCompanyDuties}
   <h3>Limitation of liability</h3>
   <p>We specifically draw your attention to the limitation of liability paragraphs in our standard terms and conditions which set out the basis on which we limit our liability to you and to others. You should read this in conjunction with the limitation of third party rights paragraphs in our standard terms and conditions which exclude liability to third parties. These are important provisions which you should read and consider carefully.</p>
   <p>There are no third parties that we have agreed should be entitled to rely on the work done pursuant to this engagement letter.</p>
