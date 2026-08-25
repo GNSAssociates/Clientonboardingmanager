@@ -490,7 +490,10 @@ export function buildLetterHtml(d: LetterData): string {
       <tr><th>Fees</th><th style="width:110px;text-align:right">Annual Equivalent £</th><th style="width:92px;text-align:right">Fees Upfront £</th><th style="width:78px;text-align:right">Monthly £</th><th style="width:96px">Payment Mode</th></tr>
     </thead>
     <tbody>
-      <tr><td><strong>Recurring Fees Agreed (Monthly)</strong></td><td class="r">${gbp(totalAnnual)}</td><td class="r">${totalOneoff > 0 ? gbp(totalOneoff) : '—'}</td><td class="r"><strong>${gbp(totalMonthly)}</strong></td><td>${payModeLabel}</td></tr>
+      <!-- Section LABEL only. It used to repeat the very same annual/monthly
+           figures printed in the "Total Recurring Monthly Fees" row below, so the
+           table showed each total twice and read as though fees were doubled. -->
+      <tr><td colspan="5"><strong>Recurring Fees Agreed (Monthly)</strong></td></tr>
       ${monthlyRows}
       ${oneoffHeader}
       ${oneoffRows}

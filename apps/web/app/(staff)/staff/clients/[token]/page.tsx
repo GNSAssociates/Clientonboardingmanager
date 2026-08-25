@@ -33,7 +33,7 @@ interface Details {
   gocardless?: { mandateId?: string; ddConfirmed?: boolean; success?: boolean; configured?: boolean; error?: string } | null;
   engagement: {
     status: string; sentAt: string | null; acceptedAt: string | null; expiresAt: string;
-    services: Array<{ name: string; price: number; oneoff?: boolean }> | null;
+    services: Array<{ name: string; price: number; oneoff?: boolean; frequency?: string }> | null;
     signatureName: string | null; signedAt: string | null; contactPreferences: string[];
   };
   previousAccountant: {
@@ -382,8 +382,20 @@ export default function ClientDetailPage() {
         ? { label: 'Professional clearance', text: signed ? 'Sending…' : 'Pending', cls: PILL.amber }
         : { label: 'Professional clearance', text: 'Not required', cls: PILL.grey },
   ];
+  // A service's price is quoted at ITS OWN frequency: £600 "annually" is £50 a
+  // month, not £600 a month. Ignoring that made every annual line read as monthly
+  // and inflated the total twelve-fold (£900/mo instead of £75/mo).
+  const toMonthlyAmount = (price: number, frequency?: string) =>
+    frequency === 'annually' ? price / 12 : frequency === 'quarterly' ? price / 3 : price;
+  const toAnnualAmount = (price: number, frequency?: string) =>
+    frequency === 'annually' ? price : frequency === 'quarterly' ? price * 4 : price * 12;
+  const money = (n: number) =>
+    n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const monthly = (d.engagement.services ?? []).filter((s) => !s.oneoff);
   const oneoff = (d.engagement.services ?? []).filter((s) => s.oneoff);
+  const monthlyTotal = monthly.reduce((t, s) => t + toMonthlyAmount(s.price, s.frequency), 0);
+  const annualTotal = monthly.reduce((t, s) => t + toAnnualAmount(s.price, s.frequency), 0);
   // New records keep the mandate at the top level (no bank details are stored);
   // older ones nested it under directDebit.
   const gc = d.gocardless ?? d.directDebit?.gocardless;
@@ -608,13 +620,26 @@ export default function ClientDetailPage() {
           ) : (
             <div className="space-y-1.5 text-sm">
               {monthly.map((s, i) => (
-                <div key={`m${i}`} className="flex justify-between"><span className="text-gray-700">{s.name}</span><span className="font-semibold">£{s.price}/mo</span></div>
+                <div key={`m${i}`} className="flex justify-between gap-3">
+                  <span className="text-gray-700">{s.name}</span>
+                  <span className="font-semibold whitespace-nowrap">
+                    £{money(s.price)}
+                    <span className="text-xs font-normal text-gray-400">
+                      {s.frequency === 'annually' ? '/yr' : s.frequency === 'quarterly' ? '/qtr' : '/mo'}
+                    </span>
+                  </span>
+                </div>
               ))}
               {oneoff.map((s, i) => (
-                <div key={`o${i}`} className="flex justify-between"><span className="text-gray-700">{s.name} <span className="text-xs text-gray-400">(one-off)</span></span><span className="font-semibold">£{s.price}</span></div>
+                <div key={`o${i}`} className="flex justify-between gap-3"><span className="text-gray-700">{s.name} <span className="text-xs text-gray-400">(one-off)</span></span><span className="font-semibold whitespace-nowrap">£{money(s.price)}</span></div>
               ))}
-              <div className="flex justify-between border-t border-gray-100 pt-2 mt-2 font-bold">
-                <span>Monthly total</span><span>£{monthly.reduce((t, s) => t + s.price, 0)}/mo</span>
+              <div className="border-t border-gray-100 pt-2 mt-2 space-y-1">
+                <div className="flex justify-between font-bold">
+                  <span>Monthly total</span><span>£{money(monthlyTotal)}/mo</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Annual equivalent</span><span>£{money(annualTotal)}/yr</span>
+                </div>
               </div>
             </div>
           )}
