@@ -6,7 +6,7 @@ import KycPanel from './_kyc';
 import {
   RefreshCw, ChevronLeft, Eye, Download, FileSignature, FileJson, Banknote,
   CheckCircle2, XCircle, AlertTriangle, RotateCw, FilePlus2, UserSearch, FileText, Cloud, Mail,
-  Copy, Check, Send, IdCard, Link2, Clock3,
+  Copy, Check, Send, IdCard, Link2, Clock3, FileSpreadsheet, FileDown,
 } from 'lucide-react';
 
 interface EmailLogRow {
@@ -25,7 +25,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
 };
 
 interface Details {
-  company: { name: string | null; number: string | null };
+  company: { name: string | null; number: string | null; address?: string | null; clientType?: string | null };
   director: { name: string | null; email: string };
   firm: string | null;
   sendMode?: string;
@@ -443,14 +443,31 @@ export default function ClientDetailPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Link
-              href={`/onboarding/services?firm=${d.firm ?? 'gns'}&companyNumber=${encodeURIComponent(d.company.number ?? '')}&directorEmail=${encodeURIComponent(d.director.email)}`}
+              // Carry the client's details through so a repeat engagement starts
+              // pre-filled up to the fees step, instead of being re-keyed.
+              href={`/onboarding/services?firm=${d.firm ?? 'gns'}&companyNumber=${encodeURIComponent(d.company.number ?? '')}&directorEmail=${encodeURIComponent(d.director.email)}&clientName=${encodeURIComponent(d.company.name ?? '')}&businessAddress=${encodeURIComponent(d.company.address ?? '')}&clientType=${encodeURIComponent(d.company.clientType ?? '')}`}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:border-gray-500"
             >
               <FilePlus2 size={13} /> New Engagement
             </Link>
+            {/* Client summary in the three formats the practice actually uses.
+                CSV opens straight in Excel; the JSON export beside it remains the
+                full record. */}
+            <a href={`/api/onboarding/links/${token}/summary?format=csv`}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-green-300 text-green-700 hover:border-green-500 hover:bg-green-50">
+              <FileSpreadsheet size={13} /> Excel
+            </a>
+            <a href={`/api/onboarding/links/${token}/summary?format=docx`}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-blue-300 text-blue-700 hover:border-blue-500 hover:bg-blue-50">
+              <FileText size={13} /> Word
+            </a>
+            <a href={`/api/onboarding/links/${token}/summary?format=pdf`}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-red-300 text-red-700 hover:border-red-500 hover:bg-red-50">
+              <FileDown size={13} /> PDF
+            </a>
             <a href={`/api/onboarding/links/${token}/details?download=1`}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:border-gray-500">
-              <FileJson size={13} /> Export Details
+              <FileJson size={13} /> Full record (JSON)
             </a>
             <a href={`/api/onboarding/links/${token}/onedrive`} target="_blank" rel="noreferrer"
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-sky-300 text-sky-700 hover:border-sky-500 hover:bg-sky-50">

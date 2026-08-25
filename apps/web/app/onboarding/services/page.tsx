@@ -203,8 +203,11 @@ function ServicesPageInner() {
   const [prices, setPrices] = useState<Record<string, number>>(
     Object.fromEntries([...SERVICES, ...ALL_ONEOFF].map((s) => [s.id, s.basePrice]))
   );
-  const [companyNumber, setCompanyNumber] = useState('');
-  const [directorEmail, setDirectorEmail] = useState('');
+  // Prefilled from a client profile's "New Engagement" link. These params were
+  // already being passed but were ignored here, so a repeat engagement for an
+  // existing client had to be re-keyed from scratch.
+  const [companyNumber, setCompanyNumber] = useState(searchParams.get('companyNumber') || '');
+  const [directorEmail, setDirectorEmail] = useState(searchParams.get('directorEmail') || '');
   const [loading, setLoading] = useState(false);
   const [oneoffExpanded, setOneoffExpanded] = useState(false);
 
@@ -243,15 +246,15 @@ function ServicesPageInner() {
   const [utr, setUtr] = useState('');
 
   // Client type
-  const [clientType, setClientType] = useState('limited');
+  const [clientType, setClientType] = useState(searchParams.get('clientType') || 'limited');
 
   // Contract Scope-of-Services rows — edited inline within each service card
   const [scopeRows, setScopeRows] = useState<ScopeRow[]>(DEFAULT_SCOPE_ROWS.map((r) => ({ ...r })));
 
   // Client / business name (for all types — auto-filled from CH for companies)
-  const [clientName, setClientName] = useState('');
+  const [clientName, setClientName] = useState(searchParams.get('clientName') || '');
   // Registered business address (for all types — auto-filled from CH for companies)
-  const [businessAddress, setBusinessAddress] = useState('');
+  const [businessAddress, setBusinessAddress] = useState(searchParams.get('businessAddress') || '');
 
   // Companies House live lookup state
   const [chLoading, setChLoading] = useState(false);

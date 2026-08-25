@@ -36,6 +36,9 @@ export async function GET(
     company: {
       name: link.companyName,
       number: link.companyNumber,
+      // Needed so a repeat engagement can be pre-filled rather than re-keyed.
+      address: (lm.clientAddress as string) ?? null,
+      clientType: (lm.clientType as string) ?? null,
     },
     director: {
       name: link.directorName,
