@@ -506,7 +506,19 @@ export default function ClientDetailPage() {
             </>
           )}
         </div>
-        {!signed && <p className="text-xs text-gray-400 mt-3">The signed copy with the audit report appears here as soon as the client signs.</p>}
+        {!signed && (
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
+            {/* Rebuilds the letter from the CURRENT template. The letter HTML is
+                stored when the link is created, so a template fix does not reach an
+                engagement that was already sent until it is rebuilt. Hidden once
+                signed: the executed contract must never be regenerated. */}
+            <a href={`/api/onboarding/links/${token}/letter?refresh=1`} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-amber-300 text-amber-700 hover:border-amber-500 hover:bg-amber-50">
+              <RotateCw size={13} /> Rebuild from latest template
+            </a>
+            <p className="text-xs text-gray-400">The signed copy with the audit report appears here as soon as the client signs.</p>
+          </div>
+        )}
       </div>
 
       {/* Client links + follow-up actions */}

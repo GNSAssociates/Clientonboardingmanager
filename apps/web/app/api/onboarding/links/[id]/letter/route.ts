@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkByToken } from "@gns/db";
+import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { getFirm } from "@/lib/firms";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
@@ -26,6 +26,15 @@ export async function GET(
   if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const wantSigned = req.nextUrl.searchParams.get("signed") === "1";
+  // Rebuild the letter from the CURRENT template instead of serving the copy
+  // stored when the link was created. Needed because a fix to the letter template
+  // otherwise only reaches letters created afterwards — an engagement already sent
+  // keeps rendering the old markup forever.
+  //
+  // NEVER applies to a signed letter: signedHtml is the executed contract and the
+  // document the audit certificate hashes, so regenerating it would invalidate the
+  // signature record.
+  const wantRefresh = req.nextUrl.searchParams.get("refresh") === "1";
   const download = req.nextUrl.searchParams.get("download") === "1";
   const wantPdf = req.nextUrl.searchParams.get("pdf") === "1";
   const wantDocx = req.nextUrl.searchParams.get("docx") === "1";
@@ -40,7 +49,7 @@ export async function GET(
   const baseName = `${wantSigned ? "SIGNED - " : ""}Engagement Letter - ${(link.companyName ?? "client").replace(/[\\/:*?"<>|]/g, "-")}`;
 
   // Resolve the letter HTML: stored signed copy, stored letter, or freshly built.
-  let html: string | null = wantSigned ? (link.signedHtml ?? null) : (link.letterHtml ?? null);
+  let html: string | null = wantSigned ? (link.signedHtml ?? null) : (wantRefresh ? null : (link.letterHtml ?? null));
   if (wantSigned && !html) return NextResponse.json({ error: "Not signed yet" }, { status: 404 });
   if (!html) {
     const overrides = await loadEngagementLetterOverrides(firm.slug);
