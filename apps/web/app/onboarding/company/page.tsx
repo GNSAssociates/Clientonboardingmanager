@@ -47,7 +47,69 @@ function CompanyPageInner() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
-  const [step, setStep] = useState<'input' | 'manual' | 'preview'>('input');
+  // Only limited companies and LLPs are registered at Companies House. A sole
+  // trader, a buy-to-let landlord, an individual on Self Assessment or a general
+  // partnership has NO company number, so demanding one (and running a CH lookup)
+  // was asking for something that does not exist — the step simply could not be
+  // completed for those clients.
+  const NON_CH_TYPES = new Set(['btl', 'sole_trader', 'individual', 'partnership']);
+  const clientType = searchParams.get('clientType') || 'limited';
+  const needsCH = !NON_CH_TYPES.has(clientType);
+
+  // Wording follows the client type, so the form reads correctly for a person as
+  // well as for a company.
+  const L = needsCH
+    ? {
+        title: 'Verify Company',
+        subtitle: 'Enter the company number to look up details from Companies House.',
+        manualTitle: 'Enter Company Details',
+        manualSubtitle: 'Fill in the company details manually to continue.',
+        nameLabel: 'Company Name',
+        namePlaceholder: 'e.g., Acme Ltd',
+        addressLabel: 'Registered Address',
+        personLabel: 'Director Full Name',
+        emailLabel: 'Director Email Address',
+      }
+    : clientType === 'partnership'
+      ? {
+          title: 'Partnership Details',
+          subtitle: 'A partnership is not registered at Companies House, so enter the details directly.',
+          manualTitle: 'Partnership Details',
+          manualSubtitle: 'A partnership is not registered at Companies House, so enter the details directly.',
+          nameLabel: 'Partnership Name',
+          namePlaceholder: 'e.g., Smith & Jones',
+          addressLabel: 'Business Address',
+          personLabel: 'Partner Full Name',
+          emailLabel: 'Partner Email Address',
+        }
+      : clientType === 'sole_trader'
+        ? {
+            title: 'Sole Trader Details',
+            subtitle: 'A sole trader is not registered at Companies House, so enter the details directly.',
+            manualTitle: 'Sole Trader Details',
+            manualSubtitle: 'A sole trader is not registered at Companies House, so enter the details directly.',
+            nameLabel: 'Trading Name (or your own name)',
+            namePlaceholder: 'e.g., J Smith Plumbing',
+            addressLabel: 'Business Address',
+            personLabel: 'Full Name',
+            emailLabel: 'Email Address',
+          }
+        : {
+            title: 'Client Details',
+            subtitle: 'An individual is not registered at Companies House, so enter the details directly.',
+            manualTitle: 'Client Details',
+            manualSubtitle: 'An individual is not registered at Companies House, so enter the details directly.',
+            nameLabel: 'Full Name',
+            namePlaceholder: 'e.g., John Smith',
+            addressLabel: 'Home Address',
+            personLabel: 'Full Name',
+            emailLabel: 'Email Address',
+          };
+
+  // Non-CH clients skip the lookup entirely and go straight to entering details.
+  const [step, setStep] = useState<'input' | 'manual' | 'preview'>(
+    NON_CH_TYPES.has(clientType) ? 'manual' : 'input',
+  );
   const [companyNumber, setCompanyNumber] = useState(companyNumberParam);
   const [directorEmail, setDirectorEmail] = useState(directorEmailParam);
   const [selectedDirector, setSelectedDirector] = useState('');
@@ -416,7 +478,7 @@ function CompanyPageInner() {
         </div>
 
         {/* ── STEP: CH LOOKUP ── */}
-        {step === 'input' && (
+        {step === 'input' && needsCH && (
           <>
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Verify Company</h1>
@@ -548,38 +610,41 @@ function CompanyPageInner() {
         {step === 'manual' && (
           <>
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Enter Company Details</h1>
-              <p className="text-gray-600">Fill in the company details manually to continue.</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{L.manualTitle}</h1>
+              <p className="text-gray-600">{L.manualSubtitle}</p>
             </div>
 
             <form onSubmit={handleManualSubmit} className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Number *</label>
-                <input
-                  type="text"
-                  value={companyNumber}
-                  onChange={(e) => setCompanyNumber(e.target.value.replace(/\s/g, '').toUpperCase())}
-                  placeholder="e.g., 04863765"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
-                  maxLength={10}
-                  required
-                />
-              </div>
+              {/* Only shown where a company number can actually exist. */}
+              {needsCH && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Number *</label>
+                  <input
+                    type="text"
+                    value={companyNumber}
+                    onChange={(e) => setCompanyNumber(e.target.value.replace(/\s/g, '').toUpperCase())}
+                    placeholder="e.g., 04863765"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                    maxLength={10}
+                    required
+                  />
+                </div>
+              )}
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Name *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{L.nameLabel} *</label>
                 <input
                   type="text"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
-                  placeholder="e.g., Acme Ltd"
+                  placeholder={L.namePlaceholder}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Registered Address *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{L.addressLabel} *</label>
                 <input
                   type="text"
                   value={manualAddress}
@@ -591,7 +656,7 @@ function CompanyPageInner() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Director Full Name *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{L.personLabel} *</label>
                 <input
                   type="text"
                   value={manualDirector}
@@ -603,7 +668,7 @@ function CompanyPageInner() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Director Email Address *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{L.emailLabel} *</label>
                 <input
                   type="email"
                   value={directorEmail}
@@ -661,10 +726,18 @@ function CompanyPageInner() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500 text-xs uppercase tracking-wide">Company Number</p>
-                    <p className="font-semibold text-gray-900 font-mono mt-0.5">{company.number}</p>
-                  </div>
+                  {/* A sole trader / individual has no company number — do not show an empty tile. */}
+                  {company.number ? (
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wide">Company Number</p>
+                      <p className="font-semibold text-gray-900 font-mono mt-0.5">{company.number}</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wide">Client Type</p>
+                      <p className="font-semibold text-gray-900 capitalize mt-0.5">{clientType.replace(/_/g, " ")}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-gray-500 text-xs uppercase tracking-wide">Status</p>
                     <p className="font-semibold text-green-700 capitalize mt-0.5">{company.status}</p>
