@@ -122,6 +122,37 @@ async function gcPost(token: string, path: string, resource: string, body: Recor
     body: JSON.stringify({ [resource]: body }),
   });
   const json = await res.json().catch(() => ({})) as Record<string, unknown>;
+
+  /* A 409 IS NOT A FAILURE — it is idempotency working.
+   *
+   * The keys here are derived from the onboarding token, which is the point:
+   * the same client must not end up with two mandates. But that meant the
+   * SECOND attempt — a client who closed the GoCardless page and came back, or
+   * simply clicked twice — was shown
+   *   "billing_requests 409: A resource has already been created with this
+   *    idempotency key"
+   * and could go no further. The resource they needed already existed; we were
+   * just refusing to hand it to them.
+   *
+   * GoCardless returns the existing resource's id on the conflict, so fetch it
+   * and carry on exactly as if we had created it.
+   */
+  if (res.status === 409) {
+    const conflict = (json as {
+      error?: { links?: { conflicting_resource_id?: string } };
+    }).error?.links?.conflicting_resource_id;
+    if (conflict) {
+      const existing = await fetch(`${apiBase()}${path}/${conflict}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'GoCardless-Version': '2015-07-06',
+        },
+      });
+      const got = await existing.json().catch(() => ({})) as Record<string, Record<string, unknown>>;
+      if (existing.ok && got[resource]) return got[resource];
+    }
+  }
+
   if (!res.ok) {
     const err = (json as { error?: { message?: string } }).error;
     throw new Error(`GoCardless ${path} ${res.status}: ${err?.message ?? JSON.stringify(json).slice(0, 200)}`);
@@ -233,7 +264,11 @@ export async function createDirectDebitBillingRequest(opts: {
         company_name: opts.companyName || undefined,
       },
       links: { billing_request: br.id },
-    }, `brf-${opts.token}`);
+      // Unique per attempt, on purpose. The billing REQUEST is reused so the
+      // client never ends up with two mandates, but a billing request FLOW is
+      // single-use and expires — reusing its key handed a returning client a
+      // dead authorisation link.
+    }, `brf-${opts.token}-${Date.now().toString(36)}`);
 
     return {
       configured: true,

@@ -413,13 +413,20 @@ export default function EngagementPage() {
   // clicked with something missing, scroll the client to the first thing
   // that needs their attention and focus it, rather than leaving them
   // guessing why a greyed-out button won't respond.
+  /* ONE definition of "what is still required", so the button, the jump link
+     and the progress bar can never disagree with each other about whether the
+     form is finished. Each carries a label, because "1 required field
+     remaining" is only useful if the client can see WHICH one. */
+  const requirements: Array<{ ok: boolean; selector: string; label: string }> = [];
+  if (mode !== 'proposal_only') requirements.push({ ok: Boolean(prevOk), selector: '[data-field="prevAccountant"]', label: 'Previous accountant details' });
+  if (mode === 'engagement' && !isManualPayment) requirements.push({ ok: ddValid, selector: '[data-field="directDebit"]', label: 'Direct Debit' });
+  requirements.push({ ok: authorised, selector: '[data-field="authorised"]', label: 'Authorisation tick box' });
+  requirements.push({ ok: esignConsent, selector: '[data-field="esignConsent"]', label: 'Consent to sign electronically' });
+  requirements.push({ ok: signatureName.trim().length > 1, selector: '[data-field="signatureName"]', label: 'Your signature' });
+  const outstanding = requirements.filter((r) => !r.ok);
+
   const focusFirstError = () => {
-    const checks: Array<{ ok: boolean; selector: string }> = [];
-    if (mode !== 'proposal_only') checks.push({ ok: Boolean(prevOk), selector: '[data-field="prevAccountant"]' });
-    if (mode === 'engagement' && !isManualPayment) checks.push({ ok: ddValid, selector: '[data-field="directDebit"]' });
-    checks.push({ ok: authorised, selector: '[data-field="authorised"]' });
-    checks.push({ ok: esignConsent, selector: '[data-field="esignConsent"]' });
-    checks.push({ ok: signatureName.trim().length > 1, selector: '[data-field="signatureName"]' });
+    const checks = requirements;
     const firstBad = checks.find((c) => !c.ok);
     if (!firstBad) return;
     const el = document.querySelector(firstBad.selector) as HTMLElement | null;
@@ -732,6 +739,24 @@ export default function EngagementPage() {
               Read the engagement letter below, fill in the short form, then set up your Direct Debit.
               <strong> The Direct Debit must be confirmed before the signature box will unlock</strong> — it takes about two minutes and you&apos;ll be brought straight back here.
             </p>
+            {/* The letter is long, and the things that still need doing are all
+                below it. Rather than make the client scroll and guess, send them
+                to the first incomplete field — the same jump the Submit button
+                uses when something is missing. */}
+            <button
+              type="button"
+              onClick={() => {
+                // If everything is already filled in, the client wants the
+                // signature itself, not a field — so fall through to it.
+                const el = document.querySelector('[data-field="signatureName"]') as HTMLElement | null;
+                focusFirstError();
+                if (canSubmit && el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700"
+            >
+              Skip to the details and signing area
+              <ChevronRight size={15} />
+            </button>
           </div>
         )}
         {mode === 'engagement' && !isManualPayment && ddConfirmed && (
@@ -773,9 +798,25 @@ export default function EngagementPage() {
             {/* Previous Accountant */}
             <div data-field="prevAccountant" className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Previous Accountant Details</h2>
-              <p className="text-sm text-gray-500 mb-5">We need these details to request professional clearance and your records on your behalf.</p>
+              <p className="text-sm text-gray-500 mb-3">We need these details to request professional clearance and your records on your behalf.</p>
 
-              <label className="flex items-center gap-3 mb-5 cursor-pointer">
+              {/* State the rule plainly and BEFORE the fields. A client who has
+                  no previous accountant otherwise sits on four required fields
+                  they cannot fill and has no idea why the signature stays
+                  locked — which is exactly how a signing gets abandoned. */}
+              {!prevOk && (
+                <p className="flex items-start gap-2 mb-4 text-[13px] leading-snug text-red-700">
+                  <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+                  <span>
+                    The engagement <strong>cannot be signed until</strong> these details are complete.
+                    If you have never had an accountant, tick the box below instead.
+                  </span>
+                </p>
+              )}
+
+              <label className={`flex items-center gap-3 mb-5 cursor-pointer rounded-lg border p-3 transition-colors ${
+                noPrevAccountant ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
+              }`}>
                 <input type="checkbox" checked={noPrevAccountant} onChange={(e) => setNoPrevAccountant(e.target.checked)} className="w-4 h-4 rounded text-purple-600" />
                 <span className="text-sm text-gray-700">I do not have a previous accountant / this is a new business</span>
               </label>
@@ -803,9 +844,16 @@ export default function EngagementPage() {
                       placeholder={'Building & Street\nTown / City\nPostcode'}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                    Once you sign, we will automatically contact your previous accountant requesting professional clearance and the handover of your accounting records.
-                  </div>
+                  {/* Red, small, and specific. This is a consequence the client
+                      should notice before signing, and a blue "info" panel reads
+                      as decoration people skim past. */}
+                  <p className="flex items-start gap-2 text-[13px] leading-snug text-red-700">
+                    <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+                    <span>
+                      On signing we will contact this firm directly to request professional clearance
+                      and the handover of your records.
+                    </span>
+                  </p>
                 </div>
               )}
             </div>
@@ -1030,25 +1078,67 @@ export default function EngagementPage() {
                 </div>
               </label>
 
+              {/* Shown as an EXECUTED signature — the name in script above a rule,
+                  with the attribution beneath it — so the client can see what
+                  they are actually putting their name to, in the form it will
+                  appear on the letter. A plain text box does not read as
+                  signing anything. */}
               <div className="bg-white rounded-xl p-5 border border-purple-200">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Sign here to confirm you have read this contract to the last page and you are happy to proceed *
-                </label>
+                <div className="flex items-baseline justify-between mb-1 gap-3 flex-wrap">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Sign here to confirm you have read this contract to the last page and you are happy to proceed *
+                  </label>
+                  {signatureName.trim().length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSignatureName('')}
+                      className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline underline-offset-2"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
                 <input
                   data-field="signatureName"
                   type="text"
                   value={signatureName}
                   onChange={(e) => setSignatureName(e.target.value)}
                   placeholder="Type your full legal name"
-                  className="w-full px-4 py-3 border-b-2 border-gray-400 focus:border-purple-600 focus:outline-none text-2xl text-gray-900 bg-transparent"
-                  style={{ fontFamily: '"Segoe Script", "Brush Script MT", cursive' }}
+                  aria-label="Type your full legal name to sign"
+                  className="w-full px-1 py-2 border-0 border-b-2 border-gray-400 focus:border-purple-600 focus:outline-none text-3xl text-gray-900 bg-transparent leading-tight"
+                  style={{ fontFamily: '"Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive' }}
                   required
                 />
+
+                <p className="text-[11px] text-purple-700 mt-1.5">
+                  {signatureName.trim().length > 1
+                    ? `${signatureName.trim()} (${today})`
+                    : 'Your signature will appear here'}
+                </p>
                 <p className="text-xs text-gray-500 mt-2">
                   Signed on behalf of <strong>{link.companyName}</strong> · {today}
                 </p>
               </div>
             </div>
+
+            {/* What is still outstanding, and one tap to get to it. Without this
+                a client faced with a locked Submit has to hunt the page for the
+                thing they missed — which is where signings get abandoned. */}
+            {outstanding.length > 0 && (
+              <button
+                type="button"
+                onClick={focusFirstError}
+                className="w-full flex items-center justify-between gap-3 rounded-xl px-5 py-3.5 text-white font-semibold shadow-md hover:shadow-lg transition-shadow"
+                style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
+              >
+                <span className="text-left">
+                  {outstanding.length} required field{outstanding.length === 1 ? '' : 's'} remaining
+                  <span className="block text-xs font-normal opacity-90">Next: {outstanding[0]?.label}</span>
+                </span>
+                <ChevronRight size={20} className="flex-shrink-0" />
+              </button>
+            )}
 
             {error && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
