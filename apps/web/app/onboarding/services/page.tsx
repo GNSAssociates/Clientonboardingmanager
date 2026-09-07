@@ -136,6 +136,14 @@ const SERVICES = [
 // "Companies House fee (no VAT)" box alongside the GNS fee in the builder.
 const CH_FEE_SERVICES = new Set(['confirmation_statement']);
 
+/* The statutory fee Companies House actually charges, per service. This box
+ * used to start empty, so unless someone remembered to type the figure the
+ * letter quoted our £50 and quietly left the client's £34 out — the quote was
+ * short by the exact amount Companies House takes. It is pre-filled now, and
+ * still editable, because the fee is a published rate that changes (£13 → £34
+ * on 1 May 2024) rather than something to be typed from memory each time. */
+const CH_STATUTORY_FEE: Record<string, number> = { confirmation_statement: 34 };
+
 // One-off / ad-hoc services (Annex A — Schedule of Service Charges).
 // Prices are the total client-facing fee (inc. VAT where applicable).
 const ONEOFF_GROUPS: { group: string; items: { id: string; name: string; basePrice: number; note?: string }[] }[] = [
@@ -442,9 +450,17 @@ function ServicesPageInner() {
     setScopeRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
 
   const toggleService = (id: string) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-    );
+    setSelected((prev) => {
+      if (prev.includes(id)) return prev.filter((s) => s !== id);
+      // Selecting a service that carries a Companies House fee brings that fee
+      // with it. Staff can still set it to zero — but they now have to MEAN it,
+      // rather than lose it by not noticing the box.
+      const statutory = CH_STATUTORY_FEE[id];
+      if (statutory !== undefined) {
+        setChFees((f) => (f[id] === undefined ? { ...f, [id]: statutory } : f));
+      }
+      return [...prev, id];
+    });
   };
 
   const toggleOneoff = (id: string) => {
@@ -976,19 +992,76 @@ function ServicesPageInner() {
                       <option value="annually">Annually</option>
                     </select>
                   </div>
-                  {CH_FEE_SERVICES.has(service.id) && (
-                    <div className="flex items-center gap-2 flex-wrap border-t border-purple-100 pt-3">
-                      <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wide w-full">ANNUAL Companies House fee (no VAT) — separate disbursement</span>
-                      <input
-                        type="number"
-                        value={chFees[service.id] || ''}
-                        onChange={(e) => setChFees((prev) => ({ ...prev, [service.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
-                        className="w-24 px-3 py-2 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        min="0" placeholder="0"
-                      />
-                      <span className="text-xs text-gray-500">Annual Confirmation Statement Fees Payable to Companies House once in a year-This will be a non vat recharge</span>
-                    </div>
-                  )}
+                  {CH_FEE_SERVICES.has(service.id) && (() => {
+                    /* Two ways to quote this, stated outright rather than left
+                       to whether anyone filled in a box. The Companies House
+                       fee is a disbursement: it is paid to CH on the client's
+                       behalf and carries NO VAT, so it is never inside our fee
+                       and never inside the 20%. */
+                    const chFee = chFees[service.id] ?? 0;
+                    const statutory = CH_STATUTORY_FEE[service.id] ?? 0;
+                    const gnsAnnual = toAnnual(effPrice(service.id), frequencies[service.id] || 'monthly');
+                    const vat = gnsAnnual * 0.2;
+                    return (
+                      <div className="border-t border-purple-100 pt-3 space-y-2">
+                        <span className="block text-[10px] font-semibold text-purple-600 uppercase tracking-wide">
+                          Companies House fee — how is this quoted?
+                        </span>
+
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`chmode-${service.id}`}
+                            checked={chFee > 0}
+                            onChange={() => setChFees((prev) => ({ ...prev, [service.id]: statutory || 34 }))}
+                            className="mt-1 w-3.5 h-3.5 text-purple-600"
+                          />
+                          <span className="text-xs text-gray-700">
+                            <strong>Our fee + the Companies House fee</strong> — we file it and recharge the CH fee at cost.
+                            Shown on the letter as a separate non-VAT disbursement.
+                          </span>
+                        </label>
+
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`chmode-${service.id}`}
+                            checked={chFee === 0}
+                            onChange={() => setChFees((prev) => ({ ...prev, [service.id]: 0 }))}
+                            className="mt-1 w-3.5 h-3.5 text-purple-600"
+                          />
+                          <span className="text-xs text-gray-700">
+                            <strong>Our fee only</strong> — the client pays Companies House directly.
+                          </span>
+                        </label>
+
+                        {chFee > 0 && (
+                          <div className="flex items-center gap-2 flex-wrap pl-6">
+                            <span className="text-[11px] font-semibold text-gray-600">CH fee £/year</span>
+                            <input
+                              type="number"
+                              value={chFees[service.id] || ''}
+                              onChange={(e) => setChFees((prev) => ({ ...prev, [service.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                              className="w-24 px-3 py-2 border border-purple-300 rounded text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              min="0" placeholder="34"
+                            />
+                            <span className="text-xs text-gray-500">
+                              Payable to Companies House once a year — non-VAT recharge.
+                            </span>
+                          </div>
+                        )}
+
+                        {/* The whole year, spelled out, so nobody has to trust
+                            that the pieces added up somewhere else. */}
+                        <p className="text-[11px] text-gray-600 bg-purple-50 rounded px-3 py-2">
+                          Client pays per year: our fee £{gnsAnnual.toFixed(2)} + VAT £{vat.toFixed(2)}
+                          {chFee > 0 ? <> + Companies House £{chFee.toFixed(2)} (no VAT)</> : null}
+                          {' = '}
+                          <strong>£{(gnsAnnual + vat + chFee).toFixed(2)}</strong>
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={includeInLetter[service.id] !== false}
                       onChange={(e) => setIncludeInLetter((prev) => ({ ...prev, [service.id]: e.target.checked }))}
