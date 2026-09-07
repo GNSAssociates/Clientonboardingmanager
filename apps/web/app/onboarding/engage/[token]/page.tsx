@@ -586,7 +586,9 @@ export default function EngagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-200 py-10 px-4">
+    // pb-40 leaves room for the fixed progress bar, so it can never sit on top
+    // of the Sign button or the last field.
+    <div className="min-h-screen bg-gray-200 pt-10 pb-40 px-4">
       <div className={`${mode === 'details_only' ? 'max-w-xl' : 'max-w-4xl'} mx-auto space-y-6`}>
 
         {/* Expiry banners */}
@@ -611,7 +613,7 @@ export default function EngagementPage() {
 
         {/* ═══════ MODE: DETAILS ONLY — short form, no contract ═══════ */}
         {mode === 'details_only' ? (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="engage-form" onSubmit={handleSubmit} className="space-y-6">
             <div data-field="prevAccountant" className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200 shadow-sm">
               <h1 className="text-xl font-bold text-gray-900 mb-1">Previous Accountant Details</h1>
               <p className="text-sm text-gray-500 mb-6">
@@ -781,7 +783,7 @@ export default function EngagementPage() {
 
         {/* ═══════ ACCEPTANCE / SIGNING ═══════ */}
         {!isExpired && (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="engage-form" onSubmit={handleSubmit} className="space-y-6">
 
             {mode === 'proposal_only' && (
               <div className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
@@ -1122,23 +1124,11 @@ export default function EngagementPage() {
               </div>
             </div>
 
-            {/* What is still outstanding, and one tap to get to it. Without this
-                a client faced with a locked Submit has to hunt the page for the
-                thing they missed — which is where signings get abandoned. */}
-            {outstanding.length > 0 && (
-              <button
-                type="button"
-                onClick={focusFirstError}
-                className="w-full flex items-center justify-between gap-3 rounded-xl px-5 py-3.5 text-white font-semibold shadow-md hover:shadow-lg transition-shadow"
-                style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
-              >
-                <span className="text-left">
-                  {outstanding.length} required field{outstanding.length === 1 ? '' : 's'} remaining
-                  <span className="block text-xs font-normal opacity-90">Next: {outstanding[0]?.label}</span>
-                </span>
-                <ChevronRight size={20} className="flex-shrink-0" />
-              </button>
-            )}
+            {/* "What is still outstanding" used to live here, in the flow of the
+                page — which meant the client only saw it once they had already
+                scrolled past everything. It is now the fixed bar pinned to the
+                bottom of the screen (see <StickyProgressBar/> at the end of this
+                file), so it is on screen the whole way down the letter. */}
 
             {error && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
@@ -1169,6 +1159,72 @@ export default function EngagementPage() {
         </>
         )}
       </div>
+
+      {/* ═══════ FIXED PROGRESS / JUMP BAR ═══════
+          The engagement letter is several screens long, and everything the
+          client has to DO sits underneath it. A prompt that scrolls away with
+          the page is a prompt they see once; this one is pinned to the bottom
+          of the screen for the whole journey, so at any moment they can see how
+          many fields are left, which one is next, and get to it in one tap.
+          When nothing is left it turns into the Sign button itself (via
+          form="engage-form"), so they never have to hunt for it. */}
+      {!isExpired && (
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-300 bg-white/95 backdrop-blur shadow-[0_-4px_20px_rgba(0,0,0,0.12)]">
+          {/* Thin progress line — silent, but it tells them the end is near. */}
+          <div className="h-1 w-full bg-gray-200">
+            <div
+              className="h-full transition-all duration-300"
+              style={{
+                width: `${Math.round(((requirements.length - outstanding.length) / Math.max(requirements.length, 1)) * 100)}%`,
+                background: canSubmit ? '#16a34a' : `linear-gradient(90deg, ${firm.accentColor}, #1e3a8a)`,
+              }}
+            />
+          </div>
+
+          <div className={`${mode === 'details_only' ? 'max-w-xl' : 'max-w-4xl'} mx-auto px-4 py-3 flex items-center gap-3`}
+               style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+            <div className="min-w-0 flex-1">
+              {outstanding.length > 0 ? (
+                <>
+                  <p className="text-sm font-bold text-gray-900 truncate">
+                    {outstanding.length} required field{outstanding.length === 1 ? '' : 's'} remaining
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">Next: {outstanding[0]?.label}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-green-700 truncate">Everything is filled in</p>
+                  <p className="text-xs text-gray-500 truncate">You can sign and accept now</p>
+                </>
+              )}
+            </div>
+
+            {outstanding.length > 0 ? (
+              <button
+                type="button"
+                onClick={focusFirstError}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl px-4 sm:px-5 py-3 text-white text-sm font-semibold shadow-md hover:shadow-lg transition-shadow"
+                style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
+              >
+                <span className="hidden sm:inline">Take me there</span>
+                <span className="sm:hidden">Go</span>
+                <ChevronRight size={18} className="flex-shrink-0" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                form="engage-form"
+                disabled={submitting}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl px-4 sm:px-6 py-3 text-white text-sm font-bold shadow-md bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-xl disabled:opacity-60"
+              >
+                {submitting
+                  ? (mode === 'proposal_only' ? 'Approving…' : 'Signing…')
+                  : (mode === 'proposal_only' ? 'Approve Proposal' : 'Sign & Accept')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
