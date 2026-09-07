@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { AlertCircle, Clock, CheckCircle2, FileText, Lock, ChevronDown, ChevronUp, ChevronRight, Upload, ShieldCheck } from 'lucide-react';
 import { getFirm } from '@/lib/firms';
+import { SignaturePad } from '@/components/signature-pad';
 
 // Documents the DIRECTOR personally provides (KYC / ID), chosen via dropdown at
 // signing. "ready" → upload immediately after signing; "later" → we email the
@@ -81,6 +82,14 @@ export default function EngagementPage() {
   const [authorised, setAuthorised] = useState(false);
   const [esignConsent, setEsignConsent] = useState(false);
   const [signatureName, setSignatureName] = useState('');
+  /* Three ways to sign, as in Adobe: type it, draw it, or bring an image of a
+     wet signature from the desktop. The typed name is ALWAYS captured (it is
+     the legal name on the letter and the audit trail); the image, when there is
+     one, is what gets rendered above the line. */
+  const [signatureMode, setSignatureMode] = useState<'type' | 'draw' | 'upload'>('type');
+  const [signatureImage, setSignatureImage] = useState('');   // data: URL (PNG)
+  const [signatureImageError, setSignatureImageError] = useState('');
+  const restoredEmailRef = useRef('');
 
   // Direct Debit is set up through GoCardless's own hosted page (Billing
   // Requests). We never touch the client's bank details — GoCardless collects
@@ -90,6 +99,7 @@ export default function EngagementPage() {
   const [ddSetupLoading, setDdSetupLoading] = useState(false);
   const [ddSetupError, setDdSetupError] = useState('');
   const [ddChecking, setDdChecking] = useState(false);
+  const [ddVerifying, setDdVerifying] = useState(false); // drop-in closed, confirming with GoCardless
 
   // Contact preferences (Data Protection section (c))
   const [contactPrefs, setContactPrefs] = useState<Record<string, boolean>>({ email: true });
@@ -140,7 +150,7 @@ export default function EngagementPage() {
     if (restoredRef.current) return;
     restoredRef.current = true;
     try {
-      const raw = sessionStorage.getItem(ddFormKey);
+      const raw = sessionStorage.getItem(ddFormKey) || localStorage.getItem(ddFormKey);
       if (raw) {
         const s = JSON.parse(raw) as Record<string, unknown>;
         if (typeof s.prevFirmName === 'string') setPrevFirmName(s.prevFirmName);
@@ -153,13 +163,32 @@ export default function EngagementPage() {
         if (typeof s.signatureName === 'string' && s.signatureName) setSignatureName(s.signatureName);
         if (typeof s.authorised === 'boolean') setAuthorised(s.authorised);
         if (typeof s.esignConsent === 'boolean') setEsignConsent(s.esignConsent);
+        if (typeof s.signatureImage === 'string') setSignatureImage(s.signatureImage);
+        if (s.signatureMode === 'type' || s.signatureMode === 'draw' || s.signatureMode === 'upload') {
+          setSignatureMode(s.signatureMode);
+        }
+        /* THE EMAIL THE CLIENT VERIFIED WITH MUST SURVIVE THE ROUND TRIP.
+           The server refuses a signature whose confirmEmail doesn't match the
+           address the link was issued to. Returning from GoCardless we set
+           `verified` (they had already passed the OTP), but this value was left
+           empty — so every Direct Debit client got
+             "Email verification failed — please enter the email address..."
+           at the very last step, and retrying the link did it again, because
+           the returned URL still carried ?dd=return. */
+        if (typeof s.verifyEmail === 'string' && s.verifyEmail) {
+          setVerifyEmail(s.verifyEmail);
+          restoredEmailRef.current = s.verifyEmail;
+        }
       }
     } catch { /* ignore */ }
     // If we've just returned from GoCardless, verify the mandate was created.
     const qp = new URLSearchParams(window.location.search);
-    if (qp.get('dd') === 'return') {
-      setVerified(true); // already passed OTP before leaving; don't re-gate
-      checkDdStatus();
+    if (qp.get('dd') === 'return' || qp.get('dd') === 'exit') {
+      // Skip the OTP gate ONLY if we still hold the address they verified with.
+      // Without it the signature would be rejected at the end; better to ask for
+      // the code again now than to fail them after they've signed.
+      if (restoredEmailRef.current) setVerified(true);
+      if (qp.get('dd') === 'return') checkDdStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -194,24 +223,117 @@ export default function EngagementPage() {
 
   const persistForm = () => {
     try {
-      sessionStorage.setItem(ddFormKey, JSON.stringify({
+      const payload = JSON.stringify({
         prevFirmName, prevEmail, prevPhone, prevAddress, noPrevAccountant,
         docStatus, contactPrefs, signatureName, authorised, esignConsent,
-      }));
+        signatureMode, signatureImage,
+        // Carried so the signature is still accepted on the way back (above).
+        verifyEmail,
+      });
+      sessionStorage.setItem(ddFormKey, payload);
+      /* Also in localStorage: sessionStorage is per-TAB, so a client who opens
+         the returned link in a new tab — or copies it out of the address bar,
+         which is exactly what happened — arrives with nothing restored. No bank
+         details are involved; this is the client's own form, on their own
+         device, and it is cleared the moment the letter is signed. */
+      localStorage.setItem(ddFormKey, payload);
     } catch { /* ignore */ }
   };
 
-  // Kick off GoCardless hosted Direct Debit setup: save the form, ask our
-  // server to create the billing request + flow, then redirect to GoCardless.
+  /* Load the GoCardless drop-in once. It opens the SAME hosted flow, but in a
+     modal on top of this page, so the engagement letter stays behind it and the
+     client is never thrown out to another website mid-signature. If the script
+     is blocked (corporate proxy, ad blocker, offline) this resolves false and
+     we fall back to the redirect, which is the behaviour we had before. */
+  const loadDropin = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      const w = window as unknown as { GoCardlessDropin?: unknown };
+      if (w.GoCardlessDropin) return resolve(true);
+      const src = 'https://pay.gocardless.com/billing/static/dropin/v2/initialise.js';
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) {
+        existing.addEventListener('load', () => resolve(Boolean(w.GoCardlessDropin)));
+        existing.addEventListener('error', () => resolve(false));
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = () => resolve(Boolean(w.GoCardlessDropin));
+      s.onerror = () => resolve(false);
+      // Don't hang the button forever on a proxy that neither loads nor errors.
+      setTimeout(() => resolve(Boolean(w.GoCardlessDropin)), 8000);
+      document.head.appendChild(s);
+    });
+
+  // Kick off GoCardless Direct Debit setup. Preferred path: the drop-in modal
+  // over this page. Fallback: the full-page redirect to GoCardless.
   const startDirectDebit = async () => {
     setDdSetupLoading(true);
     setDdSetupError('');
-    persistForm();
+    persistForm(); // survives the redirect fallback; harmless for the modal
+
+    const redirectTo = (url: string) => { window.location.href = url; };
+
     try {
-      const res = await fetch(`/api/onboarding/links/${token}/dd-start`, { method: 'POST' });
-      const data = await res.json() as { authorisationUrl?: string; message?: string; error?: string };
-      if (!res.ok || !data.authorisationUrl) throw new Error(data.message || data.error || 'Could not start Direct Debit setup.');
-      window.location.href = data.authorisationUrl;
+      const res = await fetch(`/api/onboarding/links/${token}/dd-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embedded: true }),
+      });
+      const data = await res.json() as {
+        billingRequestFlowId?: string; environment?: string;
+        authorisationUrl?: string | null; message?: string; error?: string;
+      };
+      if (!res.ok) throw new Error(data.message || data.error || 'Could not start Direct Debit setup.');
+
+      if (data.billingRequestFlowId && (await loadDropin())) {
+        const GC = (window as unknown as {
+          GoCardlessDropin: {
+            create(o: {
+              billingRequestFlowID: string;
+              environment: string;
+              onSuccess: () => void;
+              onExit: (err?: unknown) => void;
+            }): { open(): void };
+          };
+        }).GoCardlessDropin;
+
+        const handler = GC.create({
+          billingRequestFlowID: data.billingRequestFlowId,
+          environment: data.environment === 'sandbox' ? 'sandbox' : 'live',
+          onSuccess: () => {
+            // GoCardless can take a moment to mark the request fulfilled, so
+            // confirm with our server rather than trusting the callback alone.
+            setDdSetupLoading(false);
+            setDdVerifying(true);
+            let n = 0;
+            const iv = setInterval(async () => {
+              n += 1;
+              const ok = await checkDdStatus();
+              if (ok || n >= 20) {
+                clearInterval(iv);
+                setDdVerifying(false);
+                if (!ok) setDdSetupError('Your Direct Debit was submitted but we could not confirm it yet. Give it a moment and press "I have finished — check again".');
+              }
+            }, 2000);
+          },
+          onExit: (err?: unknown) => {
+            setDdSetupLoading(false);
+            // A plain close is not an error — say nothing and let them retry.
+            const message = (err as { reason?: string } | undefined)?.reason;
+            if (message && message !== 'closed_by_user') {
+              setDdSetupError('Direct Debit setup was not completed. You can try again.');
+            }
+            checkDdStatus();
+          },
+        });
+        handler.open();
+        return;
+      }
+
+      if (data.authorisationUrl) return redirectTo(data.authorisationUrl);
+      throw new Error('Could not start Direct Debit setup.');
     } catch (err) {
       setDdSetupError(err instanceof Error ? err.message : 'Could not start Direct Debit setup.');
       setDdSetupLoading(false);
@@ -453,6 +575,8 @@ export default function EngagementPage() {
           noPrevAccountant: mode === 'proposal_only' ? true : noPrevAccountant,
           directorDocs: mode === 'proposal_only' ? [] : DIRECTOR_DOCS.map((d) => ({ id: d.id, label: d.label, status: docStatus[d.id] || 'later' })),
           signatureName: signatureName.trim(),
+          // Drawn or uploaded ink, when they chose that instead of typing.
+          signatureImage: signatureImage || null,
           confirmEmail: verifyEmail.trim(),
           contactPrefs: CONTACT_PREFS.filter((p) => contactPrefs[p.id]).map((p) => p.id),
           // No bank details cross our servers — GoCardless holds them. We only
@@ -464,7 +588,7 @@ export default function EngagementPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error || 'Submission failed');
       setResult(data as { signedLetterUrl?: string | null; uploadUrl?: string; mode?: string });
-      try { sessionStorage.removeItem(ddFormKey); } catch { /* ignore */ }
+      try { sessionStorage.removeItem(ddFormKey); localStorage.removeItem(ddFormKey); } catch { /* ignore */ }
       // Direct Debit gate: contract isn't final until the bank confirms the
       // mandate, so hold the client on the waiting screen and poll for it.
       if ((data as { pending?: boolean }).pending) {
@@ -692,22 +816,20 @@ export default function EngagementPage() {
                 </div>
               </label>
 
-              <div className="bg-white rounded-xl p-5 border border-purple-200">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Sign here to confirm *</label>
-                <input
-                  data-field="signatureName"
-                  type="text"
-                  value={signatureName}
-                  onChange={(e) => setSignatureName(e.target.value)}
-                  placeholder="Type your full legal name"
-                  className="w-full px-4 py-3 border-b-2 border-gray-400 focus:border-purple-600 focus:outline-none text-2xl text-gray-900 bg-transparent"
-                  style={{ fontFamily: '"Segoe Script", "Brush Script MT", cursive' }}
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Signed on behalf of <strong>{link.companyName}</strong> · {today}
-                </p>
-              </div>
+              <SignaturePad
+                label="Sign here to confirm *"
+                name={signatureName}
+                onNameChange={setSignatureName}
+                mode={signatureMode}
+                onModeChange={setSignatureMode}
+                image={signatureImage}
+                onImageChange={setSignatureImage}
+                error={signatureImageError}
+                onError={setSignatureImageError}
+                accentColor={firm.accentColor}
+                today={today}
+                companyName={link.companyName}
+              />
             </div>
 
             {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl"><p className="text-sm text-red-700">{error}</p></div>}
@@ -739,7 +861,7 @@ export default function EngagementPage() {
             <p className="font-bold text-amber-900 mb-1">How to complete this in three steps</p>
             <p className="text-sm text-amber-900">
               Read the engagement letter below, fill in the short form, then set up your Direct Debit.
-              <strong> The Direct Debit must be confirmed before the signature box will unlock</strong> — it takes about two minutes and you&apos;ll be brought straight back here.
+              <strong> The Direct Debit must be confirmed before the signature box will unlock</strong> — it takes about two minutes and opens in a secure window on this page, so you never leave your letter.
             </p>
             {/* The letter is long, and the things that still need doing are all
                 below it. Rather than make the client scroll and guess, send them
@@ -939,31 +1061,33 @@ export default function EngagementPage() {
                       This must be completed before you can sign.
                     </p>
                     <ol className="text-sm text-amber-900 space-y-1 list-decimal list-inside">
-                      <li>Click <strong>Set up Direct Debit</strong> below — it opens GoCardless&apos;s secure page.</li>
+                      <li>Click <strong>Set up Direct Debit</strong> below — GoCardless&apos;s secure form opens <strong>on this page</strong>.</li>
                       <li>Enter your bank details there and confirm the mandate.</li>
                       <li>
-                        GoCardless brings you <strong>straight back to this page</strong> automatically and this box turns
-                        green — the signature section below then unlocks.
+                        The window closes, this box turns green, and the signature section below unlocks. You stay on your
+                        engagement letter the whole time.
                       </li>
                     </ol>
                     <p className="text-xs text-amber-800 mt-2">
-                      Anything you have already filled in on this form is saved while you&apos;re away.
+                      Everything you have already filled in on this form is kept.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={startDirectDebit}
-                    disabled={ddSetupLoading || ddChecking}
+                    disabled={ddSetupLoading || ddChecking || ddVerifying}
                     className="flex items-center justify-center gap-2 w-full py-4 rounded-xl font-bold text-white text-base shadow-lg hover:shadow-xl transition-shadow disabled:opacity-60"
                     style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
                   >
                     {ddSetupLoading
-                      ? 'Opening secure GoCardless page…'
+                      ? 'Opening the secure GoCardless form…'
+                      : ddVerifying
+                      ? 'Confirming your mandate with GoCardless…'
                       : ddChecking
                       ? 'Checking your Direct Debit…'
                       : 'Set up Direct Debit — takes about 2 minutes'}
                   </button>
-                  {ddChecking && !ddSetupLoading && (
+                  {(ddChecking || ddVerifying) && !ddSetupLoading && (
                     <p className="mt-3 text-sm text-gray-500 flex items-center gap-2">
                       <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" />
                       Waiting for GoCardless to confirm your mandate…
@@ -980,7 +1104,7 @@ export default function EngagementPage() {
                     onClick={checkDdStatus}
                     className="mt-3 text-sm text-purple-700 hover:text-purple-900 font-medium"
                   >
-                    Already set it up? Check status
+                    I have finished — check again
                   </button>
                 </>
               )}
@@ -1085,43 +1209,20 @@ export default function EngagementPage() {
                   they are actually putting their name to, in the form it will
                   appear on the letter. A plain text box does not read as
                   signing anything. */}
-              <div className="bg-white rounded-xl p-5 border border-purple-200">
-                <div className="flex items-baseline justify-between mb-1 gap-3 flex-wrap">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Sign here to confirm you have read this contract to the last page and you are happy to proceed *
-                  </label>
-                  {signatureName.trim().length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSignatureName('')}
-                      className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline underline-offset-2"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-
-                <input
-                  data-field="signatureName"
-                  type="text"
-                  value={signatureName}
-                  onChange={(e) => setSignatureName(e.target.value)}
-                  placeholder="Type your full legal name"
-                  aria-label="Type your full legal name to sign"
-                  className="w-full px-1 py-2 border-0 border-b-2 border-gray-400 focus:border-purple-600 focus:outline-none text-3xl text-gray-900 bg-transparent leading-tight"
-                  style={{ fontFamily: '"Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive' }}
-                  required
-                />
-
-                <p className="text-[11px] text-purple-700 mt-1.5">
-                  {signatureName.trim().length > 1
-                    ? `${signatureName.trim()} (${today})`
-                    : 'Your signature will appear here'}
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Signed on behalf of <strong>{link.companyName}</strong> · {today}
-                </p>
-              </div>
+              <SignaturePad
+                label="Sign here to confirm you have read this contract to the last page and you are happy to proceed *"
+                name={signatureName}
+                onNameChange={setSignatureName}
+                mode={signatureMode}
+                onModeChange={setSignatureMode}
+                image={signatureImage}
+                onImageChange={setSignatureImage}
+                error={signatureImageError}
+                onError={setSignatureImageError}
+                accentColor={firm.accentColor}
+                today={today}
+                companyName={link.companyName}
+              />
             </div>
 
             {/* "What is still outstanding" used to live here, in the flow of the

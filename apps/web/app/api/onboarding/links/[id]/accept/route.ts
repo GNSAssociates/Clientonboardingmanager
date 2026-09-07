@@ -31,6 +31,7 @@ export async function POST(
     directorDocs,
     companyDocs,
     signatureName,
+    signatureImage,
     contactPrefs,
     authorised,
   } = body as {
@@ -42,6 +43,7 @@ export async function POST(
     directorDocs?: DocStatus[];
     companyDocs?: DocStatus[];
     signatureName?: string;
+    signatureImage?: string | null;
     contactPrefs?: string[];
     directDebitConfirmed?: boolean | null;
     authorised?: boolean;
@@ -109,6 +111,18 @@ export async function POST(
     if (!authorised) {
       return NextResponse.json({ error: "Declaration not accepted" }, { status: 400 });
     }
+    /* A drawn or uploaded signature arrives as a data URL. It is written
+       straight into the signed letter, so accept ONLY a PNG data URL of a
+       sensible size — never an arbitrary string, which would otherwise be an
+       HTML injection into a legal document, and never a remote URL, which
+       would leave the letter depending on someone else's server. */
+    const safeSignatureImage =
+      typeof signatureImage === "string" &&
+      /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signatureImage) &&
+      signatureImage.length <= 1_500_000
+        ? signatureImage
+        : null;
+
     if (!signatureName || signatureName.trim().length < 2) {
       return NextResponse.json({ error: "Signature (typed full name) is required" }, { status: 400 });
     }
@@ -191,6 +205,7 @@ export async function POST(
       const metaAll = (link.letterMeta ?? {}) as Record<string, unknown>;
       signedHtml = buildSignedHtml(letterHtml, {
         signatureName: signatureName!.trim(),
+        signatureImage: safeSignatureImage,
         signedAtIso: now.toISOString(),
         signerEmail: link.clientEmail,
         companyName: link.companyName ?? "",
@@ -231,6 +246,7 @@ export async function POST(
         acceptanceData: {
           mode,
           signatureName: signatureName || link.directorName || null,
+          signatureImage: safeSignatureImage,
           signedAt: now.toISOString(),
           contactPrefs: contactPrefs ?? [],
           gocardless: gcResult,

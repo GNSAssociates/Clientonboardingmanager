@@ -31,10 +31,15 @@ export async function GET(
 
     // Billing Requests gate: verify with GoCardless and cache the result.
     let ddConfirmed = Boolean(gc.ddConfirmed);
+    let brStatus: string | null = null;
     const billingRequestId = gc.billingRequestId as string | undefined;
     if (!ddConfirmed && billingRequestId) {
       const st = await getBillingRequestStatus(link.firmSlug || "gns", billingRequestId);
-      if (st.fulfilled) {
+      brStatus = st.status ?? null;
+      // `fulfilled` is the normal signal, but a mandate id on the billing
+      // request means the mandate exists whatever the status string says —
+      // and the mandate is the thing we actually gate signing on.
+      if (st.fulfilled || st.mandateId) {
         ddConfirmed = true;
         await db.transaction((tx) =>
           updateOnboardingLink(tx, link.id, {
@@ -51,6 +56,8 @@ export async function GET(
       status: link.status,
       // DD authorised via the hosted flow (the sign-gate condition).
       ddConfirmed,
+      // Reported so a stuck mandate can be diagnosed without reading the logs.
+      billingRequestStatus: brStatus,
       confirmed: link.status === "accepted",
       pending: link.status === "pending_dd",
       mandateStatus: (gc.mandateStatus as string) ?? null,

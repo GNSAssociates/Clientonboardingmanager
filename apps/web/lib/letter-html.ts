@@ -88,6 +88,11 @@ export const CLIENT_TYPE_TERMS: Record<string, { entity: string; principals: str
 
 export interface AuditData {
   signatureName: string;
+  /** PNG data URL when the client drew their signature or uploaded an image of
+   *  one. Rendered above the rule in place of the script-font name; the typed
+   *  legal name still appears beneath it either way. Validated at the API
+   *  boundary (data:image/png only) — never interpolate an untrusted string. */
+  signatureImage?: string | null;
   signedAtIso: string;
   signerEmail: string;
   companyName: string;
@@ -870,6 +875,17 @@ export function buildAuditCertificate(a: AuditData): string {
  * stack behind it keeps it looking signed if the file can't be fetched (offline
  * copy, email client that blocks remote fonts).
  */
+/** The mark itself: the client's own drawing/scan when there is one, otherwise
+ *  their typed name in the signature face. Re-checks the data URL here rather
+ *  than trusting the caller — this string goes into a signed contract. */
+function inkFor(a: AuditData): string {
+  const img = a.signatureImage;
+  if (img && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(img)) {
+    return `<img class="drawn" src="${img}" alt="Signature of ${esc(a.signatureName)}" />`;
+  }
+  return `<div class="ink">${esc(a.signatureName)}</div>`;
+}
+
 function buildClientSignatureBlock(a: AuditData): string {
   const signedOn = new Date(a.signedAtIso).toLocaleDateString('en-GB', {
     timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric',
@@ -883,9 +899,10 @@ function buildClientSignatureBlock(a: AuditData): string {
                        font-size: 34px; line-height: 1.25; color: #1a3fa0; }
     .client-sig .line { width: 260px; border-top: 1px solid #9aa1ab; margin: 2px 0 6px; }
     .client-sig .k { font-size: 13px; color: #4b5563; margin: 0 0 2px; }
+    .client-sig .drawn { max-height: 68px; max-width: 260px; display: block; }
   </style>
   <div class="client-sig">
-    <div class="ink">${esc(a.signatureName)}</div>
+    ${inkFor(a)}
     <div class="line"></div>
     <div class="k">${esc(a.signatureName)}</div>
     <div class="k">For and on behalf of ${esc(company)}</div>

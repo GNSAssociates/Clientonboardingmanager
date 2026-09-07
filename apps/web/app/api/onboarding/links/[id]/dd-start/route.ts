@@ -11,13 +11,21 @@ import { createDirectDebitBillingRequest } from "@/lib/gocardless";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const token = params.id;
   const db = getDb();
   const link = await db.transaction((tx) => getOnboardingLinkByToken(tx, token));
   if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  /* `embedded` asks for a flow to be driven by the GoCardless drop-in, which
+   * opens over the engagement letter instead of navigating away from it. The
+   * client asked for exactly that: sending someone off to another website in
+   * the middle of signing a contract is where they start wondering whether
+   * they have been phished. The drop-in needs the flow ID, not a URL. */
+  const body = await req.json().catch(() => ({}));
+  const embedded = Boolean((body as { embedded?: boolean }).embedded);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://practiceagents.co.uk";
   const engageUrl = `${appUrl.replace(/\/+$/, "")}/onboarding/engage/${token}`;
@@ -30,6 +38,7 @@ export async function POST(
     token,
     redirectUri: `${engageUrl}?dd=return`,
     exitUri: `${engageUrl}?dd=exit`,
+    embedded,
   });
 
   if (!br.configured) {
@@ -38,6 +47,23 @@ export async function POST(
       { status: 503 },
     );
   }
+  if (embedded && br.success && br.billingRequestFlowId) {
+    const acc0 = (link.acceptanceData ?? {}) as Record<string, unknown>;
+    const gc0 = (acc0.gocardless ?? {}) as Record<string, unknown>;
+    await db.transaction((tx) =>
+      updateOnboardingLink(tx, link.id, {
+        acceptanceData: { ...acc0, gocardless: { ...gc0, billingRequestId: br.billingRequestId, ddConfirmed: false } },
+      }),
+    );
+    return NextResponse.json({
+      billingRequestFlowId: br.billingRequestFlowId,
+      environment: process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "sandbox" : "live",
+      // Still returned so the page can fall back to the redirect if the
+      // drop-in script is blocked by the client's browser.
+      authorisationUrl: br.authorisationUrl ?? null,
+    });
+  }
+
   if (!br.success || !br.authorisationUrl) {
     return NextResponse.json(
       { error: "dd_start_failed", message: br.error || "Could not start Direct Debit setup." },

@@ -244,7 +244,12 @@ export async function createDirectDebitBillingRequest(opts: {
   token: string;
   redirectUri: string;
   exitUri: string;
-}): Promise<{ configured: boolean; success: boolean; authorisationUrl?: string; billingRequestId?: string; error?: string }> {
+  /** True when the flow will be driven by the GoCardless drop-in (a modal over
+   *  our own page) rather than by navigating the browser to the hosted page.
+   *  Only changes what we return — the flow itself is created the same way, so
+   *  the drop-in and the redirect remain interchangeable fallbacks. */
+  embedded?: boolean;
+}): Promise<{ configured: boolean; success: boolean; authorisationUrl?: string; billingRequestId?: string; billingRequestFlowId?: string; error?: string }> {
   const gcToken = tokenForFirm(opts.firmSlug);
   if (!gcToken) return { configured: false, success: false };
   try {
@@ -275,6 +280,7 @@ export async function createDirectDebitBillingRequest(opts: {
       success: true,
       authorisationUrl: String((flow as { authorisation_url?: string }).authorisation_url ?? ''),
       billingRequestId: String(br.id),
+      billingRequestFlowId: String(flow.id),
     };
   } catch (e) {
     console.error('GoCardless billing request failed:', e);
