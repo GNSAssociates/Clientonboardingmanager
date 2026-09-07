@@ -48,8 +48,19 @@ export function GET() {
     .filter((k) => k.toUpperCase().includes("SUPABASE"))
     .sort();
 
+  /* WHICH database is live. The Supabase dashboard shows a project ref; this
+     shows the ref the running app is actually connected to, so the two can be
+     compared without guessing. HOST ONLY — the user, password and query string
+     are dropped, so this stays as safe to expose as the booleans around it. */
+  let databaseHost: string | null = null;
+  try {
+    const raw = process.env.DATABASE_URL?.trim();
+    if (raw) databaseHost = new URL(raw).hostname;
+  } catch { databaseHost = "unparseable"; }
+
   const configured = {
     database: Boolean(process.env.DATABASE_URL),
+    databaseHost,
     anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
     // Document uploads use these server-side names (NOT NEXT_PUBLIC_*), so the
     // health flag must check the same ones the upload route reads.
