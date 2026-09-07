@@ -61,6 +61,10 @@ export function GET() {
   const configured = {
     database: Boolean(process.env.DATABASE_URL),
     databaseHost,
+    // Signs the staff auth cookies AND the client's 30-minute 2FA session on a
+    // signing link. Without it that session cannot be verified, so clients are
+    // asked for a fresh code on every single refresh.
+    authSecret: Boolean(process.env.AUTH_SHIM_SECRET?.trim()),
     anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
     // Document uploads use these server-side names (NOT NEXT_PUBLIC_*), so the
     // health flag must check the same ones the upload route reads.

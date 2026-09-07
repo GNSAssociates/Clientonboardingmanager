@@ -67,6 +67,9 @@ export default function EngagementPage() {
   const [otpSending, setOtpSending] = useState(false);
   const [otpMaskedEmail, setOtpMaskedEmail] = useState('');
   const [otpCooldown, setOtpCooldown] = useState(0);
+  // When the 30-minute verified session runs out (absolute, not sliding).
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Previous accountant fields
   const [prevFirmName, setPrevFirmName] = useState('');
@@ -192,6 +195,44 @@ export default function EngagementPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* THE 2FA CODE IS ASKED FOR ONCE, NOT ON EVERY REFRESH.
+     Verification used to live only in React state, so a refresh, a back
+     button, or the trip out to GoCardless sent the client back to the code
+     screen — for a code that had usually already expired. The server now issues
+     a signed, httpOnly proof tied to this link AND this network address, good
+     for 30 minutes. We ask for it once on load. */
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/onboarding/links/${token}/session`)
+      .then((r) => r.json())
+      .then((s: { verified?: boolean; email?: string | null; expiresAt?: number | null }) => {
+        if (cancelled || !s?.verified) return;
+        setVerified(true);
+        if (s.email) { setVerifyEmail(s.email); restoredEmailRef.current = s.email; }
+        if (s.expiresAt) setSessionExpiresAt(s.expiresAt);
+      })
+      .catch(() => { /* no session — the code screen is the correct fallback */ });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  /* Thirty minutes is ABSOLUTE — refreshing does not extend it. When it runs
+     out we ask for a code again, keeping everything they have typed so the
+     form is exactly as they left it on the other side of the code. */
+  useEffect(() => {
+    if (!sessionExpiresAt) return;
+    const ms = sessionExpiresAt - Date.now();
+    if (ms <= 0) return;
+    const t = setTimeout(() => {
+      persistForm();
+      setSessionExpired(true);
+      setVerified(false);
+      setOtpSent(false);
+      setSessionExpiresAt(null);
+    }, ms);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionExpiresAt]);
 
   // Poll GoCardless (via our server) for the billing-request result — used both
   // on return from the hosted flow and while we wait for confirmation.
@@ -432,10 +473,15 @@ export default function EngagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: otpCode.trim() }),
       });
-      const data = await res.json() as { verified?: boolean; error?: string };
+      const data = await res.json() as { verified?: boolean; error?: string; expiresInMinutes?: number };
       if (!res.ok) throw new Error(data.error || 'Verification failed');
       setVerified(true);
+      setSessionExpired(false);
       setVerifyEmail(link.clientEmail || '');
+      restoredEmailRef.current = link.clientEmail || '';
+      // The server has just set the 30-minute proof; mirror its clock so the
+      // page knows when to ask again without another round trip.
+      setSessionExpiresAt(Date.now() + (data.expiresInMinutes ?? 30) * 60_000);
     } catch (err) {
       setVerifyError(err instanceof Error ? err.message : 'Verification failed');
     }
@@ -449,7 +495,15 @@ export default function EngagementPage() {
             <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: `${firmForGate.accentColor}15` }}>
               <ShieldCheck size={26} style={{ color: firmForGate.accentColor }} />
             </div>
-            <h1 className="text-xl font-bold text-gray-900">Verify it&apos;s you</h1>
+            <h1 className="text-xl font-bold text-gray-900">
+              {sessionExpired ? 'Just checking it’s still you' : 'Verify it’s you'}
+            </h1>
+            {sessionExpired && (
+              <p className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+                Your 30 minutes are up, so we need one more code. <strong>Nothing you filled in has been lost</strong> —
+                it will all be here when you come back through.
+              </p>
+            )}
             <p className="text-sm text-gray-500 mt-2">
               This document for <strong>{link.companyName}</strong> can only be opened by the person it was sent to.
               {otpSent

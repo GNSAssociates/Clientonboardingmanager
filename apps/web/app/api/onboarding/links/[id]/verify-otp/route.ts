@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getOnboardingLinkByToken } from '@gns/db';
 import { createHash } from 'crypto';
+import { ENGAGE_SESSION_MINUTES, clientIp, engageCookieName, issueEngageSession } from '@/lib/engage-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,5 +38,23 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid code. Please check and try again.' }, { status: 400 });
   }
 
-  return NextResponse.json({ verified: true });
+  /* Correct code: remember it for 30 minutes on THIS network address, so
+     refreshing the page — or coming back from GoCardless — does not send the
+     client round the code loop again. See lib/engage-session.ts for why it is
+     scoped the way it is. */
+  const ip = clientIp(req);
+  const session = issueEngageSession(token, ip);
+  const res = NextResponse.json({
+    verified: true,
+    email: link.clientEmail,
+    expiresInMinutes: ENGAGE_SESSION_MINUTES,
+  });
+  res.cookies.set(engageCookieName(token), session.value, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: session.maxAge,
+  });
+  return res;
 }

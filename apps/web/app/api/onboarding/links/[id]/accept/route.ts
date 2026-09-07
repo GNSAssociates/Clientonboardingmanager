@@ -9,6 +9,7 @@ import { getFirm } from "@/lib/firms";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 import { getBillingRequestStatus } from "@/lib/gocardless";
+import { clientIp, engageCookieName, readEngageSession } from "@/lib/engage-session";
 import { runPostAcceptanceEffects, type PostAcceptanceContext } from "@/lib/post-acceptance";
 
 export const dynamic = "force-dynamic";
@@ -98,10 +99,24 @@ export async function POST(
 
     // Only the person the link was emailed to may sign — the signer must
     // confirm the email address the signing link was issued to.
+    /* Two ways to prove it: the signed 2FA session cookie this browser was
+       issued when the client entered the emailed code, or the confirmed email
+       address. The cookie is the stronger of the two AND the one that survives
+       a refresh or the trip to GoCardless — which is exactly what used to fail
+       here, rejecting clients whose mandate was perfectly fine. */
     const normalise = (s: string | undefined | null) => (s ?? "").trim().toLowerCase();
-    if (normalise(confirmEmail) !== normalise(link.clientEmail)) {
+    const engageSession = readEngageSession(
+      req.cookies.get(engageCookieName(token))?.value,
+      token,
+      clientIp(req),
+    );
+    if (!engageSession.valid && normalise(confirmEmail) !== normalise(link.clientEmail)) {
       return NextResponse.json(
-        { error: "Email verification failed — please enter the email address this letter was sent to" },
+        {
+          error: engageSession.reason === "expired"
+            ? "Your verification has expired — please request a new code and sign again. Nothing you entered has been lost."
+            : "Email verification failed — please enter the email address this letter was sent to",
+        },
         { status: 403 }
       );
     }
