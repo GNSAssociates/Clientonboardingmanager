@@ -332,7 +332,7 @@ export function buildLetterHtml(d: LetterData): string {
   const chServices = [...monthly, ...oneoff].filter((s) => (s.chFee || 0) > 0);
   const chDisbursements = chServices.reduce((s, x) => s + (x.chFee || 0), 0);
   const chRows = chServices.length ? `
-      <tr class="sect"><td colspan="5">Companies House disbursements -Annual Fee Payable to Companies House (NON VAT Recharge).</td></tr>
+      <tr class="sectnote"><td colspan="5">In addition to our fees above, a separate annual fee payable to Companies House is payable as under. Please note that the Companies House fee is a disbursement and no VAT shall be applicable. The details of Companies House fee is as under</td></tr>
       ${chServices.map((s) => `<tr class="sub"><td>• Companies House filing fee — ${esc(s.name)}</td><td class="r">${gbp(s.chFee!)}</td><td></td><td></td><td>Disbursement (no VAT)</td></tr>`).join('')}
       <tr class="total"><td>Total Companies House disbursements (no VAT)</td><td class="r">${gbp(chDisbursements)}</td><td class="r">—</td><td class="r">—</td><td style="font-size:10.5px">Payable to CH</td></tr>` : '';
 
@@ -465,6 +465,10 @@ export function buildLetterHtml(d: LetterData): string {
   .fees .r { text-align: right; font-variant-numeric: tabular-nums; }
   .fees .sub td { color: #5b6472; font-size: 16.5px; border-bottom: 1px solid #f1f2f5; }
   .fees .sect td { background: #f6f7f9; font-weight: 700; font-size: 15.75px; letter-spacing: 0.5px; text-transform: uppercase; color: #3b4453; }
+  /* Explanatory sentences introducing a group of rows. Same tinted band as
+     .sect, but deliberately NOT uppercase or letter-spaced — .sect is built for
+     two- or three-word headings, and prose set in it comes out shouting. */
+  .fees .sectnote td { background: #f6f7f9; font-weight: 400; font-size: 15.75px; color: #3b4453; line-height: 1.55; }
   .fees .total td { background: #f6f7f9; font-weight: 700; border-top: 2px solid #1a1f2b; border-bottom: 2px solid #1a1f2b; font-size: 18px; }
   .vatnote { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 600; font-size: 15.75px; color: #5b6472;
              margin: 4px 0 26px; text-align: right; }
