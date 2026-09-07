@@ -138,9 +138,21 @@ async function gcPost(token: string, path: string, resource: string, body: Recor
    * and carry on exactly as if we had created it.
    */
   if (res.status === 409) {
-    const conflict = (json as {
-      error?: { links?: { conflicting_resource_id?: string } };
-    }).error?.links?.conflicting_resource_id;
+    /* GoCardless reports the clashing resource inside error.errors[], NOT at
+     * error.links. Reading only the latter meant `conflict` was always
+     * undefined, so this entire recovery was dead code and the client was
+     * still shown the raw "a resource has already been created with this
+     * idempotency key" 409 — the exact dead end this block exists to prevent.
+     * Both shapes are read now, so it keeps working either way. */
+    const gcErr = (json as {
+      error?: {
+        links?: { conflicting_resource_id?: string };
+        errors?: Array<{ links?: { conflicting_resource_id?: string } }>;
+      };
+    }).error;
+    const conflict =
+      gcErr?.errors?.find((e) => e?.links?.conflicting_resource_id)?.links?.conflicting_resource_id
+      ?? gcErr?.links?.conflicting_resource_id;
     if (conflict) {
       const existing = await fetch(`${apiBase()}${path}/${conflict}`, {
         headers: {
