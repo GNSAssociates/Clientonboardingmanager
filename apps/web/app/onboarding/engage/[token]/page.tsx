@@ -764,9 +764,8 @@ export default function EngagementPage() {
   }
 
   return (
-    // pb-40 leaves room for the fixed progress bar, so it can never sit on top
-    // of the Sign button or the last field.
-    <div className="min-h-screen bg-gray-200 pt-10 pb-40 px-4">
+    // Room for the mobile signing pill in the bottom-right corner.
+    <div className="min-h-screen bg-gray-200 pt-10 pb-24 px-4">
       <div className={`${mode === 'details_only' ? 'max-w-xl' : 'max-w-4xl'} mx-auto space-y-6`}>
 
         {/* Expiry banners */}
@@ -776,15 +775,6 @@ export default function EngagementPage() {
             <div>
               <p className="font-bold">This link has expired</p>
               <p className="text-sm opacity-90 mt-1">Expired on {expiresAt.toLocaleDateString('en-GB')}. Please contact {firm.name} for a new link.</p>
-            </div>
-          </div>
-        )}
-        {isExpiringSoon && !isExpired && (
-          <div className="p-4 bg-red-50 border-2 border-red-500 rounded-xl flex items-start gap-3">
-            <Clock className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
-            <div>
-              <p className="font-bold text-red-900">Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</p>
-              <p className="text-sm text-red-700 mt-1">Please complete this before {expiresAt.toLocaleDateString('en-GB')}.</p>
             </div>
           </div>
         )}
@@ -907,43 +897,16 @@ export default function EngagementPage() {
           </form>
         ) : (
         <>
-        {/* Orientation banner. Clients paying by Direct Debit must complete the
-            mandate BEFORE the signature unlocks, so say so up front in two
-            sentences rather than letting them discover it at the bottom. */}
+        {/* Two heavy banners used to sit here — an amber "three steps" block
+            and a green "you can sign" block — pushing the actual letter below
+            the fold. The signing guide at the right edge already says what is
+            outstanding and takes them to it, so this is one quiet line: the one
+            fact a Direct Debit client cannot discover for themselves. */}
         {mode === 'engagement' && !isManualPayment && !ddConfirmed && (
-          <div className="p-5 rounded-xl border-2 border-amber-300 bg-amber-50">
-            <p className="font-bold text-amber-900 mb-1">How to complete this in three steps</p>
-            <p className="text-sm text-amber-900">
-              Read the engagement letter below, fill in the short form, then set up your Direct Debit.
-              <strong> The Direct Debit must be confirmed before the signature box will unlock</strong> — it takes about two minutes and opens in a secure window on this page, so you never leave your letter.
-            </p>
-            {/* The letter is long, and the things that still need doing are all
-                below it. Rather than make the client scroll and guess, send them
-                to the first incomplete field — the same jump the Submit button
-                uses when something is missing. */}
-            <button
-              type="button"
-              onClick={() => {
-                // If everything is already filled in, the client wants the
-                // signature itself, not a field — so fall through to it.
-                const el = document.querySelector('[data-field="signatureName"]') as HTMLElement | null;
-                focusFirstError();
-                if (canSubmit && el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}
-              className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700"
-            >
-              Skip to the details and signing area
-              <ChevronRight size={15} />
-            </button>
-          </div>
-        )}
-        {mode === 'engagement' && !isManualPayment && ddConfirmed && (
-          <div className="p-5 rounded-xl border-2 border-green-300 bg-green-50">
-            <p className="font-bold text-green-900 mb-1">Direct Debit confirmed — you can sign</p>
-            <p className="text-sm text-green-900">
-              Your mandate is in place. Read the engagement letter below, complete the remaining details, then sign at the bottom of the page.
-            </p>
-          </div>
+          <p className="text-sm text-gray-500">
+            Your Direct Debit is set up further down this page, in a secure window that opens over your letter.
+            It must be confirmed before the signature unlocks.
+          </p>
         )}
 
         {/* ═══════ THE CONTRACT — canonical letter document ═══════ */}
@@ -1315,71 +1278,106 @@ export default function EngagementPage() {
         )}
       </div>
 
-      {/* ═══════ FIXED PROGRESS / JUMP BAR ═══════
-          The engagement letter is several screens long, and everything the
-          client has to DO sits underneath it. A prompt that scrolls away with
-          the page is a prompt they see once; this one is pinned to the bottom
-          of the screen for the whole journey, so at any moment they can see how
-          many fields are left, which one is next, and get to it in one tap.
-          When nothing is left it turns into the Sign button itself (via
-          form="engage-form"), so they never have to hunt for it. */}
+      {/* ═══════ THE SIGNING GUIDE ═══════
+          A full-width bar across the bottom of every screen was more furniture
+          than what it says deserves. This is the same thing, smaller: a quiet
+          panel resting against the right edge, translucent so the letter reads
+          through it, present on every page of the scroll.
+
+          It carries the WHOLE status — what is left, what is next, and how long
+          the link has — so none of that has to shout from a banner above the
+          letter. One button, and it goes where the client needs to be. */}
       {!isExpired && (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-300 bg-white/95 backdrop-blur shadow-[0_-4px_20px_rgba(0,0,0,0.12)]">
-          {/* Thin progress line — silent, but it tells them the end is near. */}
-          <div className="h-1 w-full bg-gray-200">
-            <div
-              className="h-full transition-all duration-300"
-              style={{
-                width: `${Math.round(((requirements.length - outstanding.length) / Math.max(requirements.length, 1)) * 100)}%`,
-                background: canSubmit ? '#16a34a' : `linear-gradient(90deg, ${firm.accentColor}, #1e3a8a)`,
-              }}
-            />
+        <>
+          {/* Desktop: against the right edge, vertically centred. */}
+          <div className="hidden lg:block fixed right-5 top-1/2 -translate-y-1/2 z-50 w-60">
+            <div className="rounded-2xl border border-gray-200/70 bg-white/75 backdrop-blur-md shadow-lg overflow-hidden">
+              <div className="h-1 w-full bg-gray-200/70">
+                <div
+                  className="h-full transition-all duration-300"
+                  style={{
+                    width: `${Math.round(((requirements.length - outstanding.length) / Math.max(requirements.length, 1)) * 100)}%`,
+                    background: canSubmit ? '#16a34a' : `linear-gradient(90deg, ${firm.accentColor}, #1e3a8a)`,
+                  }}
+                />
+              </div>
+              <div className="p-3.5">
+                {outstanding.length > 0 ? (
+                  <>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Still to complete</p>
+                    <p className="text-sm font-bold text-gray-900 mt-0.5">
+                      {outstanding.length} of {requirements.length} left
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Next: {outstanding[0]?.label}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">All complete</p>
+                    <p className="text-sm font-bold text-gray-900 mt-0.5">Ready to sign</p>
+                  </>
+                )}
+
+                {/* The expiry used to be a red slab across the top of the
+                    letter. It is information, not an emergency. */}
+                {isExpiringSoon && (
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    Please complete by {expiresAt.toLocaleDateString('en-GB')}
+                  </p>
+                )}
+
+                {outstanding.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={focusFirstError}
+                    className="mt-3 w-full inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-white text-sm font-semibold shadow-sm hover:shadow-md transition-shadow"
+                    style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
+                  >
+                    Take me to signing
+                    <ChevronRight size={16} className="flex-shrink-0" />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    form="engage-form"
+                    disabled={submitting}
+                    className="mt-3 w-full rounded-xl px-3 py-2.5 text-white text-sm font-bold shadow-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-md disabled:opacity-60"
+                  >
+                    {submitting
+                      ? (mode === 'proposal_only' ? 'Approving…' : 'Signing…')
+                      : (mode === 'proposal_only' ? 'Approve Proposal' : 'Sign & Accept')}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className={`${mode === 'details_only' ? 'max-w-xl' : 'max-w-4xl'} mx-auto px-4 py-3 flex items-center gap-3`}
-               style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
-            <div className="min-w-0 flex-1">
-              {outstanding.length > 0 ? (
-                <>
-                  <p className="text-sm font-bold text-gray-900 truncate">
-                    {outstanding.length} required field{outstanding.length === 1 ? '' : 's'} remaining
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">Next: {outstanding[0]?.label}</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-bold text-green-700 truncate">Everything is filled in</p>
-                  <p className="text-xs text-gray-500 truncate">You can sign and accept now</p>
-                </>
-              )}
-            </div>
-
+          {/* Below lg there is no room beside the letter, so it sits in the
+              bottom-right corner instead — same panel, same words. */}
+          <div className="lg:hidden fixed right-3 z-50" style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
             {outstanding.length > 0 ? (
               <button
                 type="button"
                 onClick={focusFirstError}
-                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl px-4 sm:px-5 py-3 text-white text-sm font-semibold shadow-md hover:shadow-lg transition-shadow"
-                style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)` }}
+                className="inline-flex items-center gap-2 rounded-full pl-4 pr-3 py-3 text-white text-sm font-semibold shadow-lg"
+                style={{ background: `linear-gradient(135deg, ${firm.accentColor}, #1e3a8a)`, opacity: 0.94 }}
               >
-                <span className="hidden sm:inline">Take me there</span>
-                <span className="sm:hidden">Go</span>
-                <ChevronRight size={18} className="flex-shrink-0" />
+                <span>Take me to signing</span>
+                <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs font-bold">{outstanding.length}</span>
               </button>
             ) : (
               <button
                 type="submit"
                 form="engage-form"
                 disabled={submitting}
-                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl px-4 sm:px-6 py-3 text-white text-sm font-bold shadow-md bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-xl disabled:opacity-60"
+                className="rounded-full px-5 py-3 text-white text-sm font-bold shadow-lg bg-gradient-to-r from-purple-600 to-indigo-600 disabled:opacity-60"
               >
-                {submitting
-                  ? (mode === 'proposal_only' ? 'Approving…' : 'Signing…')
-                  : (mode === 'proposal_only' ? 'Approve Proposal' : 'Sign & Accept')}
+                {submitting ? 'Signing…' : 'Sign & Accept'}
               </button>
             )}
           </div>
-        </div>
+        </>
       )}
+
     </div>
   );
 }

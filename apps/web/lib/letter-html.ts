@@ -318,7 +318,8 @@ export function buildLetterHtml(d: LetterData): string {
     <tr class="sub"><td>• ${esc(r.name)}</td><td class="r">${gbp(r.annual)}</td><td></td><td class="r">${gbp(r.monthly)}</td><td></td></tr>`).join('');
 
   const oneoffHeader = (oneoff.length || customOneoff.length) ? `
-    <tr class="sect"><td colspan="5">Fees for any past due filings, catch-up and ad-hoc work (IF ANY)</td></tr>` : '';
+    <tr class="sect"><td colspan="5">Additional and Ad-hoc Fees</td></tr>
+    <tr class="sectnote"><td colspan="5">Fees for past due filings, catch-up work and any other additional or ad-hoc work agreed. Charged once, payable upfront. The scope of this work is set out in the Schedule of Services.</td></tr>` : '';
 
   const oneoffRows = [
     ...oneoff.map((s) => ({ name: s.name, price: s.price })),
@@ -332,9 +333,10 @@ export function buildLetterHtml(d: LetterData): string {
   const chServices = [...monthly, ...oneoff].filter((s) => (s.chFee || 0) > 0);
   const chDisbursements = chServices.reduce((s, x) => s + (x.chFee || 0), 0);
   const chRows = chServices.length ? `
+      <tr class="sect"><td colspan="5">Companies House Fees (Disbursements)</td></tr>
       <tr class="sectnote"><td colspan="5">In addition to our fees above, a separate annual fee payable to Companies House is payable as under. Please note that the Companies House fee is a disbursement and no VAT shall be applicable. The details of Companies House fee is as under</td></tr>
       ${chServices.map((s) => `<tr class="sub"><td>• Companies House filing fee — ${esc(s.name)}</td><td class="r">${gbp(s.chFee!)}</td><td></td><td></td><td>Disbursement (no VAT)</td></tr>`).join('')}
-      <tr class="total"><td>Total Companies House disbursements (no VAT)</td><td class="r">${gbp(chDisbursements)}</td><td class="r">—</td><td class="r">—</td><td style="font-size:10.5px">Payable to CH</td></tr>` : '';
+` : '';
 
   const scopeRowsHtml = scopeRows.map((r, i) => `
     <tr${i % 2 ? ' class="alt"' : ''}><td><strong>${esc(r.service)}</strong></td><td>${esc(r.threshold)}</td><td>${esc(r.excess)}</td></tr>`).join('');
@@ -556,16 +558,20 @@ export function buildLetterHtml(d: LetterData): string {
       <tr><th>Fees</th><th style="width:110px;text-align:right">Annual Equivalent £</th><th style="width:92px;text-align:right">Fees Upfront £</th><th style="width:78px;text-align:right">Monthly £</th><th style="width:96px">Payment Mode</th></tr>
     </thead>
     <tbody>
-      <!-- Section LABEL only. It used to repeat the very same annual/monthly
-           figures printed in the "Total Fees" row below, so the
-           table showed each total twice and read as though fees were doubled. -->
-      <tr><td colspan="5"><strong>Recurring Fees Agreed (Monthly)</strong></td></tr>
+      <tr class="sect"><td colspan="5">Recurring Fees Agreed</td></tr>
       ${monthlyRows}
       ${oneoffHeader}
       ${oneoffRows}
-      <tr class="total"><td>Total Fees</td><td class="r">${gbp(totalAnnual)}</td><td class="r">—</td><td class="r">${gbp(totalMonthly)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
-      ${totalOneoff > 0 ? `<tr class="total"><td>Total One-off Charges (payable upfront)</td><td class="r">—</td><td class="r">${gbp(totalOneoff)}</td><td class="r">—</td><td style="font-size:10.5px">One off Upfront</td></tr>` : ''}
       ${chRows}
+      <!-- EVERY TOTAL, TOGETHER, AT THE END.
+           "Total Fees" used to be printed immediately after the ad-hoc rows,
+           where it read as though it totalled them — it does not; it is the
+           recurring total only. The sections are now listed first and the
+           totals gathered underneath, each saying plainly what it totals. -->
+      <tr class="sect"><td colspan="5">Summary of Fees</td></tr>
+      <tr class="total"><td>Total recurring fees</td><td class="r">${gbp(totalAnnual)}</td><td class="r">—</td><td class="r">${gbp(totalMonthly)}</td><td style="font-size:10.5px">${payModeLabel}</td></tr>
+      ${totalOneoff > 0 ? `<tr class="total"><td>Total additional and ad-hoc fees (payable upfront)</td><td class="r">—</td><td class="r">${gbp(totalOneoff)}</td><td class="r">—</td><td style="font-size:10.5px">One off Upfront</td></tr>` : ''}
+      ${chDisbursements > 0 ? `<tr class="total"><td>Total Companies House fees (no VAT)</td><td class="r">${gbp(chDisbursements)}</td><td class="r">—</td><td class="r">—</td><td style="font-size:10.5px">Payable to CH</td></tr>` : ''}
     </tbody>
   </table>
   <p class="vatnote sans">Note: 20% VAT applies to the GNS fees above. Companies House filing fees are disbursements paid to Companies House and are <strong>not</strong> subject to VAT. The Monthly and One-off columns are separate totals — they are not added together.</p>
