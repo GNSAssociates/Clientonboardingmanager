@@ -278,6 +278,7 @@ export async function POST(
       link: { ...link, letterMeta: (link.letterMeta ?? {}) as Record<string, unknown> },
       token, mode, firm, meta, appUrl, today, now,
       signatureName: signatureName!.trim(),
+      signatureImage: safeSignatureImage,
       contactPrefs: contactPrefs ?? [],
       directorDocs: directorDocs ?? [],
       companyDocs: companyDocs ?? [],

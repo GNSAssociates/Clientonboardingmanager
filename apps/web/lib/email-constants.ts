@@ -167,7 +167,7 @@ ${letterhead(d.firm, d.today)}
   ${d.prevFirmAddress ? `<p style="margin:0 0 16px;font-size:13px;color:#374151;white-space:pre-line">${d.prevFirmName}\n${d.prevFirmAddress}</p>` : `<p style="margin:0 0 16px;font-size:13px;color:#374151"><strong>${d.prevFirmName}</strong></p>`}
 
   <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#111">
-    Re: ${d.companyName} — Company No. ${d.companyNumber}${d.directorName ? ` / ${d.directorName}` : ''}
+    Re: ${d.companyName} — Company No. ${d.companyNumber} and its directors and shareholders
   </p>
 
   <p style="margin:0 0 16px;font-size:14px;color:#374151">Dear Sirs,</p>
@@ -322,7 +322,7 @@ export function buildPrevAccountantFollowUpEmail(d: PrevAccountantFollowUpData):
 ${letterhead(d.firm, d.today)}
 <div style="padding:24px 36px">
   <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#111">
-    Re: Professional Clearance — ${d.companyName} (Company No. ${d.companyNumber})
+    Re: ${d.companyName} — Company No. ${d.companyNumber} and its directors and shareholders
   </p>
   <p style="margin:0 0 16px;font-size:14px;color:#374151">Dear Sirs,</p>
   <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.7">${urgency}</p>

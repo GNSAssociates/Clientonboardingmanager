@@ -133,7 +133,7 @@ export const DEFAULT_SCOPE_ROWS: ScopeRow[] = [
   { service: 'PAYE and Pension', threshold: '2 persons including directors', excess: 'One off Setup: £10+VAT per staff · Ongoing: £10+VAT per staff per pay run' },
   { service: 'CIS', threshold: 'NA', excess: '£10+VAT per subcontractor per month' },
   { service: 'Self-Assessment (Excluding: Buy-to-Let)', threshold: '2 persons including directors', excess: '£200+VAT per year for additional person · Rental Property: To be Agreed Later' },
-  { service: 'Confirmation Statement Filing to Companies House', threshold: 'Once a Year', excess: '£50+VAT for additional filing' },
+  { service: 'Confirmation Statement Filing to Companies House', threshold: 'Once a Year', excess: '£50+VAT for each additional filing, plus any other Companies House fees applicable at the time' },
   { service: 'Management / Advisory Support', threshold: 'Ongoing management and advisory support as agreed', excess: 'Additional project work to be agreed separately' },
 ];
 

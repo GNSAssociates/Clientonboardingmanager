@@ -141,22 +141,30 @@ export async function DELETE(
   const session = getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Default is ARCHIVE. Permanent deletion is opt-in and ADMIN-ONLY: it destroys
-  // the signed engagement letter and the AML/KYC trail, which a regulated practice
-  // must normally retain. It exists for clearing test/dummy records.
+  // Default is ARCHIVE. Permanent deletion is opt-in; whether it is allowed
+  // depends on whether anything was actually signed — checked below, once the
+  // link has been loaded.
   const permanent = req.nextUrl.searchParams.get("permanent") === "1";
-  if (permanent && !session.isAdmin) {
-    return NextResponse.json(
-      { error: "Only an admin can permanently delete a client. Archive it instead." },
-      { status: 403 },
-    );
-  }
 
   const token = params.id;
   try {
     const db = getDb();
     const link = await db.transaction((tx) => getOnboardingLinkByToken(tx, token));
     if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    /* An UNSIGNED engagement — a draft, an unanswered link, an expired one — is
+       not a regulated record. Nothing was agreed, nothing was signed, and there
+       is no AML trail to preserve; it is a typo or a change of mind. Any staff
+       member may delete those outright. Once a letter is SIGNED it becomes a
+       contract and the retention rules apply, so it stays admin-only, and the
+       proper action for a real client is Archive. */
+    const isSigned = link.status === "accepted" || Boolean(link.signedHtml);
+    if (permanent && isSigned && !session.isAdmin) {
+      return NextResponse.json(
+        { error: "This engagement has been signed. Only an admin can permanently delete it — archive it instead." },
+        { status: 403 },
+      );
+    }
 
     if (permanent) {
       // Hard delete — everything linked to this token goes. Used to clear dummy

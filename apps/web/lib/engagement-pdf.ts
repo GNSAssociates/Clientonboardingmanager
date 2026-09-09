@@ -186,6 +186,11 @@ export interface EngagementPdfInput extends LetterData {
   /** When rendering the SIGNED copy: the client's signatory + timestamp for a
    *  signed-confirmation stamp under the signature block. */
   signedName?: string;
+  /** PNG data URL when the client DREW their signature or uploaded an image of
+   *  one. Drawn above the rule in place of the script-font name; the typed
+   *  legal name still prints beneath it, because that is what the audit trail
+   *  and Companies House record carry. */
+  signedImage?: string | null;
   signedAt?: string;
   signedIp?: string;
   /** Full e-signature audit trail. When present, an Adobe Sign-style
@@ -715,11 +720,26 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     need(150);
     text("Agreed and accepted for and on behalf of the Client:", { size: 10, color: GREY, gap: 4 });
 
+    /* If the client drew their signature or uploaded a scan of one, that is
+       their signature and it is what belongs on the contract. This PDF is the
+       copy that gets emailed and archived, so rendering the typed name here
+       while the on-screen letter showed their drawing meant the two versions
+       of the same signed document did not match. */
     const sigSize = 28;
-    y -= sigSize;
-    page.drawText(sanitize(d.signedName), {
-      x: MARGIN_X, y, size: sigSize, font: script, color: rgb(0.10, 0.24, 0.63),
-    });
+    const drawn = d.signedImage ? await embedDataUri(pdf, d.signedImage) : null;
+    if (drawn) {
+      // Fit inside the signature rule, keeping the aspect ratio.
+      const maxW = 200, maxH = 46;
+      const scale = Math.min(maxW / drawn.width, maxH / drawn.height, 1);
+      const w = drawn.width * scale, h = drawn.height * scale;
+      y -= h;
+      page.drawImage(drawn, { x: MARGIN_X, y, width: w, height: h });
+    } else {
+      y -= sigSize;
+      page.drawText(sanitize(d.signedName), {
+        x: MARGIN_X, y, size: sigSize, font: script, color: rgb(0.10, 0.24, 0.63),
+      });
+    }
     y -= 8;
     page.drawRectangle({ x: MARGIN_X, y, width: 220, height: 0.6, color: HAIRLINE });
     y -= 14;

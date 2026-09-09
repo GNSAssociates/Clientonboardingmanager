@@ -19,6 +19,15 @@ export async function GET() {
       id: l.id,
       token: l.token,
       companyName: l.companyName,
+      // Sole traders, partnerships and individuals have no companyName — their
+      // name is typed into the wizard and lives here. Without it the list
+      // showed a blank row and there was no way to tell who it was.
+      clientName: (meta.clientName as string)
+        ?? ((meta.wizardDraft as Record<string, unknown> | undefined)?.clientName as string)
+        ?? null,
+      clientType: (meta.clientType as string)
+        ?? ((meta.wizardDraft as Record<string, unknown> | undefined)?.clientType as string)
+        ?? null,
       companyNumber: l.companyNumber,
       directorName: l.directorName,
       clientEmail: l.clientEmail,

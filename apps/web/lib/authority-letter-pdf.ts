@@ -142,7 +142,7 @@ export async function buildAuthorityLetterPdf(input: AuthorityLetterInput): Prom
   para(`Re: Change of Accountants${d.clientName ? ` — ${clientLabel}` : ""}`, { font: bold, gapAfter: 7 });
 
   para(`I am writing to formally notify you that I have appointed ${f.legalName} as my new accountant and tax advisor with immediate effect.`, { gapAfter: 6 });
-  para(`Please take this letter as my authority for you to release all my personal and business accounting, tax and payroll records to ${f.legalName}.`, { gapAfter: 6 });
+  para(`Please take this letter as my authority for you to release all personal and business records relating to the above, including all accounting, tax and payroll records, to ${f.legalName}.`, { gapAfter: 6 });
   para(`Please provide ${f.legalName} with the necessary paperwork at your earliest convenience.`, { gapAfter: 10 });
 
   // ── "MY NEW ACCOUNTANTS" bordered panel ────────────────────────────────────

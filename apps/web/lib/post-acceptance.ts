@@ -66,6 +66,8 @@ export interface PostAcceptanceContext {
   today: string;
   now: Date;
   signatureName: string;
+  /** PNG data URL when the client drew or uploaded their signature. */
+  signatureImage?: string | null;
   contactPrefs: string[];
   directorDocs: DocStatus[];
   companyDocs: DocStatus[];
@@ -90,7 +92,7 @@ export interface PostAcceptanceResult {
 export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Promise<PostAcceptanceResult> {
   const {
     link, token, mode, firm, meta, appUrl, today, now,
-    signatureName, contactPrefs, directorDocs, companyDocs,
+    signatureName, signatureImage, contactPrefs, directorDocs, companyDocs,
     prevFirmName, prevEmail, prevPhone, prevFirmAddress, noPrevAccountant,
     ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
   } = ctx;
@@ -124,6 +126,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
         // Signed-copy fields: the client's executed signature, timestamp and IP.
         signedName: signatureName.trim() || link.directorName || undefined,
+        signedImage: signatureImage ?? null,
         signedAt: now.toISOString(),
         signedIp: ipAddress,
         // Full e-signature audit trail → appends an Adobe-style Certificate of
@@ -131,6 +134,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         // fingerprint, legal basis) to the archived/presented signed copy.
         audit: {
           signatureName: signatureName.trim(),
+          signatureImage: signatureImage ?? null,
           signedAtIso: now.toISOString(),
           signerEmail: link.clientEmail,
           companyName: link.companyName ?? "",
