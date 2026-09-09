@@ -29,6 +29,7 @@ import {
   scopeRowsForServices,
   type LetterData,
   type LetterService,
+  type CustomFee,
   type AuditData,
 } from "./letter-html";
 import { renderVars, templateDef } from "./email-templates-lib";
@@ -230,9 +231,25 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     if (s.frequency === "quarterly") return s.price * 4;
     return s.price * 12;
   };
-  const totalMonthly = monthly.reduce((s, x) => s + svcToMonthly(x), 0);
-  const totalAnnual = monthly.reduce((s, x) => s + svcToAnnual(x), 0);
-  const totalOneoff = oneoff.reduce((s, x) => s + x.price, 0) + customFees.reduce((s, x) => s + x.price, 0);
+  /* AN ADDITIONAL FEE AGREED MONTHLY IS A MONTHLY FEE.
+     This counted every custom fee as one-off, whatever frequency it was agreed
+     at, while the HTML letter split them properly. A £30/month additional
+     payroll run therefore appeared on the signed screen as £360 a year and in
+     the emailed PDF as £30 charged once — two versions of the same executed
+     contract, £330 a year apart. Same split as letter-html.ts, so they agree. */
+  const customRecurring = customFees.filter((c) => c.frequency && c.frequency !== "one-off");
+  const customOneoff = customFees.filter((c) => !c.frequency || c.frequency === "one-off");
+  const cfToMonthly = (c: CustomFee) =>
+    c.frequency === "annually" ? c.price / 12 : c.frequency === "quarterly" ? c.price / 3 : c.price;
+  const cfToAnnual = (c: CustomFee) =>
+    c.frequency === "annually" ? c.price : c.frequency === "quarterly" ? c.price * 4 : c.price * 12;
+
+  const totalMonthly = monthly.reduce((s, x) => s + svcToMonthly(x), 0)
+    + customRecurring.reduce((s, c) => s + cfToMonthly(c), 0);
+  const totalAnnual = monthly.reduce((s, x) => s + svcToAnnual(x), 0)
+    + customRecurring.reduce((s, c) => s + cfToAnnual(c), 0);
+  const totalOneoff = oneoff.reduce((s, x) => s + x.price, 0)
+    + customOneoff.reduce((s, c) => s + c.price, 0);
 
   const monthlyIds = monthly.map((s) => s.id ?? "");
   // Coverage/threshold text only — NEVER a chargeable fee, never in the totals above.
@@ -516,7 +533,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   heading2("Fees", false);
   text(`Payment mode: ${payModeLabel}`, { font: bold, size: 9.5, color: accent, gap: 8 });
 
-  if (monthly.length) {
+  if (monthly.length || customRecurring.length) {
     // Service rows plus any software sub-rows — the totals sit after all of them.
     const monthlyRowCount = monthly.length
       + ((d.softwareItems ?? []).filter((x) => x?.name?.trim()).length
@@ -551,6 +568,13 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
             ]),
           ];
         }),
+        // Additional fees agreed on a recurring basis belong in this table, not
+        // in the one-off one — the same place the letter puts them.
+        ...customRecurring.map((c) => [
+          { text: c.description },
+          { text: gbp(cfToMonthly(c)), align: "right" as const },
+          { text: gbp(cfToAnnual(c)), align: "right" as const },
+        ]),
         [
           { text: "Total monthly fee", bold: true },
           { text: gbp(totalMonthly), bold: true, align: "right" as const },
@@ -568,7 +592,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     text("No monthly recurring services on this engagement.", { font: italic, size: 9.5, color: GREY, gap: 10 });
   }
 
-  const oneoffItems = [...oneoff.map((s) => ({ name: s.name, price: s.price })), ...customFees.map((c) => ({ name: c.description, price: c.price }))];
+  const oneoffItems = [...oneoff.map((s) => ({ name: s.name, price: s.price })), ...customOneoff.map((c) => ({ name: c.description, price: c.price }))];
   if (oneoffItems.length) {
     heading2("Additional and Ad-hoc Fees", false);
     text("Fees for past due filings, catch-up work and any other additional or ad-hoc work agreed. Payable upfront — never added into the monthly or annual totals above. The scope of this work is set out in the Schedule of Services.", { font: italic, size: 9, color: GREY, gap: 6 });

@@ -36,10 +36,13 @@ export async function GET(
     if (!ddConfirmed && billingRequestId) {
       const st = await getBillingRequestStatus(link.firmSlug || "gns", billingRequestId);
       brStatus = st.status ?? null;
-      // `fulfilled` is the normal signal, but a mandate id on the billing
-      // request means the mandate exists whatever the status string says —
-      // and the mandate is the thing we actually gate signing on.
-      if (st.fulfilled || st.mandateId) {
+      /* ONLY `fulfilled`, because this WRITES ddConfirmed to the record and
+         the accept route trusts what it finds there without re-checking. A
+         billing request can carry a mandate id while being cancelled, failed or
+         still awaiting the payer — accepting that here let a signature through
+         on a mandate that never succeeded, which is exactly the firm's rule
+         ("if DD is not succeeded, the engagement cannot be signed") inverted. */
+      if (st.fulfilled) {
         ddConfirmed = true;
         await db.transaction((tx) =>
           updateOnboardingLink(tx, link.id, {

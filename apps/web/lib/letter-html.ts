@@ -331,7 +331,17 @@ export function buildLetterHtml(d: LetterData): string {
      Subscription £25" — but it is several products underneath, each priced
      separately when the letter was built. The client saw the total and had no
      way to know what they were paying for. These sub-rows say so. */
-  const softwareItems = (d.softwareItems ?? []).filter((x) => x && x.name?.trim());
+  /* ONLY when the software subscription is actually on this engagement.
+     The wizard seeds softwareItems with QuickBooks by default and forwards it
+     whatever was selected, so without this a client who bought only bookkeeping
+     got a "£25.00 / month" line for software they never asked for, sitting above
+     a total that excluded it and referring to a subscription "above" that was
+     not there. The PDF already carried this guard; the letter did not, so the
+     two copies of the contract disagreed. */
+  const hasSoftwareLine = monthly.some((s) => (s.id ?? '') === 'software_subscription');
+  const softwareItems = hasSoftwareLine
+    ? (d.softwareItems ?? []).filter((x) => x && x.name?.trim())
+    : [];
   const softwareRows = softwareItems.length ? `
       <tr class="sectnote"><td colspan="5">The software subscription above covers the following:</td></tr>
       ${softwareItems.map((x) => `<tr class="sub"><td>&nbsp;&nbsp;— ${esc(x.name)}</td><td class="r">${gbp((x.price || 0) * 12)}</td><td></td><td class="r">${gbp(x.price || 0)}</td><td></td></tr>`).join('')}` : '';

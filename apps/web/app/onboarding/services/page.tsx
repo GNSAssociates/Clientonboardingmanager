@@ -136,13 +136,20 @@ const SERVICES = [
 // "Companies House fee (no VAT)" box alongside the GNS fee in the builder.
 const CH_FEE_SERVICES = new Set(['confirmation_statement']);
 
-/* The statutory fee Companies House actually charges, per service. This box
- * used to start empty, so unless someone remembered to type the figure the
- * letter quoted our £50 and quietly left the client's £34 out — the quote was
- * short by the exact amount Companies House takes. It is pre-filled now, and
- * still editable, because the fee is a published rate that changes (£13 → £34
- * on 1 May 2024) rather than something to be typed from memory each time. */
-const CH_STATUTORY_FEE: Record<string, number> = { confirmation_statement: 50 };
+/* What we recharge the client for the Companies House filing, per service.
+ *
+ * This box used to start EMPTY, so unless someone remembered to type a figure
+ * the letter quoted our fee and left the Companies House fee out entirely — the
+ * quote was short by the whole disbursement. It is pre-filled now and still
+ * editable.
+ *
+ * NOTE the £50: Companies House itself charges £34 for a confirmation statement
+ * (it was £13 until 1 May 2024). £50 is the rate on the firm's own Annex A
+ * schedule and was confirmed as intended, so it is a recharge at the firm's
+ * published rate rather than at cost. If that ever changes, this is the one
+ * place to change it — and the client-facing wording next to the box, which
+ * currently says "Recharged at cost", should change with it. */
+const CH_RECHARGE_FEE: Record<string, number> = { confirmation_statement: 50 };
 
 /* A Confirmation Statement is filed once a year, so it must not default to a
  * monthly line — £50 a month is a twelvefold error in a client's favour or
@@ -460,7 +467,7 @@ function ServicesPageInner() {
       // Selecting a service that carries a Companies House fee brings that fee
       // with it. Staff can still set it to zero — but they now have to MEAN it,
       // rather than lose it by not noticing the box.
-      const statutory = CH_STATUTORY_FEE[id];
+      const statutory = CH_RECHARGE_FEE[id];
       if (statutory !== undefined) {
         setChFees((f) => (f[id] === undefined ? { ...f, [id]: statutory } : f));
       }
@@ -1004,7 +1011,7 @@ function ServicesPageInner() {
                        behalf and carries NO VAT, so it is never inside our fee
                        and never inside the 20%. */
                     const chFee = chFees[service.id] ?? 0;
-                    const statutory = CH_STATUTORY_FEE[service.id] ?? 0;
+                    const statutory = CH_RECHARGE_FEE[service.id] ?? 0;
                     const gnsAnnual = toAnnual(effPrice(service.id), frequencies[service.id] || 'monthly');
                     const vat = gnsAnnual * 0.2;
                     return (

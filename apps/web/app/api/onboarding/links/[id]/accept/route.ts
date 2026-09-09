@@ -131,12 +131,28 @@ export async function POST(
        sensible size — never an arbitrary string, which would otherwise be an
        HTML injection into a legal document, and never a remote URL, which
        would leave the letter depending on someone else's server. */
-    const safeSignatureImage =
+    const signatureImageOk =
       typeof signatureImage === "string" &&
       /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signatureImage) &&
-      signatureImage.length <= 1_500_000
-        ? signatureImage
-        : null;
+      signatureImage.length <= 1_500_000;
+    const safeSignatureImage = signatureImageOk ? signatureImage : null;
+
+    /* SAY SO, RATHER THAN SIGNING SOMETHING ELSE.
+       A client who draws or photographs their signature sees it in the preview.
+       If it failed validation here — a phone photo can exceed the size cap
+       easily — it was silently replaced by the typed name in script, and the
+       response still said success. They would only discover that the executed
+       contract carries a different signature by opening it. Refuse instead, and
+       tell them what to do about it. */
+    if (typeof signatureImage === "string" && signatureImage.trim() && !signatureImageOk) {
+      return NextResponse.json(
+        {
+          error: "Your signature image could not be accepted — it may be too large. "
+            + "Please draw it again, upload a smaller image, or switch to Type and enter your name.",
+        },
+        { status: 400 },
+      );
+    }
 
     if (!signatureName || signatureName.trim().length < 2) {
       return NextResponse.json({ error: "Signature (typed full name) is required" }, { status: 400 });

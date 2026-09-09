@@ -218,12 +218,20 @@ export default function ClientsPage() {
   const filteredGroups = groups.filter((g) => matches(g.latest) || g.history.some(matches));
   const filtered = filteredGroups.map((g) => g.latest);
 
+  /* Count what the tab will actually SHOW. These counted only each client's
+     newest engagement while the list keeps a client whose OLDER engagement
+     matches, so "Signed (3)" could sit above four cards. A group counts once,
+     for any status any of its engagements holds. */
+  const hasStatus = (g: ClientGroup, s: string) =>
+    g.latest.status === s || g.history.some((h) => h.status === s);
+  const inFirm = (g: ClientGroup) =>
+    firmFilter === 'all' || g.latest.firmSlug === firmFilter;
   const statusCounts = {
-    all: clients.length,
-    draft: clients.filter((r) => r.status === 'draft').length,
-    sent: clients.filter((r) => r.status === 'sent').length,
-    accepted: clients.filter((r) => r.status === 'accepted').length,
-    expired: clients.filter((r) => r.status === 'expired').length,
+    all: groups.filter(inFirm).length,
+    draft: groups.filter((g) => inFirm(g) && hasStatus(g, 'draft')).length,
+    sent: groups.filter((g) => inFirm(g) && hasStatus(g, 'sent')).length,
+    accepted: groups.filter((g) => inFirm(g) && hasStatus(g, 'accepted')).length,
+    expired: groups.filter((g) => inFirm(g) && hasStatus(g, 'expired')).length,
   };
 
   const STATUS_TABS: Array<{ key: string; label: string }> = [
