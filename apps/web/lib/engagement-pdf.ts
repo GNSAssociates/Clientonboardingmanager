@@ -517,6 +517,12 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text(`Payment mode: ${payModeLabel}`, { font: bold, size: 9.5, color: accent, gap: 8 });
 
   if (monthly.length) {
+    // Service rows plus any software sub-rows — the totals sit after all of them.
+    const monthlyRowCount = monthly.length
+      + ((d.softwareItems ?? []).filter((x) => x?.name?.trim()).length
+         && monthly.some((s) => (s.id ?? "") === "software_subscription")
+          ? (d.softwareItems ?? []).filter((x) => x?.name?.trim()).length
+          : 0);
     const freqLabel = (fr?: LetterService["frequency"]) => (fr === "annually" ? " (annual)" : fr === "quarterly" ? " (quarterly)" : "");
     drawTable(
       [
@@ -525,11 +531,26 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
         { header: "Annual Equivalent £", width: 90, align: "right" },
       ],
       [
-        ...monthly.map((s) => [
-          { text: `${s.name}${freqLabel(s.frequency)}` },
-          { text: gbp(svcToMonthly(s)), align: "right" as const },
-          { text: gbp(svcToAnnual(s)), align: "right" as const },
-        ]),
+        ...monthly.flatMap((s) => {
+          const row = [
+            { text: `${s.name}${freqLabel(s.frequency)}` },
+            { text: gbp(svcToMonthly(s)), align: "right" as const },
+            { text: gbp(svcToAnnual(s)), align: "right" as const },
+          ];
+          /* The software subscription is one line but several products beneath
+             it, each priced when the letter was built. The client was shown the
+             total and had no way to see what it covered. */
+          const isSoftware = (s.id ?? "") === "software_subscription";
+          const parts = isSoftware ? (d.softwareItems ?? []).filter((x) => x?.name?.trim()) : [];
+          return [
+            row,
+            ...parts.map((x) => [
+              { text: `     - ${x.name}`, color: GREY },
+              { text: gbp(x.price || 0), align: "right" as const, color: GREY },
+              { text: gbp((x.price || 0) * 12), align: "right" as const, color: GREY },
+            ]),
+          ];
+        }),
         [
           { text: "Total monthly fee", bold: true },
           { text: gbp(totalMonthly), bold: true, align: "right" as const },
@@ -541,7 +562,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
           { text: gbp(totalAnnual), bold: true, align: "right" as const },
         ],
       ],
-      { rowBg: (i) => (i >= monthly.length ? TABLE_TOTAL_BG : i % 2 ? TABLE_ALT_BG : null) },
+      { rowBg: (i) => (i >= monthlyRowCount ? TABLE_TOTAL_BG : i % 2 ? TABLE_ALT_BG : null) },
     );
   } else {
     text("No monthly recurring services on this engagement.", { font: italic, size: 9.5, color: GREY, gap: 10 });
@@ -549,8 +570,8 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
 
   const oneoffItems = [...oneoff.map((s) => ({ name: s.name, price: s.price })), ...customFees.map((c) => ({ name: c.description, price: c.price }))];
   if (oneoffItems.length) {
-    heading2("One-off / Upfront Fees", false);
-    text("Payable upfront — never added into the monthly or annual totals above.", { font: italic, size: 9, color: GREY, gap: 6 });
+    heading2("Additional and Ad-hoc Fees", false);
+    text("Fees for past due filings, catch-up work and any other additional or ad-hoc work agreed. Payable upfront — never added into the monthly or annual totals above. The scope of this work is set out in the Schedule of Services.", { font: italic, size: 9, color: GREY, gap: 6 });
     drawTable(
       [
         { header: "One-off Item", width: CONTENT_W - 110 },
@@ -558,12 +579,42 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       ],
       [
         ...oneoffItems.map((s) => [{ text: s.name }, { text: gbp(s.price), align: "right" as const }]),
-        [{ text: "Total one-off (payable upfront)", bold: true }, { text: gbp(totalOneoff), bold: true, align: "right" as const }],
+        [{ text: "Total additional and ad-hoc fees (payable upfront)", bold: true }, { text: gbp(totalOneoff), bold: true, align: "right" as const }],
       ],
       { rowBg: (i) => (i >= oneoffItems.length ? TABLE_TOTAL_BG : i % 2 ? TABLE_ALT_BG : null) },
     );
   }
-  text("Note: 20% VAT applies to all fees above. The monthly/annual figures and the one-off figure are separate totals — they are not added together.", { font: italic, size: 8.5, color: GREY, gap: 10 });
+  /* COMPANIES HOUSE DISBURSEMENTS. This PDF — the copy that is emailed and
+     archived — had no such section at all, so it showed our fee and silently
+     omitted the fee the client actually pays to Companies House. It is a
+     disbursement: paid on their behalf, and no VAT applies to it. */
+  const chServices = [...monthly, ...oneoff].filter((s) => (s.chFee || 0) > 0);
+  const chDisbursements = chServices.reduce((t, x) => t + (x.chFee || 0), 0);
+  if (chServices.length) {
+    heading2("Companies House Fees (Disbursements)", false);
+    text("In addition to our fees above, a separate annual fee is payable to Companies House. This is a disbursement paid on the Client's behalf and no VAT applies to it.", { font: italic, size: 9, color: GREY, gap: 6 });
+    drawTable(
+      [
+        { header: "Companies House Fee", width: CONTENT_W - 110 },
+        { header: "Annual £", width: 110, align: "right" },
+      ],
+      [
+        ...chServices.map((s) => [
+          { text: `Companies House filing fee - ${s.name}` },
+          { text: gbp(s.chFee || 0), align: "right" as const },
+        ]),
+        [{ text: "Total Companies House fees (no VAT)", bold: true }, { text: gbp(chDisbursements), bold: true, align: "right" as const }],
+      ],
+      { rowBg: (i) => (i >= chServices.length ? TABLE_TOTAL_BG : i % 2 ? TABLE_ALT_BG : null) },
+    );
+  }
+
+  text(
+    chServices.length
+      ? "Note: 20% VAT applies to our fees above. Companies House fees are disbursements paid to Companies House and are NOT subject to VAT. The monthly/annual, one-off and Companies House figures are separate totals - they are not added together."
+      : "Note: 20% VAT applies to all fees above. The monthly/annual figures and the one-off figure are separate totals — they are not added together.",
+    { font: italic, size: 8.5, color: GREY, gap: 10 },
+  );
 
   if (isManual) {
     text("Payment — Monthly Invoice", { font: bold, size: 9.5, color: INK, gap: 2 });

@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
       // letter and the engage page honour them.
       paymentMethod,   // 'dd' | 'manual'
       includeAnnexA,   // bool — include the SSC annex
+      softwareItems,   // the individual packages behind the software line
       includeDdClause, // bool — opt-in Direct Debit clause in the letter
       ddClauseNote,    // optional note printed in that clause
       clientType,      // limited | sole_trader | btl | partnership | llp | individual
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
       customFees?: CustomFee[]; scopeRows?: ScopeRow[]; ch?: ChDetails | null;
       draftToken?: string; scheduledSendAt?: string;
       paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
+      softwareItems?: Array<{ name: string; price: number }>;
       includeDdClause?: boolean; ddClauseNote?: string;
       clientName?: string; businessAddress?: string; utr?: string;
       oneoffScopes?: Record<string, string>;
@@ -107,6 +109,7 @@ export async function POST(req: NextRequest) {
       paymentMethod: string; includeAnnexA: boolean; clientType: string;
       includeDdClause: boolean; ddClauseNote: string;
       clientName?: string; utr?: string; oneoffScopes?: Record<string, string>;
+      softwareItems?: Array<{ name: string; price: number }>;
       scheduledSendAt?: string; emailPending?: boolean;
     } = {
       sendMode: mode,
@@ -124,6 +127,10 @@ export async function POST(req: NextRequest) {
       clientType: clientType || "limited",
       ...(clientName ? { clientName } : {}),
       ...(utr ? { utr } : {}),
+      // The software subscription is one line on the letter but several
+      // products underneath it. Staff price each one; the client was shown only
+      // the total and had no way to see what they were paying for.
+      ...(Array.isArray(softwareItems) && softwareItems.length ? { softwareItems } : {}),
       ...(oneoffScopes && Object.keys(oneoffScopes).length ? { oneoffScopes } : {}),
       ...(isScheduled ? { scheduledSendAt: schedDate!.toISOString(), emailPending: true } : {}),
     };
@@ -153,6 +160,7 @@ export async function POST(req: NextRequest) {
         ddClauseNote: letterMeta.ddClauseNote,
         clientType: letterMeta.clientType,
         clientName: letterMeta.clientName,
+        softwareItems: letterMeta.softwareItems,
         utr: letterMeta.utr,
       });
     }
@@ -201,6 +209,7 @@ export async function POST(req: NextRequest) {
           ddClauseNote: letterMeta.ddClauseNote,
           clientType: letterMeta.clientType,
           clientName: letterMeta.clientName,
+          softwareItems: letterMeta.softwareItems,
           utr: letterMeta.utr,
         });
         const docLabel = mode === "proposal_only" ? "Proposal" : "Engagement Letter";

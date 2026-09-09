@@ -80,7 +80,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     ["Company number", link.companyNumber ?? "—"],
     ["Client type", (lm.clientType as string) ?? "—"],
     ["Address", (lm.clientAddress as string) ?? "—"],
-    ["Director", link.directorName ?? "—"],
+    ["Director (signing)", link.directorName ?? "—"],
+    /* Every director on the Companies House register, not just the signer.
+       The wizard captured them all and the sent engagement kept only one, so a
+       company with four directors showed one on its client record. */
+    ["All directors", ((lm.ch as { directors?: string[] } | null)?.directors ?? []).join(", ") || (link.directorName ?? "—")],
     ["Email", link.clientEmail],
     ["Status", statusLabel],
     ["Engagement sent", dateStr(link.sentAt)],

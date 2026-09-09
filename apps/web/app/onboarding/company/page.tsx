@@ -334,6 +334,12 @@ function CompanyPageInner() {
         aaDue: company.aaDue,
         csDue: company.csDue,
         natureOfBusiness: company.natureOfBusiness,
+        /* EVERY director on the register, not just the one signing. The draft
+           captured them and the final send dropped them, so the client record
+           of a company with four directors listed one. Companies House is the
+           source; the signer is flagged, the rest are still on file. */
+        directors: (company.directors ?? []).map((d) => d.name).filter(Boolean),
+        primaryDirector: selectedDirector || company.directors[0]?.name || '',
       },
     };
   };

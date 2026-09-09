@@ -29,6 +29,9 @@ import { renderVars, templateDef } from './email-templates-lib';
 export type LetterFrequency = 'monthly' | 'quarterly' | 'annually';
 // price = the GNS fee (VATable). chFee = a Companies House disbursement paid to
 // Companies House on the client's behalf — NOT subject to VAT, shown separately.
+/** One product inside the software subscription line. */
+export interface SoftwareItem { name: string; price: number }
+
 export interface LetterService { id?: string; name: string; price: number; oneoff?: boolean; frequency?: LetterFrequency; chFee?: number }
 export interface CustomFee { description: string; price: number; frequency?: 'one-off' | LetterFrequency }
 export interface ScopeRow { service: string; threshold: string; excess: string }
@@ -41,6 +44,10 @@ export interface ChDetails {
   aaDue?: string | null;
   csDue?: string | null;
   natureOfBusiness?: string | null;
+  /** All active directors at Companies House. */
+  directors?: string[];
+  /** The one who signs — the others are on file, not on the signature block. */
+  primaryDirector?: string;
 }
 
 export interface LetterData {
@@ -66,6 +73,8 @@ export interface LetterData {
   clientType?: string; // 'limited' | 'llp' | 'sole_trader' | 'btl' | 'partnership' | 'individual'
   clientName?: string; // client / business / trading name (for non-company types)
   utr?: string; // Unique Taxpayer Reference (self-assessment / non-company clients)
+  /** The individual packages behind the software subscription line. */
+  softwareItems?: SoftwareItem[];
   /** Staff-editable text blocks (/staff/templates) — raw {variable} text as
    * saved by staff, resolved by the caller via
    * template-overrides.server.ts's loadEngagementLetterOverrides(). Falls
@@ -306,6 +315,7 @@ export function buildLetterHtml(d: LetterData): string {
       ${d.ch.address ? `<p class="w"><span>Registered Office:</span> ${esc(d.ch.address)}</p>` : ''}
       ${d.ch.incorporationDate ? `<p><span>Incorporated:</span> ${esc(fmtDate(d.ch.incorporationDate))}</p>` : ''}
       ${d.ch.natureOfBusiness ? `<p><span>SIC Code(s):</span> ${esc(d.ch.natureOfBusiness)}</p>` : ''}
+      ${(d.ch.directors ?? []).length ? `<p class="w"><span>Director${(d.ch.directors ?? []).length === 1 ? '' : 's'}:</span> ${(d.ch.directors ?? []).map((x) => esc(x) + (x === d.ch?.primaryDirector ? ' (signing)' : '')).join(', ')}</p>` : ''}
       ${d.ch.aaDue ? `<p><span>Accounts due:</span> ${esc(fmtDate(d.ch.aaDue))}</p>` : ''}
       ${d.ch.csDue ? `<p><span>Confirmation statement due:</span> ${esc(fmtDate(d.ch.csDue))}</p>` : ''}
     </div>
@@ -316,6 +326,15 @@ export function buildLetterHtml(d: LetterData): string {
     ...customRecurring.map((c) => ({ name: c.description, monthly: cfToMonthly(c), annual: cfToAnnual(c) })),
   ].map((r) => `
     <tr class="sub"><td>• ${esc(r.name)}</td><td class="r">${gbp(r.annual)}</td><td></td><td class="r">${gbp(r.monthly)}</td><td></td></tr>`).join('');
+
+  /* The software subscription is ONE line on the letter — "Software
+     Subscription £25" — but it is several products underneath, each priced
+     separately when the letter was built. The client saw the total and had no
+     way to know what they were paying for. These sub-rows say so. */
+  const softwareItems = (d.softwareItems ?? []).filter((x) => x && x.name?.trim());
+  const softwareRows = softwareItems.length ? `
+      <tr class="sectnote"><td colspan="5">The software subscription above covers the following:</td></tr>
+      ${softwareItems.map((x) => `<tr class="sub"><td>&nbsp;&nbsp;— ${esc(x.name)}</td><td class="r">${gbp((x.price || 0) * 12)}</td><td></td><td class="r">${gbp(x.price || 0)}</td><td></td></tr>`).join('')}` : '';
 
   const oneoffHeader = (oneoff.length || customOneoff.length) ? `
     <tr class="sect"><td colspan="5">Additional and Ad-hoc Fees</td></tr>
@@ -560,6 +579,7 @@ export function buildLetterHtml(d: LetterData): string {
     <tbody>
       <tr class="sect"><td colspan="5">Recurring Fees Agreed</td></tr>
       ${monthlyRows}
+      ${softwareRows}
       ${oneoffHeader}
       ${oneoffRows}
       ${chRows}

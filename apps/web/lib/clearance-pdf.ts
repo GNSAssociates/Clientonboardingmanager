@@ -346,11 +346,15 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
   text(today, { color: GREY, gap: 12 });
 
   // ── Subject ─────────────────────────────────────────────────────────────────
+  /* One subject line, used by the letter and the covering email alike: the
+     company, its number, and the people the request covers. Naming a single
+     director implied the request was about them alone; clearance concerns the
+     company together with its directors and shareholders. */
   const subject = [
     "Re:",
-    directorName ? `${directorName} and` : null,
     clientName,
     companyNumber ? `- Company No. ${companyNumber}` : null,
+    "and its directors and shareholders",
   ]
     .filter(Boolean)
     .join(" ");

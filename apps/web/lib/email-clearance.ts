@@ -91,7 +91,7 @@ ${d.prevFirmAddress
   : `<p style="margin:0 0 16px;font-size:13px;font-weight:600;color:#374151">${d.prevFirmName}</p>`}
 
 <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#111">
-  Re: ${d.directorName ? `${d.directorName} and ` : ''}${d.clientName.toUpperCase()}${d.companyNumber ? ` — Company No. ${d.companyNumber}` : ''}
+  Re: ${d.clientName.toUpperCase()}${d.companyNumber ? ` — Company No. ${d.companyNumber}` : ''} and its directors and shareholders
 </p>
 
 <p style="margin:0 0 14px;font-size:14px;color:#374151">Dear Sirs,</p>

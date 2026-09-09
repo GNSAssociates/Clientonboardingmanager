@@ -44,6 +44,8 @@ export interface PostAcceptanceLink {
 
 export interface PostAcceptanceMeta {
   partnerName?: string;
+  /** Products behind the software subscription line, shown as sub-rows. */
+  softwareItems?: Array<{ name: string; price: number }>;
   regBody?: string;
   clientAddress?: string;
   ch?: ChDetails | null;
@@ -122,7 +124,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         customFees: meta.customFees ?? [], scopeRows: meta.scopeRows ?? undefined,
         ch: meta.ch ?? null,
         paymentMethod: meta.paymentMethod, includeAnnexA: meta.includeAnnexA,
-        clientType: meta.clientType, clientName: meta.clientName, utr: meta.utr,
+        clientType: meta.clientType, clientName: meta.clientName, utr: meta.utr, softwareItems: meta.softwareItems,
         dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
         // Signed-copy fields: the client's executed signature, timestamp and IP.
         signedName: signatureName.trim() || link.directorName || undefined,

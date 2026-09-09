@@ -76,7 +76,7 @@ export async function POST(
       sendMode?: string; partnerName?: string; customFees?: CustomFee[];
       scopeRows?: ScopeRow[]; clientAddress?: string; ch?: ChDetails | null; regBody?: string;
       paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
-      clientName?: string; utr?: string;
+      clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
     };
     const isManualPayment = meta.paymentMethod === "manual";
     // details_only  → collects prev-accountant details only
@@ -194,6 +194,7 @@ export async function POST(
         includeAnnexA: meta.includeAnnexA,
         clientType: meta.clientType,
         clientName: meta.clientName,
+        softwareItems: meta.softwareItems,
         utr: meta.utr,
       });
     }
