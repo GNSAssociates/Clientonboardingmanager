@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
-import { createDirectDebitBillingRequest } from "@/lib/gocardless";
+import { createDirectDebitBillingRequest, environmentForFirm } from "@/lib/gocardless";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,8 @@ export async function POST(
     );
     return NextResponse.json({
       billingRequestFlowId: br.billingRequestFlowId,
-      environment: process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "sandbox" : "live",
+      // The drop-in must talk to the same GoCardless the flow was created on.
+      environment: environmentForFirm(link.firmSlug || "gns"),
       // Still returned so the page can fall back to the redirect if the
       // drop-in script is blocked by the client's browser.
       authorisationUrl: br.authorisationUrl ?? null,

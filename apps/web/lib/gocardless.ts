@@ -11,6 +11,10 @@
  *   GOCARDLESS_ACCESS_TOKEN_LLP
  *   GOCARDLESS_ACCESS_TOKEN_GALAXY
  *   GOCARDLESS_ENVIRONMENT           — "live" (default) or "sandbox"
+ *   GOCARDLESS_ENVIRONMENT_GNS       — per-firm overrides, same pattern as the
+ *   GOCARDLESS_ENVIRONMENT_LLP         token and webhook secret. A firm on a
+ *   GOCARDLESS_ENVIRONMENT_GALAXY      sandbox token MUST also be on the
+ *                                      sandbox API, or every call 401s.
  *   GOCARDLESS_WEBHOOK_SECRET        — default webhook signing secret (all firms)
  *   GOCARDLESS_WEBHOOK_SECRET_GNS    — per-firm overrides, same pattern as the
  *   GOCARDLESS_WEBHOOK_SECRET_LLP      access token (each firm's GoCardless
@@ -49,8 +53,27 @@ function tokenForFirm(firmSlug: string): string | undefined {
   return (perFirm || process.env.GOCARDLESS_ACCESS_TOKEN)?.trim() || undefined;
 }
 
-function apiBase(): string {
-  return process.env.GOCARDLESS_ENVIRONMENT === 'sandbox'
+/**
+ * WHICH GOCARDLESS, PER FIRM.
+ *
+ * The access token and webhook secret were already per-firm; the environment
+ * was not. So GOCARDLESS_ENVIRONMENT_LLP could sit in the environment looking
+ * authoritative while nothing read it, and a firm issued a SANDBOX token was
+ * pointed at the LIVE API regardless — where that token is not valid, so every
+ * call 401s and no mandate is ever created. The reverse is worse: a firm
+ * intended to be in test mode quietly creating real BACS mandates against real
+ * client bank accounts.
+ *
+ * Same suffix pattern as the token, so the three settings move together.
+ */
+export function environmentForFirm(firmSlug: string): 'sandbox' | 'live' {
+  const perFirm = process.env[`GOCARDLESS_ENVIRONMENT_${firmSlug.toUpperCase()}`]?.trim();
+  const value = perFirm || process.env.GOCARDLESS_ENVIRONMENT?.trim();
+  return value === 'sandbox' ? 'sandbox' : 'live';
+}
+
+function apiBase(firmSlug: string): string {
+  return environmentForFirm(firmSlug) === 'sandbox'
     ? 'https://api-sandbox.gocardless.com'
     : 'https://api.gocardless.com';
 }
@@ -82,7 +105,7 @@ export async function lookupBankDetails(
     return { configured: true, ok: false, error: 'incomplete' };
   }
   try {
-    const res = await fetch(`${apiBase()}/bank_details_lookups`, {
+    const res = await fetch(`${apiBase(firmSlug)}/bank_details_lookups`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${gcToken}`,
@@ -110,8 +133,8 @@ export async function lookupBankDetails(
   }
 }
 
-async function gcPost(token: string, path: string, resource: string, body: Record<string, unknown>, idempotencyKey: string) {
-  const res = await fetch(`${apiBase()}${path}`, {
+async function gcPost(firmSlug: string, token: string, path: string, resource: string, body: Record<string, unknown>, idempotencyKey: string) {
+  const res = await fetch(`${apiBase(firmSlug)}${path}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -154,7 +177,7 @@ async function gcPost(token: string, path: string, resource: string, body: Recor
       gcErr?.errors?.find((e) => e?.links?.conflicting_resource_id)?.links?.conflicting_resource_id
       ?? gcErr?.links?.conflicting_resource_id;
     if (conflict) {
-      const existing = await fetch(`${apiBase()}${path}/${conflict}`, {
+      const existing = await fetch(`${apiBase(firmSlug)}${path}/${conflict}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'GoCardless-Version': '2015-07-06',
@@ -194,7 +217,7 @@ export async function setupDirectDebitMandate(opts: {
 
   try {
     const a = opts.address;
-    const customer = await gcPost(gcToken, '/customers', 'customers', {
+    const customer = await gcPost(opts.firmSlug, gcToken, '/customers', 'customers', {
       email: opts.email,
       given_name: opts.directorName.split(' ')[0] || opts.directorName,
       family_name: opts.directorName.split(' ').slice(1).join(' ') || opts.directorName,
@@ -208,7 +231,7 @@ export async function setupDirectDebitMandate(opts: {
       ...(a?.postcode?.trim() ? { postal_code: a.postcode.trim() } : {}),
     }, `cust-${opts.token}`);
 
-    const bankAccount = await gcPost(gcToken, '/customer_bank_accounts', 'customer_bank_accounts', {
+    const bankAccount = await gcPost(opts.firmSlug, gcToken, '/customer_bank_accounts', 'customer_bank_accounts', {
       account_holder_name: opts.dd.accountName.slice(0, 18),
       account_number: opts.dd.accountNumber,
       branch_code: opts.dd.sortCode.replace(/\D/g, ''),
@@ -217,7 +240,7 @@ export async function setupDirectDebitMandate(opts: {
       links: { customer: customer.id },
     }, `bank-${opts.token}`);
 
-    const mandate = await gcPost(gcToken, '/mandates', 'mandates', {
+    const mandate = await gcPost(opts.firmSlug, gcToken, '/mandates', 'mandates', {
       scheme: 'bacs',
       links: { customer_bank_account: bankAccount.id },
       // Lets staff cross-reference a mandate in the GoCardless dashboard back
@@ -265,12 +288,12 @@ export async function createDirectDebitBillingRequest(opts: {
   const gcToken = tokenForFirm(opts.firmSlug);
   if (!gcToken) return { configured: false, success: false };
   try {
-    const br = await gcPost(gcToken, '/billing_requests', 'billing_requests', {
+    const br = await gcPost(opts.firmSlug, gcToken, '/billing_requests', 'billing_requests', {
       mandate_request: { scheme: 'bacs', currency: 'GBP' },
       metadata: { onboarding_token: opts.token },
     }, `br-${opts.token}`);
 
-    const flow = await gcPost(gcToken, '/billing_request_flows', 'billing_request_flows', {
+    const flow = await gcPost(opts.firmSlug, gcToken, '/billing_request_flows', 'billing_request_flows', {
       redirect_uri: opts.redirectUri,
       exit_uri: opts.exitUri,
       // Pre-fill what we know so the hosted page is faster for the client.
@@ -311,7 +334,7 @@ export async function getBillingRequestStatus(
   const gcToken = tokenForFirm(firmSlug);
   if (!gcToken) return { configured: false };
   try {
-    const res = await fetch(`${apiBase()}/billing_requests/${billingRequestId}`, {
+    const res = await fetch(`${apiBase(firmSlug)}/billing_requests/${billingRequestId}`, {
       headers: { Authorization: `Bearer ${gcToken}`, 'GoCardless-Version': '2015-07-06' },
     });
     const json = (await res.json().catch(() => ({}))) as {

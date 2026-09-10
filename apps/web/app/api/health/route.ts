@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createConnection } from "@gns/db";
 import { newRequestId } from "@/lib/observability";
+import { environmentForFirm } from "@/lib/gocardless";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,9 @@ export async function GET(req: NextRequest) {
         // is rejected, so they never complete. The reverse is harmless — with
         // no token no mandate is created, so those clients simply finish
         // immediately, exactly as they did before Direct Debit gating existed.
+        // The environment is per-firm too; a sandbox token on the live API
+        // 401s on every call, and the reverse creates real mandates.
+        environment: environmentForFirm(firm.toLowerCase()),
         status: token && webhook ? "ok"
           : token ? "ACTION REQUIRED: access token set but no webhook secret — Direct Debit clients will stick in pending_dd"
           : webhook ? "inactive (webhook secret ready, no access token — Direct Debit gating off for this firm)"
