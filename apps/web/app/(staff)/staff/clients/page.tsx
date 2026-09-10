@@ -33,6 +33,31 @@ interface ClientGroup {
   history: LinkRow[];
 }
 
+/* WHAT IS THIS CLIENT'S ACTUAL STATE?
+ *
+ * A client accumulates engagements — a first attempt, a corrected fee, a
+ * re-send — and only one gets signed. The card showed the NEWEST one, so a
+ * client who signed on the 5th read as "Awaiting signature" because an unsigned
+ * copy was raised on the 7th, and the headline fee came from that unsigned copy
+ * rather than from the contract. Staff could not tell, at a glance, whether the
+ * client was signed, and the fee on screen was not the fee agreed.
+ *
+ * The signed engagement is the one that matters. */
+function signedOf(g: ClientGroup): LinkRow | null {
+  const all = [g.latest, ...g.history].filter((r) => r.status === 'accepted');
+  // Newest signature wins if somehow there is more than one.
+  return all[0] ?? null;
+}
+
+/** Unsigned engagements raised BEFORE the signature — the client did sign, just
+ *  not this copy. One raised AFTER is a genuinely new engagement, still live. */
+function isSuperseded(r: LinkRow, signed: LinkRow | null): boolean {
+  if (!signed || r.id === signed.id || r.status === 'accepted') return false;
+  const at = signed.acceptedAt ? new Date(signed.acceptedAt).getTime() : 0;
+  const mine = r.sentAt ? new Date(r.sentAt).getTime() : 0;
+  return at > 0 && mine > 0 && mine <= at;
+}
+
 // Human label for where an in-progress draft was left off
 const DRAFT_STEP_LABEL: Record<string, string> = {
   services: 'Services & fees',
@@ -376,7 +401,15 @@ export default function ClientsPage() {
             const firm = r.firmSlug ? FIRMS[r.firmSlug] : null;
             const isDraft = r.status === 'draft';
             const st = STATUS[r.status] ?? STATUS.sent!;
-            const monthly = monthlyOf(r);
+            /* The fee the client AGREED, which is the signed one. Reading the
+               newest link showed a fee from an unsigned draft — a number the
+               client never put their name to. */
+            const signed = signedOf(g);
+            const feeRow = signed ?? r;
+            const monthly = monthlyOf(feeRow);
+            const pendingNewer = [g.latest, ...g.history].filter(
+              (x) => x.status === 'sent' && !isSuperseded(x, signed) && x.id !== signed?.id,
+            ).length;
             const resumeHref = `/onboarding/services?draft=${r.token}&firm=${r.firmSlug ?? 'gns'}`;
             const detailHref = isDraft ? resumeHref : `/staff/clients/${r.token}`;
             const expanded = openHistory === g.key;
@@ -385,7 +418,20 @@ export default function ClientsPage() {
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <Link href={detailHref} className="flex-1 min-w-0 group">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${st.cls}`}>{st.label}</span>
+                    {/* The CLIENT's state, not the newest link's. */}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${(signed ? STATUS.accepted! : st).cls}`}>
+                      {signed ? STATUS.accepted!.label : st.label}
+                    </span>
+                    {signed && signed.acceptedAt && (
+                      <span className="text-xs text-gray-400">
+                        signed {new Date(signed.acceptedAt).toLocaleDateString('en-GB')}
+                      </span>
+                    )}
+                    {signed && pendingNewer > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">
+                        {pendingNewer} newer awaiting signature
+                      </span>
+                    )}
                     {isDraft && r.draftStep && DRAFT_STEP_LABEL[r.draftStep] && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
                         at: {DRAFT_STEP_LABEL[r.draftStep]}
@@ -401,9 +447,9 @@ export default function ClientsPage() {
                         {gbp(monthly)}/month
                       </span>
                     )}
-                    {feeTotals(r.services).chAnnual > 0 && (
+                    {feeTotals(feeRow.services).chAnnual > 0 && (
                       <span className="text-xs text-gray-400" title="Companies House disbursement — no VAT">
-                        + {gbp(feeTotals(r.services).chAnnual)}/yr CH
+                        + {gbp(feeTotals(feeRow.services).chAnnual)}/yr CH
                       </span>
                     )}
                   </div>
@@ -489,6 +535,7 @@ export default function ClientsPage() {
                     <div className="mt-2 space-y-1.5">
                       {g.history.map((h) => {
                         const hs = STATUS[h.status] ?? STATUS.sent!;
+                        const spent = isSuperseded(h, signed);
                         const hDraft = h.status === 'draft';
                         const hHref = hDraft
                           ? `/onboarding/services?draft=${h.token}&firm=${h.firmSlug ?? 'gns'}`
@@ -498,7 +545,9 @@ export default function ClientsPage() {
                           <div key={h.id} className="flex items-center justify-between gap-3 flex-wrap rounded-lg bg-gray-50 px-3 py-2">
                             <Link href={hHref} className="flex-1 min-w-0 group">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${hs.cls}`}>{hs.label}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${spent ? 'bg-gray-100 text-gray-500' : hs.cls}`}>
+                                  {spent ? 'Superseded' : hs.label}
+                                </span>
                                 <span className="text-xs text-gray-600 group-hover:text-blue-700">
                                   {h.sentAt ? new Date(h.sentAt).toLocaleDateString('en-GB') : '—'}
                                 </span>

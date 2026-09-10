@@ -131,6 +131,44 @@ export async function listLinksByFirmSlug(tx: Tx, firmSlug: string) {
     .orderBy(desc(onboardingLinks.createdAt));
 }
 
+/**
+ * A SIGNED ENGAGEMENT SILENCES THE ONES IT REPLACED.
+ *
+ * A client accumulates several links: a first attempt, a corrected fee, a
+ * re-send. Only one of them gets signed — but every OTHER row stays at status
+ * "sent" forever, and both chase paths only ever asked whether THAT row was
+ * accepted. So a client who signed on the 5th kept receiving "Reminder 3:
+ * please sign your engagement letter" for the drafts they had already replaced.
+ *
+ * An unsigned link raised BEFORE a signed one was superseded by it: the client
+ * did sign, just not that copy. One raised AFTER is a genuinely new engagement
+ * and is still live. Matching is by company number where there is one, and by
+ * email otherwise, within the same firm — the same identity the clients list
+ * groups on.
+ */
+export async function findSupersedingSignedLink(
+  tx: Tx,
+  link: OnboardingLinkRow,
+): Promise<OnboardingLinkRow | null> {
+  const sameFirm = eq(onboardingLinks.firmSlug, link.firmSlug ?? "gns");
+  const identity = link.companyNumber
+    ? eq(onboardingLinks.companyNumber, link.companyNumber)
+    : eq(onboardingLinks.clientEmail, link.clientEmail);
+
+  const siblings = await tx
+    .select()
+    .from(onboardingLinks)
+    .where(and(sameFirm, identity, eq(onboardingLinks.status, "accepted")));
+
+  const mine = new Date(link.sentAt).getTime();
+  // Only a signature that came AFTER this link was raised supersedes it.
+  const after = siblings
+    .filter((s) => s.id !== link.id && s.acceptedAt && new Date(s.acceptedAt).getTime() >= mine)
+    .sort((a, b) => new Date(a.acceptedAt!).getTime() - new Date(b.acceptedAt!).getTime());
+
+  return after[0] ?? null;
+}
+
 export async function listAllLinks(tx: Tx) {
   return tx
     .select()

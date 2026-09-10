@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkByToken, incrementFollowUp } from "@gns/db";
+import { getDb, getOnboardingLinkByToken, incrementFollowUp, findSupersedingSignedLink } from "@gns/db";
 import { getFirm } from "@/lib/firms";
 import { sendMail } from "@/lib/mailer";
 import { buildClientFollowUpEmail, buildPrevAccountantFollowUpEmail } from "@/lib/email-constants";
@@ -26,6 +26,23 @@ export async function POST(req: NextRequest) {
     if (type === "client") {
       if (link.status === "accepted") {
         return NextResponse.json({ error: "Client has already signed" }, { status: 409 });
+      }
+
+      /* Never chase a client who HAS signed, just not this copy. This asked
+         only whether THIS link was accepted, so the drafts a client replaced
+         went on demanding a signature they had already given. */
+      const superseded = await db.transaction((tx) => findSupersedingSignedLink(tx, link));
+      if (superseded) {
+        return NextResponse.json(
+          {
+            error: "This engagement was superseded by one the client has already signed"
+              + (superseded.acceptedAt
+                ? " on " + new Date(superseded.acceptedAt).toLocaleDateString("en-GB")
+                : "")
+              + " — no reminder was sent.",
+          },
+          { status: 409 },
+        );
       }
 
       const followUpNum = (link.clientFollowUpCount ?? 0) + 1;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkById, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
+import { getDb, getOnboardingLinkById, getOnboardingLinkByToken, updateOnboardingLink, findSupersedingSignedLink } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { getFirm } from "@/lib/firms";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
@@ -38,6 +38,22 @@ export async function POST(
 
     const link = await resolveLink();
     if (!link) return NextResponse.json({ error: "Link not found" }, { status: 404 });
+
+    /* A client who signed a LATER copy of this engagement must not be asked
+       to sign an earlier one. See findSupersedingSignedLink. */
+    const supersededBy = await db.transaction((tx) => findSupersedingSignedLink(tx, link));
+    if (supersededBy) {
+      return NextResponse.json(
+        {
+          error: "Superseded — this client already signed a later engagement"
+            + (supersededBy.acceptedAt
+              ? " on " + new Date(supersededBy.acceptedAt).toLocaleDateString("en-GB")
+              : "")
+            + ". Nothing was sent.",
+        },
+        { status: 409 },
+      );
+    }
 
     if (link.status === "accepted") {
       return NextResponse.json({ error: "This client has already signed" }, { status: 409 });
