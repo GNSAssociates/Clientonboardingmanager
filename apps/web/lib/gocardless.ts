@@ -284,14 +284,76 @@ export async function createDirectDebitBillingRequest(opts: {
    *  Only changes what we return — the flow itself is created the same way, so
    *  the drop-in and the redirect remain interchangeable fallbacks. */
   embedded?: boolean;
-}): Promise<{ configured: boolean; success: boolean; authorisationUrl?: string; billingRequestId?: string; billingRequestFlowId?: string; error?: string }> {
+}): Promise<{
+  configured: boolean; success: boolean; authorisationUrl?: string;
+  billingRequestId?: string; billingRequestFlowId?: string; error?: string;
+  /** The request was already completed — a mandate exists. Caller should mark
+   *  Direct Debit confirmed rather than sending the client round again. */
+  alreadySetUp?: boolean;
+  mandateId?: string;
+  /** The client has authorised but GoCardless has not finished creating the
+   *  mandate. Caller should re-check status shortly, NOT start a new setup. */
+  inProgress?: boolean;
+  /** Billing request status as GoCardless reports it, for logs/diagnostics. */
+  status?: string;
+}> {
   const gcToken = tokenForFirm(opts.firmSlug);
   if (!gcToken) return { configured: false, success: false };
   try {
-    const br = await gcPost(opts.firmSlug, gcToken, '/billing_requests', 'billing_requests', {
+    let br = await gcPost(opts.firmSlug, gcToken, '/billing_requests', 'billing_requests', {
       mandate_request: { scheme: 'bacs', currency: 'GBP' },
       metadata: { onboarding_token: opts.token },
     }, `br-${opts.token}`);
+
+    /* A LINK MUST NOT BE LIMITED TO ONE DIRECT DEBIT ATTEMPT FOR EVER.
+     *
+     * The idempotency key above is `br-<token>`, so this call returns the SAME
+     * billing request every time for the life of the link — deliberately, so a
+     * client clicking twice cannot end up with two mandates. But a billing
+     * request can only be opened while it is `pending`. Once it has been
+     * completed or cancelled it is spent, and we were still handing it to
+     * /billing_request_flows, which answers:
+     *   422 "The billing request must be in a pending state to use this action"
+     * leaving that link permanently unable to set up a Direct Debit — with no
+     * way back, since a spent request never returns to `pending`.
+     *
+     * So branch on the state we actually got back:
+     */
+    const status = String((br as { status?: string }).status ?? '');
+    const mandateOf = (r: unknown) =>
+      (r as { links?: { mandate_request_mandate?: string } }).links?.mandate_request_mandate;
+
+    // Already done. Creating another request here would invite a SECOND mandate
+    // on the same client — the exact thing the stable key exists to prevent.
+    if (status === 'fulfilled') {
+      const mandateId = mandateOf(br);
+      return {
+        configured: true, success: true, alreadySetUp: true, status,
+        billingRequestId: String(br.id),
+        ...(mandateId ? { mandateId: String(mandateId) } : {}),
+      };
+    }
+
+    // Authorised, mandate still being created. Not openable, but emphatically
+    // not spent either — starting a fresh request now could double it up.
+    if (status === 'ready_to_fulfil' || status === 'fulfilling') {
+      return {
+        configured: true, success: true, inProgress: true, status,
+        billingRequestId: String(br.id),
+      };
+    }
+
+    // Spent (cancelled/expired) or a state we do not recognise: the old request
+    // can never be opened again, so replace it. A brand-new billing request is
+    // harmless on its own — no mandate exists until a client completes the flow
+    // — and the states that could still yield a mandate are handled above.
+    if (status !== 'pending') {
+      console.warn(`GoCardless: billing request ${br.id} is "${status}" — issuing a fresh one for token ${opts.token}`);
+      br = await gcPost(opts.firmSlug, gcToken, '/billing_requests', 'billing_requests', {
+        mandate_request: { scheme: 'bacs', currency: 'GBP' },
+        metadata: { onboarding_token: opts.token },
+      }, `br-${opts.token}-r${Date.now().toString(36)}`);
+    }
 
     const flow = await gcPost(opts.firmSlug, gcToken, '/billing_request_flows', 'billing_request_flows', {
       redirect_uri: opts.redirectUri,
@@ -313,6 +375,7 @@ export async function createDirectDebitBillingRequest(opts: {
     return {
       configured: true,
       success: true,
+      status: String((br as { status?: string }).status ?? ''),
       authorisationUrl: String((flow as { authorisation_url?: string }).authorisation_url ?? ''),
       billingRequestId: String(br.id),
       billingRequestFlowId: String(flow.id),

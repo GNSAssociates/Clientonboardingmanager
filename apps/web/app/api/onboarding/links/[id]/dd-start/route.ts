@@ -47,6 +47,36 @@ export async function POST(
       { status: 503 },
     );
   }
+  /* The billing request was already completed — a mandate exists. There is
+     nothing for the client to do, so record it as confirmed instead of sending
+     them into a window that cannot open. Without this the page would keep
+     offering "Set up Direct Debit" against a spent request for ever. */
+  if (br.alreadySetUp) {
+    const acc = (link.acceptanceData ?? {}) as Record<string, unknown>;
+    const gc = (acc.gocardless ?? {}) as Record<string, unknown>;
+    await db.transaction((tx) =>
+      updateOnboardingLink(tx, link.id, {
+        acceptanceData: {
+          ...acc,
+          gocardless: {
+            ...gc,
+            billingRequestId: br.billingRequestId,
+            ...(br.mandateId ? { mandateId: br.mandateId } : {}),
+            ddConfirmed: true,
+          },
+        },
+      }),
+    );
+    return NextResponse.json({ ddConfirmed: true, alreadySetUp: true });
+  }
+
+  /* Authorised, but GoCardless has not finished creating the mandate. Tell the
+     page to poll rather than start again — a second attempt here is how a
+     client ends up with two mandates. */
+  if (br.inProgress) {
+    return NextResponse.json({ ddConfirmed: false, inProgress: true });
+  }
+
   if (embedded && br.success && br.billingRequestFlowId) {
     const acc0 = (link.acceptanceData ?? {}) as Record<string, unknown>;
     const gc0 = (acc0.gocardless ?? {}) as Record<string, unknown>;

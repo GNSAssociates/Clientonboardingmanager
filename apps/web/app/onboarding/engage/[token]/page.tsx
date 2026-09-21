@@ -325,8 +325,35 @@ export default function EngagementPage() {
       const data = await res.json() as {
         billingRequestFlowId?: string; environment?: string;
         authorisationUrl?: string | null; message?: string; error?: string;
+        ddConfirmed?: boolean; alreadySetUp?: boolean; inProgress?: boolean;
       };
       if (!res.ok) throw new Error(data.message || data.error || 'Could not start Direct Debit setup.');
+
+      // This client's Direct Debit already exists — unlock rather than sending
+      // them into a window that cannot open.
+      if (data.alreadySetUp || data.ddConfirmed) {
+        setDdConfirmed(true);
+        setDdSetupError('');
+        setDdSetupLoading(false);
+        return;
+      }
+      // Authorised, mandate still being created at GoCardless. Poll instead of
+      // starting again — a second attempt is how a client gets two mandates.
+      if (data.inProgress) {
+        setDdSetupLoading(false);
+        setDdVerifying(true);
+        let n = 0;
+        const iv = setInterval(async () => {
+          n += 1;
+          const ok = await checkDdStatus();
+          if (ok || n >= 20) {
+            clearInterval(iv);
+            setDdVerifying(false);
+            if (!ok) setDdSetupError('Your Direct Debit is still being confirmed by GoCardless. Please press "I have finished — check again" in a moment.');
+          }
+        }, 2000);
+        return;
+      }
 
       if (data.billingRequestFlowId && (await loadDropin())) {
         const GC = (window as unknown as {
