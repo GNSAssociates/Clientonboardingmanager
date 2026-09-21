@@ -8,7 +8,7 @@ import {
 import { getFirm } from "@/lib/firms";
 import { buildLetterHtml, buildSignedHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
-import { getBillingRequestStatus } from "@/lib/gocardless";
+import { verifyDirectDebit } from "@/lib/gocardless";
 import { clientIp, engageCookieName, readEngageSession } from "@/lib/engage-session";
 import { runPostAcceptanceEffects, type PostAcceptanceContext } from "@/lib/post-acceptance";
 
@@ -175,16 +175,37 @@ export async function POST(
     const storedGc = (acc.gocardless ?? {}) as Record<string, unknown>;
     let ddMandateId = (storedGc.mandateId as string | undefined) ?? undefined;
     let ddConfirmed = Boolean(storedGc.ddConfirmed);
+    let ddMandateStatus = (storedGc.mandateStatus as string | undefined) ?? undefined;
     if (mode === "engagement" && !isManualPayment) {
       const billingRequestId = storedGc.billingRequestId as string | undefined;
-      if (!ddConfirmed && billingRequestId) {
-        // Re-check live so a client can't submit a stale/unconfirmed flag.
-        const st = await getBillingRequestStatus(link.firmSlug || "gns", billingRequestId);
-        if (st.fulfilled) { ddConfirmed = true; ddMandateId = st.mandateId ?? ddMandateId; }
+      /* Re-verify on EVERY signature, including when the stored flag already
+         says confirmed. It used to re-check only when the flag was false, so a
+         mandate cancelled after confirmation still let the client sign — the
+         firm's rule ("if DD is not succeeded, the engagement cannot be signed")
+         inverted, because a billing request stays `fulfilled` for ever no
+         matter what becomes of the mandate it produced.
+
+         A mandate GoCardless positively reports as dead blocks the signature.
+         An unreachable API falls back to the stored flag rather than blocking
+         every client for the length of a GoCardless outage. */
+      if (billingRequestId || ddMandateId) {
+        const v = await verifyDirectDebit(link.firmSlug || "gns", {
+          billingRequestId,
+          mandateId: ddMandateId,
+        });
+        if (v.reachable) {
+          ddConfirmed = v.ok;
+          ddMandateId = v.mandateId ?? ddMandateId;
+          ddMandateStatus = v.mandateStatus ?? ddMandateStatus;
+        }
       }
       if (!ddConfirmed) {
         return NextResponse.json(
-          { error: "Please set up your Direct Debit with GoCardless before signing — it has not been confirmed yet." },
+          {
+            error: ddMandateStatus && ddMandateStatus !== "not_found"
+              ? `Your Direct Debit mandate is "${ddMandateStatus}" and cannot be used. Please set it up again before signing.`
+              : "Please set up your Direct Debit with GoCardless before signing — it has not been confirmed yet.",
+          },
           { status: 400 }
         );
       }

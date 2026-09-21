@@ -13,7 +13,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
-import { getBillingRequestStatus } from "@/lib/gocardless";
+import { verifyDirectDebit } from "@/lib/gocardless";
 
 export const dynamic = "force-dynamic";
 
@@ -29,29 +29,48 @@ export async function GET(
     const acc = (link.acceptanceData ?? {}) as Record<string, unknown>;
     const gc = (acc.gocardless ?? {}) as Record<string, unknown>;
 
-    // Billing Requests gate: verify with GoCardless and cache the result.
+    /* ALWAYS ask GoCardless — never short-circuit on the stored flag.
+       ddConfirmed used to be checked only when it was false, so once a client
+       was confirmed we never looked again. Cancel their mandate in GoCardless
+       and this endpoint happily kept reporting "set up", because a billing
+       request stays `fulfilled` for ever regardless of what later happens to
+       the mandate it produced. The flag is a cache of a fact that can change,
+       so it is re-derived here and corrected in both directions.
+
+       Only a mandate GoCardless positively reports as dead clears it: if the
+       API cannot be reached we keep what we had, so an outage cannot revoke a
+       client mid-signature. */
     let ddConfirmed = Boolean(gc.ddConfirmed);
     let brStatus: string | null = null;
+    let mandateStatus: string | null = (gc.mandateStatus as string) ?? null;
     const billingRequestId = gc.billingRequestId as string | undefined;
-    if (!ddConfirmed && billingRequestId) {
-      const st = await getBillingRequestStatus(link.firmSlug || "gns", billingRequestId);
-      brStatus = st.status ?? null;
-      /* ONLY `fulfilled`, because this WRITES ddConfirmed to the record and
-         the accept route trusts what it finds there without re-checking. A
-         billing request can carry a mandate id while being cancelled, failed or
-         still awaiting the payer — accepting that here let a signature through
-         on a mandate that never succeeded, which is exactly the firm's rule
-         ("if DD is not succeeded, the engagement cannot be signed") inverted. */
-      if (st.fulfilled) {
-        ddConfirmed = true;
-        await db.transaction((tx) =>
-          updateOnboardingLink(tx, link.id, {
-            acceptanceData: {
-              ...acc,
-              gocardless: { ...gc, ddConfirmed: true, mandateId: st.mandateId ?? (gc.mandateId as string | undefined) },
-            },
-          }),
-        );
+    const knownMandateId = gc.mandateId as string | undefined;
+
+    if (billingRequestId || knownMandateId) {
+      const v = await verifyDirectDebit(link.firmSlug || "gns", {
+        billingRequestId,
+        mandateId: knownMandateId,
+      });
+      if (v.reachable) {
+        brStatus = v.brStatus ?? null;
+        mandateStatus = v.mandateStatus ?? mandateStatus;
+        const next = v.ok;
+        if (next !== ddConfirmed) {
+          ddConfirmed = next;
+          await db.transaction((tx) =>
+            updateOnboardingLink(tx, link.id, {
+              acceptanceData: {
+                ...acc,
+                gocardless: {
+                  ...gc,
+                  ddConfirmed: next,
+                  ...(v.mandateId ? { mandateId: v.mandateId } : {}),
+                  ...(v.mandateStatus ? { mandateStatus: v.mandateStatus } : {}),
+                },
+              },
+            }),
+          );
+        }
       }
     }
 
@@ -63,7 +82,7 @@ export async function GET(
       billingRequestStatus: brStatus,
       confirmed: link.status === "accepted",
       pending: link.status === "pending_dd",
-      mandateStatus: (gc.mandateStatus as string) ?? null,
+      mandateStatus,
       failureReason: (gc.mandateFailureReason as string) ?? null,
       signedLetterUrl: link.status === "accepted" && link.signedHtml
         ? `/api/onboarding/links/${params.id}/letter?signed=1&pdf=1`

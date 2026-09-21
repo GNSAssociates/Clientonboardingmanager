@@ -417,6 +417,79 @@ export async function getBillingRequestStatus(
   }
 }
 
+/* A mandate that can still collect, versus one that cannot. A billing request
+   stays `fulfilled` for ever once the client completes it — cancelling the
+   mandate afterwards does NOT change it — so the billing request alone can
+   never tell us the Direct Debit has stopped being good. Only the mandate can. */
+const MANDATE_LIVE = new Set(['pending_customer_approval', 'pending_submission', 'submitted', 'active']);
+const MANDATE_DEAD = new Set(['cancelled', 'failed', 'expired', 'blocked', 'consumed']);
+
+/**
+ * Is this client's Direct Debit good RIGHT NOW?
+ *
+ * Deliberately separates "positively good" from "positively bad" from "could
+ * not ask". A GoCardless outage must not revoke a client mid-signature, so an
+ * unreachable API returns reachable:false and callers keep what they had; only
+ * a mandate GoCardless actually reports as dead flips a client back.
+ */
+export async function verifyDirectDebit(
+  firmSlug: string,
+  opts: { billingRequestId?: string; mandateId?: string },
+): Promise<{
+  configured: boolean; reachable: boolean; ok: boolean; dead: boolean;
+  brStatus?: string; mandateStatus?: string; mandateId?: string;
+}> {
+  const gcToken = tokenForFirm(firmSlug);
+  if (!gcToken) return { configured: false, reachable: false, ok: false, dead: false };
+
+  const get = async (path: string) => {
+    const res = await fetch(`${apiBase(firmSlug)}${path}`, {
+      headers: { Authorization: `Bearer ${gcToken}`, 'GoCardless-Version': '2015-07-06' },
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, Record<string, unknown>>;
+    return { res, json };
+  };
+
+  try {
+    let mandateId = opts.mandateId;
+    let brStatus: string | undefined;
+
+    // Resolve the mandate from the billing request when we don't already hold it.
+    if (!mandateId && opts.billingRequestId) {
+      const { res, json } = await get(`/billing_requests/${opts.billingRequestId}`);
+      if (!res.ok) return { configured: true, reachable: false, ok: false, dead: false };
+      const br = json.billing_requests ?? {};
+      brStatus = br.status as string | undefined;
+      mandateId = (br.links as { mandate_request_mandate?: string } | undefined)?.mandate_request_mandate;
+      // Completed but no mandate yet, or still with the payer — not good, not dead.
+      if (!mandateId) return { configured: true, reachable: true, ok: false, dead: false, brStatus };
+    }
+
+    if (!mandateId) return { configured: true, reachable: true, ok: false, dead: false, brStatus };
+
+    const { res, json } = await get(`/mandates/${mandateId}`);
+    // A deleted/unknown mandate is a definite negative, not an outage.
+    if (res.status === 404) {
+      return { configured: true, reachable: true, ok: false, dead: true, brStatus, mandateStatus: 'not_found', mandateId };
+    }
+    if (!res.ok) return { configured: true, reachable: false, ok: false, dead: false, brStatus, mandateId };
+
+    const mandateStatus = String((json.mandates ?? {}).status ?? '');
+    return {
+      configured: true,
+      reachable: true,
+      ok: MANDATE_LIVE.has(mandateStatus),
+      dead: MANDATE_DEAD.has(mandateStatus),
+      brStatus,
+      mandateStatus,
+      mandateId,
+    };
+  } catch (e) {
+    console.error('GoCardless verifyDirectDebit failed:', e);
+    return { configured: true, reachable: false, ok: false, dead: false };
+  }
+}
+
 /**
  * Verify a GoCardless webhook request's `Webhook-Signature` header (HMAC-SHA256
  * hex digest of the raw request body). We don't know which firm's GoCardless

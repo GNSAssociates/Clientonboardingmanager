@@ -242,10 +242,32 @@ export default function EngagementPage() {
       const res = await fetch(`/api/onboarding/links/${token}/dd-status`);
       const data = await res.json() as { ddConfirmed?: boolean };
       if (data.ddConfirmed) { setDdConfirmed(true); setDdSetupError(''); }
+      // Also believe a NO. The server re-derives this from the live mandate, so
+      // a mandate cancelled at GoCardless must take the green tick away again
+      // rather than leaving the client looking at a confirmation that is no
+      // longer true (and a Sign button the server will refuse anyway).
+      else setDdConfirmed(false);
       return Boolean(data.ddConfirmed);
     } catch { return false; }
     finally { setDdChecking(false); }
   };
+
+  /* Re-check whenever the client returns to this tab. The post-setup poll runs
+     for a fixed window and then stops; if GoCardless took longer than that to
+     finalise the mandate, the page sat on "we could not confirm it yet" until a
+     hard refresh, even though it had gone through in the meantime. Coming back
+     to the tab is exactly the moment to look again. */
+  useEffect(() => {
+    if (!verified) return;
+    const recheck = () => { if (document.visibilityState === 'visible') void checkDdStatus(); };
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', recheck);
+    return () => {
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', recheck);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verified, token]);
 
   // Keep checking for a short while after returning, since GoCardless can take
   // a moment to flip the billing request to "fulfilled".
@@ -346,7 +368,7 @@ export default function EngagementPage() {
         const iv = setInterval(async () => {
           n += 1;
           const ok = await checkDdStatus();
-          if (ok || n >= 20) {
+          if (ok || n >= 45) {
             clearInterval(iv);
             setDdVerifying(false);
             if (!ok) setDdSetupError('Your Direct Debit is still being confirmed by GoCardless. Please press "I have finished — check again" in a moment.');
@@ -379,7 +401,7 @@ export default function EngagementPage() {
             const iv = setInterval(async () => {
               n += 1;
               const ok = await checkDdStatus();
-              if (ok || n >= 20) {
+              if (ok || n >= 45) {
                 clearInterval(iv);
                 setDdVerifying(false);
                 if (!ok) setDdSetupError('Your Direct Debit was submitted but we could not confirm it yet. Give it a moment and press "I have finished — check again".');
