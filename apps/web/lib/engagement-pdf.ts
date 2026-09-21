@@ -464,8 +464,16 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     let x = MARGIN_X;
     cols.forEach((c) => {
       const t = sanitize(c.header);
-      const tx = c.align === "right" ? x + c.width - pad - bold.widthOfTextAtSize(t, size) : x + pad;
-      page.drawText(t, { x: tx, y: y - 12, size, font: bold, color: rgb(1, 1, 1) });
+      /* Body cells wrap to their column; headers do not, and a header wider
+         than its column silently overflows into the neighbouring one — which
+         is how "Monthly £Annual Equivalent £" ended up printed as one run-on
+         string. Shrink an oversized header to fit its own column instead.
+         Widening the column is still the better fix where there is room; this
+         is the floor that stops two headers ever colliding again. */
+      let hsize = size;
+      while (hsize > 6.5 && bold.widthOfTextAtSize(t, hsize) > c.width - pad * 2) hsize -= 0.25;
+      const tx = c.align === "right" ? x + c.width - pad - bold.widthOfTextAtSize(t, hsize) : x + pad;
+      page.drawText(t, { x: tx, y: y - 12, size: hsize, font: bold, color: rgb(1, 1, 1) });
       x += c.width;
     });
     y -= 20;
@@ -543,9 +551,12 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     const freqLabel = (fr?: LetterService["frequency"]) => (fr === "annually" ? " (annual)" : fr === "quarterly" ? " (quarterly)" : "");
     drawTable(
       [
-        { header: "Recurring Service (Monthly Fees)", width: CONTENT_W - 180 },
+        { header: "Recurring Service (Monthly Fees)", width: CONTENT_W - 200 },
         { header: "Monthly £", width: 90, align: "right" },
-        { header: "Annual Equivalent £", width: 90, align: "right" },
+        // 110, not 90: "Annual Equivalent £" measures 90.5pt at the header
+        // size and only had 84pt of usable width, so it ran left into the
+        // "Monthly £" column and the two headers collided.
+        { header: "Annual Equivalent £", width: 110, align: "right" },
       ],
       [
         ...monthly.flatMap((s) => {
