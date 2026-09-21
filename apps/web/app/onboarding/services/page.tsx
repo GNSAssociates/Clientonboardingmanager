@@ -251,6 +251,9 @@ function ServicesPageInner() {
 
   // Include Annex A schedule of charges
   const [includeAnnexA, setIncludeAnnexA] = useState(true);
+  // Professional clearance: ON unless staff deliberately exclude it (some
+  // handovers are arranged by email outside the app).
+  const [includeClearance, setIncludeClearance] = useState(true);
   // Direct Debit clause in the contract — OPT-IN. Most engagements do not spell
   // the DD arrangement out in the letter, so this stays OFF unless the fee-earner
   // deliberately turns it on and (optionally) adds a note.
@@ -394,6 +397,7 @@ function ServicesPageInner() {
         if (d.paymentMethod) setPaymentMethod(d.paymentMethod as PaymentMethod);
         if (d.includeInLetter) setIncludeInLetter(d.includeInLetter as Record<string, boolean>);
         if (d.includeAnnexA !== undefined) setIncludeAnnexA(d.includeAnnexA as boolean);
+        if (d.includeClearance !== undefined) setIncludeClearance(d.includeClearance as boolean);
         if (d.includeDdClause !== undefined) setIncludeDdClause(d.includeDdClause as boolean);
         if (typeof d.ddClauseNote === 'string') setDdClauseNote(d.ddClauseNote);
         if (d.softwareItems?.length) setSoftwareItems(d.softwareItems as SoftwareItem[]);
@@ -436,6 +440,7 @@ function ServicesPageInner() {
         paymentMethod,
         includeInLetter,
         includeAnnexA,
+        includeClearance,
         softwareItems,
         clientType,
         clientName,
@@ -456,7 +461,7 @@ function ServicesPageInner() {
     }, 1200);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, selectedOneoff, prices, customFees, scopeRows, companyNumber, directorEmail, firmSlug, draftToken, frequencies, paymentMethod, includeInLetter, includeAnnexA, includeDdClause, ddClauseNote, softwareItems, clientType, clientName, businessAddress, oneoffScopes, utr]);
+  }, [selected, selectedOneoff, prices, customFees, scopeRows, companyNumber, directorEmail, firmSlug, draftToken, frequencies, paymentMethod, includeInLetter, includeAnnexA, includeClearance, includeDdClause, ddClauseNote, softwareItems, clientType, clientName, businessAddress, oneoffScopes, utr]);
 
   const updateScope = (i: number, field: keyof ScopeRow, value: string) =>
     setScopeRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -569,6 +574,7 @@ function ServicesPageInner() {
       paymentMethod,
       includeInLetter,
       includeAnnexA,
+      includeClearance,
       softwareItems,
       clientType,
       clientName,
@@ -589,6 +595,7 @@ function ServicesPageInner() {
     if (scopeChanged) q.set('scopeRows', JSON.stringify(scopeRows));
     q.set('paymentMethod', paymentMethod);
     q.set('includeAnnexA', includeAnnexA ? '1' : '0');
+    q.set('includeClearance', includeClearance ? '1' : '0');
     q.set('includeDdClause', includeDdClause ? '1' : '0');
     if (includeDdClause && ddClauseNote.trim()) q.set('ddClauseNote', ddClauseNote.trim());
     q.set('frequencies', JSON.stringify(frequencies));
@@ -718,6 +725,28 @@ function ServicesPageInner() {
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" checked={includeAnnexA} onChange={(e) => setIncludeAnnexA(e.target.checked)} className="sr-only peer" />
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
+            </label>
+          </div>
+
+          {/* Professional clearance. Off = the whole chain is skipped, so staff
+              can see exactly what they are turning off before they do it. */}
+          <div className="flex items-center justify-between pt-4 mt-4 border-t border-purple-100">
+            <div className="pr-4">
+              <p className="text-sm font-semibold text-gray-700">Include Professional Clearance</p>
+              <p className="text-xs text-gray-500">
+                Ask the client for their previous accountant, then email that firm for clearance
+              </p>
+              {!includeClearance && (
+                <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  <strong>Excluded.</strong> The client will not be asked for their previous accountant,
+                  and no clearance email or client authority letter will be sent. Arrange the handover
+                  yourself.
+                </p>
+              )}
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input type="checkbox" checked={includeClearance} onChange={(e) => setIncludeClearance(e.target.checked)} className="sr-only peer" />
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
             </label>
           </div>

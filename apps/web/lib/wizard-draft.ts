@@ -25,6 +25,9 @@ export interface WizardDraftState {
   paymentMethod?: string;
   includeInLetter?: Record<string, boolean>;
   includeAnnexA?: boolean;
+  /** Run professional clearance for this client (prev-accountant details are
+   *  collected, the outgoing firm is emailed, the authority letter is sent). */
+  includeClearance?: boolean;
   /** Opt-in Direct Debit clause in the engagement letter (default off). */
   includeDdClause?: boolean;
   /** Optional note printed inside that clause. */

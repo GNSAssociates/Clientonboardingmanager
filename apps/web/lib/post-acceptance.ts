@@ -78,6 +78,11 @@ export interface PostAcceptanceContext {
   prevPhone?: string | null;
   prevFirmAddress?: string | null;
   noPrevAccountant?: boolean;
+  /** False when staff excluded professional clearance for this client (they are
+   *  handling the handover by email themselves). Suppresses the clearance
+   *  request record, the email to the outgoing accountant, and the client
+   *  authority letter. Defaults to true — omitting it keeps today's behaviour. */
+  includeClearance?: boolean;
   ipAddress: string;
   userAgent: string;
   documentSha256?: string;
@@ -96,9 +101,23 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
     link, token, mode, firm, meta, appUrl, today, now,
     signatureName, signatureImage, contactPrefs, directorDocs, companyDocs,
     prevFirmName, prevEmail, prevPhone, prevFirmAddress, noPrevAccountant,
-    ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
+    includeClearance, ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
   } = ctx;
   const db = getDb();
+
+  /* The single gate for the whole professional-clearance chain: the clearance
+     request record, the letter + authority PDFs, and the email to the outgoing
+     accountant. Excluded either because this client has no previous accountant,
+     or because staff unticked clearance (they arrange the handover themselves).
+     includeClearance undefined means "not specified" and behaves as before —
+     included.
+
+     Deliberately the ADDRESS rather than a boolean: the gate and the recipient
+     are then the same value and cannot drift apart, and the address is a
+     narrowed string inside the block rather than something we have to assert
+     is non-null. */
+  const clearanceEmail: string | null =
+    includeClearance !== false && !noPrevAccountant ? (prevEmail || null) : null;
 
   // Hold the generated PDFs so they can be BOTH archived AND attached to the
   // client's welcome email further down (built once, reused).
@@ -198,12 +217,12 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
       .map((d) => mkItem(`director_${d.id}`, "REFS", `${d.label} (director's copy held on your file)`, "All")),
   ];
 
-  if (!noPrevAccountant && prevEmail) {
+  if (clearanceEmail) {
     try {
       await db.transaction((tx) =>
         insertClearanceRequest(tx, {
           prevFirmName: prevFirmName || "Previous Accountants",
-          prevFirmEmail: prevEmail,
+          prevFirmEmail: clearanceEmail,
           status: "sent",
           sentAt: now,
           nextChaseAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
@@ -229,7 +248,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
   const emailErrors: string[] = [];
 
   // EMAIL → PREVIOUS ACCOUNTANT: professional clearance request (editable template)
-  if (!noPrevAccountant && prevEmail) {
+  if (clearanceEmail) {
     const clearanceAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
     // 1) Professional clearance letter (GNS → outgoing accountant).
     try {
@@ -290,7 +309,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         key: "prev_clearance_request",
         firm,
         token,
-        to: prevEmail,
+        to: clearanceEmail,
         toName: prevFirmName || "Previous Accountant",
         replyTo: firm.email,
         attachments: clearanceAttachments,

@@ -41,6 +41,7 @@ export async function GET(
       paymentMethod: draft.paymentMethod ?? "dd",
       includeInLetter: draft.includeInLetter ?? {},
       includeAnnexA: draft.includeAnnexA ?? true,
+      includeClearance: draft.includeClearance ?? true,
       softwareItems: draft.softwareItems ?? [],
       clientType: draft.clientType ?? "limited",
       clientName: draft.clientName ?? null,

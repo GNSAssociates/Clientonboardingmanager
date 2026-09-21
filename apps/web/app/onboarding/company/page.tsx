@@ -292,6 +292,7 @@ function CompanyPageInner() {
     const { serviceDetails, customFees, scopeRows } = parseParams();
     const paymentMethodParam = searchParams.get('paymentMethod') || 'dd';
     const includeAnnexAParam = searchParams.get('includeAnnexA') !== '0';
+    const includeClearanceParam = searchParams.get('includeClearance') !== '0';
     // DD contract clause is opt-IN: absent or '0' means not included.
     const includeDdClauseParam = searchParams.get('includeDdClause') === '1';
     const ddClauseNoteParam = searchParams.get('ddClauseNote') ?? '';
@@ -316,6 +317,7 @@ function CompanyPageInner() {
       scopeRows,
       paymentMethod: paymentMethodParam,
       includeAnnexA: includeAnnexAParam,
+      includeClearance: includeClearanceParam,
       includeDdClause: includeDdClauseParam,
       ddClauseNote: ddClauseNoteParam,
       clientType: clientTypeParam,
@@ -389,6 +391,7 @@ function CompanyPageInner() {
         paymentMethod: searchParams.get('paymentMethod') || 'dd',
         includeInLetter,
         includeAnnexA: searchParams.get('includeAnnexA') !== '0',
+        includeClearance: searchParams.get('includeClearance') !== '0',
         includeDdClause: searchParams.get('includeDdClause') === '1',
         ddClauseNote: searchParams.get('ddClauseNote') ?? '',
         softwareItems,

@@ -77,8 +77,16 @@ export async function POST(
       scopeRows?: ScopeRow[]; clientAddress?: string; ch?: ChDetails | null; regBody?: string;
       paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
       clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
+      includeClearance?: boolean;
     };
     const isManualPayment = meta.paymentMethod === "manual";
+    /* Staff can exclude professional clearance for a client whose handover they
+       are arranging by email themselves. The signing page then never asks for
+       the previous accountant, so this must not be validated as missing here —
+       and nothing downstream (clearance record, email to the outgoing firm,
+       client authority letter) should fire. Absent = included, so letters
+       issued before this flag existed behave exactly as they do today. */
+    const includeClearance = meta.includeClearance !== false;
     // details_only  → collects prev-accountant details only
     // proposal_only → client approves the proposal (light: no DD/clearance/docs)
     // engagement/proposal → full signable contract
@@ -93,7 +101,7 @@ export async function POST(
 
     // ── Validation ────────────────────────────────────────────────────────────
     // Proposal-only doesn't collect previous-accountant details.
-    if (mode !== "proposal_only" && !noPrevAccountant && (!prevFirmName || !prevEmail)) {
+    if (mode !== "proposal_only" && includeClearance && !noPrevAccountant && (!prevFirmName || !prevEmail)) {
       return NextResponse.json({ error: "Previous accountant details are required" }, { status: 400 });
     }
 
@@ -300,6 +308,7 @@ export async function POST(
       directorDocs: directorDocs ?? [],
       companyDocs: companyDocs ?? [],
       prevFirmName, prevEmail, prevPhone, prevFirmAddress: prevAddress, noPrevAccountant,
+      includeClearance,
       ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
     };
     const postResult = await runPostAcceptanceEffects(postCtx);

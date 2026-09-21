@@ -117,11 +117,15 @@ export async function GET(
       sentAt: link.sentAt,
       expiresAt: link.expiresAt,
       acceptedAt: link.acceptedAt,
-      // Only the two presentation flags the signing page branches on — the rest
-      // of letterMeta is internal (pricing workings, partner routing, drafts).
+      // Only the presentation flags the signing page branches on — the rest of
+      // letterMeta is internal (pricing workings, partner routing, drafts).
       letterMeta: {
         sendMode: (link.letterMeta as Record<string, unknown> | null)?.sendMode ?? null,
         paymentMethod: (link.letterMeta as Record<string, unknown> | null)?.paymentMethod ?? null,
+        // Whether this client is asked for their previous accountant at all.
+        // Defaults to true so every letter issued before this flag existed
+        // keeps asking, exactly as it does today.
+        includeClearance: (link.letterMeta as Record<string, unknown> | null)?.includeClearance !== false,
       },
     });
   } catch (error) {

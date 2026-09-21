@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
       paymentMethod,
       includeInLetter,
       includeAnnexA,
+      includeClearance,
       softwareItems,
       clientType,
       clientName,
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
       paymentMethod?: string;
       includeInLetter?: Record<string, boolean>;
       includeAnnexA?: boolean;
+      includeClearance?: boolean;
       softwareItems?: Array<{ name: string; price: number }>;
       clientType?: string;
       clientName?: string;
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
             paymentMethod: paymentMethod ?? "dd",
             includeInLetter: includeInLetter ?? {},
             includeAnnexA: includeAnnexA ?? true,
+            includeClearance: includeClearance ?? true,
             softwareItems: softwareItems ?? [],
             clientType: clientType ?? "limited",
             clientName: clientName ?? null,

@@ -37,7 +37,7 @@ interface OnboardingLinkData {
   services: Array<{ id: string; name: string; price: number; oneoff?: boolean }>;
   expiresAt: string;
   status: string;
-  letterMeta?: { sendMode?: string; paymentMethod?: string } | null;
+  letterMeta?: { sendMode?: string; paymentMethod?: string; includeClearance?: boolean } | null;
 }
 
 export default function EngagementPage() {
@@ -443,6 +443,10 @@ export default function EngagementPage() {
   const mode: 'details_only' | 'proposal_only' | 'engagement' =
     rawMode === 'details_only' ? 'details_only' : rawMode === 'proposal_only' ? 'proposal_only' : 'engagement';
   const isManualPayment = link.letterMeta?.paymentMethod === 'manual';
+  /* Staff can exclude professional clearance when they are arranging the
+     handover by email themselves. The client is then never asked for their
+     previous accountant. Absent = included, so existing letters are unchanged. */
+  const includeClearance = link.letterMeta?.includeClearance !== false;
   const firmForGate = getFirm(link.firmSlug || 'gns');
 
   // ── OTP identity gate: send a verification code to the client's email ──
@@ -577,7 +581,11 @@ export default function EngagementPage() {
   // (ddConfirmed) — this is the hard gate the client cannot sign without.
   const ddValid = isManualPayment || ddConfirmed;
 
-  const prevOk = noPrevAccountant || (prevFirmName && prevEmail && prevPhone && prevAddress.trim());
+  // With clearance excluded the section is not rendered at all, so it must not
+  // hold the signature back — an invisible unmet requirement is an unsignable
+  // contract with no explanation on screen.
+  const prevOk = !includeClearance || noPrevAccountant
+    || (prevFirmName && prevEmail && prevPhone && prevAddress.trim());
 
   const canSubmit = mode === 'details_only'
     ? Boolean(authorised && esignConsent && signatureName.trim().length > 1 && prevOk) && !isExpired
@@ -594,7 +602,7 @@ export default function EngagementPage() {
      form is finished. Each carries a label, because "1 required field
      remaining" is only useful if the client can see WHICH one. */
   const requirements: Array<{ ok: boolean; selector: string; label: string }> = [];
-  if (mode !== 'proposal_only') requirements.push({ ok: Boolean(prevOk), selector: '[data-field="prevAccountant"]', label: 'Previous accountant details' });
+  if (mode !== 'proposal_only' && includeClearance) requirements.push({ ok: Boolean(prevOk), selector: '[data-field="prevAccountant"]', label: 'Previous accountant details' });
   if (mode === 'engagement' && !isManualPayment) requirements.push({ ok: ddValid, selector: '[data-field="directDebit"]', label: 'Direct Debit' });
   requirements.push({ ok: authorised, selector: '[data-field="authorised"]', label: 'Authorisation tick box' });
   requirements.push({ ok: esignConsent, selector: '[data-field="esignConsent"]', label: 'Consent to sign electronically' });
@@ -909,34 +917,13 @@ export default function EngagementPage() {
           </p>
         )}
 
-        {/* ═══════ THE CONTRACT — canonical letter document ═══════ */}
-        <div className="bg-white shadow-lg border border-gray-300 rounded-sm overflow-hidden">
-          <iframe
-            ref={iframeRef}
-            src={`/api/onboarding/links/${token}/letter`}
-            onLoad={onLetterLoad}
-            style={{ width: '100%', height: letterHeight, border: 0 }}
-            title="Engagement Letter"
-          />
-        </div>
-
-        {/* ═══════ ACCEPTANCE / SIGNING ═══════ */}
-        {!isExpired && (
-          <form id="engage-form" onSubmit={handleSubmit} className="space-y-6">
-
-            {mode === 'proposal_only' && (
-              <div className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900 mb-1">Approve this proposal</h2>
-                <p className="text-sm text-gray-500">
-                  Please review the proposal above. If you are happy to proceed, approve it below and we&apos;ll send your
-                  engagement letter to formalise the appointment. No payment details or signature of the contract are
-                  needed at this stage.
-                </p>
-              </div>
-            )}
-
-            {mode !== 'proposal_only' && (<>
-            {/* Previous Accountant */}
+        {/* ═══════ PREVIOUS ACCOUNTANT — ABOVE the letter, on purpose ═══════
+            Buried under a multi-page contract this was routinely missed, and
+            it is the one section whose answers we act on straight away. It
+            sits outside the form element only because of where it renders;
+            every field is controlled React state read by handleSubmit, and
+            the requirement list below still gates the signature on it. */}
+        {mode !== 'proposal_only' && includeClearance && !isExpired && (
             <div data-field="prevAccountant" className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
               <h2 className="text-lg font-bold text-gray-900 mb-1">Previous Accountant Details</h2>
               <p className="text-sm text-gray-500 mb-3">We need these details to request professional clearance and your records on your behalf.</p>
@@ -998,6 +985,35 @@ export default function EngagementPage() {
                 </div>
               )}
             </div>
+        )}
+
+        {/* ═══════ THE CONTRACT — canonical letter document ═══════ */}
+        <div className="bg-white shadow-lg border border-gray-300 rounded-sm overflow-hidden">
+          <iframe
+            ref={iframeRef}
+            src={`/api/onboarding/links/${token}/letter`}
+            onLoad={onLetterLoad}
+            style={{ width: '100%', height: letterHeight, border: 0 }}
+            title="Engagement Letter"
+          />
+        </div>
+
+        {/* ═══════ ACCEPTANCE / SIGNING ═══════ */}
+        {!isExpired && (
+          <form id="engage-form" onSubmit={handleSubmit} className="space-y-6">
+
+            {mode === 'proposal_only' && (
+              <div className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-900 mb-1">Approve this proposal</h2>
+                <p className="text-sm text-gray-500">
+                  Please review the proposal above. If you are happy to proceed, approve it below and we&apos;ll send your
+                  engagement letter to formalise the appointment. No payment details or signature of the contract are
+                  needed at this stage.
+                </p>
+              </div>
+            )}
+
+            {mode !== 'proposal_only' && (<>
 
             {/* Director ID documents */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
