@@ -144,6 +144,114 @@ function SendTemplateForm({ token, details, onSent }: { token: string; details: 
 
 
 /**
+ * Raise professional clearance ourselves, before the client has signed.
+ *
+ * Staff type the outgoing accountant's details straight in (pre-filled with
+ * anything already on file). Sends OUR clearance letter only — the client
+ * authority letter is withheld, because it speaks in the client's voice and
+ * carries their name as a signature, which they have not given yet.
+ */
+function ClearanceRequestForm({ token, details, onSent }: { token: string; details: Details; onSent: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [firmName, setFirmName] = useState(details.previousAccountant?.firmName ?? '');
+  const [email, setEmail] = useState(details.previousAccountant?.email ?? '');
+  const [address, setAddress] = useState(details.previousAccountant?.address ?? '');
+  const [ccClient, setCcClient] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const ready = firmName.trim().length > 1 && /\S+@\S+\.\S+/.test(email.trim());
+
+  const send = async () => {
+    setSending(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}/clearance-send`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prevFirmName: firmName.trim(),
+          prevFirmEmail: email.trim(),
+          prevFirmAddress: address.trim() || undefined,
+          ccClient,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not send the clearance request');
+      setMsg({ text: `Clearance request sent to ${j.sentTo}.`, ok: true });
+      onSent();
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Could not send', ok: false });
+    } finally { setSending(false); }
+  };
+
+  if (!open) {
+    return (
+      <div className="mt-3">
+        <button onClick={() => { setOpen(true); setMsg(null); }}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-amber-400 text-amber-800 hover:bg-amber-50">
+          <Send size={13} /> Request clearance now (before signing)
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50/60 p-4">
+      <p className="text-sm font-bold text-gray-900">Request professional clearance now</p>
+      <p className="text-xs text-gray-600 mt-0.5">
+        Sends our clearance letter to the outgoing accountant without waiting for the engagement letter to come back signed.
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Previous accountant firm *</label>
+          <input value={firmName} onChange={(e) => setFirmName(e.target.value)}
+            placeholder="e.g. Smith &amp; Associates Ltd"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Their email *</label>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
+            placeholder="contact@previousfirm.com"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-gray-500 mb-1">Their postal address <span className="font-normal">(optional — printed on the letter)</span></label>
+          <input value={address} onChange={(e) => setAddress(e.target.value)}
+            placeholder="Street, town, postcode"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 mt-3 text-xs text-gray-700 cursor-pointer">
+        <input type="checkbox" checked={ccClient} onChange={(e) => setCcClient(e.target.checked)}
+          className="w-4 h-4 rounded text-amber-600" />
+        Copy {details.director.name || 'the client'} in on this email
+      </label>
+
+      {/* Say plainly what is and is not going, so nobody has to infer it. */}
+      <p className="mt-3 text-xs text-gray-700 bg-white border border-amber-200 rounded-lg px-3 py-2">
+        <strong>Only our clearance letter is sent.</strong> The client authority letter is not included — it carries the
+        client&apos;s signature, and they have not signed one yet. It goes automatically if they sign later, and the
+        outgoing firm will not be emailed a second time.
+      </p>
+
+      {msg && (
+        <p className={`mt-2 text-xs font-semibold ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</p>
+      )}
+
+      <div className="flex items-center gap-2 mt-3">
+        <button onClick={send} disabled={!ready || sending}
+          className="px-3 py-2 rounded-lg text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40">
+          {sending ? 'Sending…' : 'Send clearance request'}
+        </button>
+        <button onClick={() => setOpen(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+        {!ready && <span className="text-xs text-gray-500">Firm name and a valid email are needed.</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Client links + follow-up actions.
  *
  * Everything a fee-earner needs to chase ONE client without leaving their
@@ -292,7 +400,6 @@ export default function ClientDetailPage() {
   const [d, setD] = useState<Details | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
-  const [sendingClearance, setSendingClearance] = useState(false);
   const [savingChase, setSavingChase] = useState(false);
   const [msg, setMsg] = useState('');
   const [emailLog, setEmailLog] = useState<EmailLogRow[] | null>(null);
@@ -318,49 +425,6 @@ export default function ClientDetailPage() {
       });
       if (res.ok) load();
     } finally { setSavingChase(false); }
-  };
-
-  /* Raise professional clearance now, without waiting for the client to sign.
-     Sends OUR clearance letter only — never the client authority letter, which
-     is written in the client's voice and carries their name as a signature. */
-  const sendClearance = async () => {
-    const firmName = window.prompt(
-      "Previous accountant — firm name:",
-      d?.previousAccountant?.firmName ?? '',
-    );
-    if (firmName === null) return;
-    const firmEmail = window.prompt(
-      "Previous accountant — email address:",
-      d?.previousAccountant?.email ?? '',
-    );
-    if (firmEmail === null) return;
-    if (!firmName.trim() || !firmEmail.trim()) {
-      setMsg('❌ Both the firm name and email are needed to request clearance.');
-      return;
-    }
-    if (!window.confirm(
-      `Email a professional clearance request to ${firmEmail.trim()} now?\n\n`
-      + `Only our clearance letter is sent. The client authority letter is NOT included, `
-      + `because ${d?.company?.name ?? 'this client'} has not signed one yet.`
-    )) return;
-
-    setSendingClearance(true);
-    setMsg('');
-    try {
-      const res = await fetch(`/api/onboarding/links/${token}/clearance-send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prevFirmName: firmName.trim(), prevFirmEmail: firmEmail.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error || 'Could not send clearance');
-      setMsg(`✅ Clearance request sent to ${(data as { sentTo?: string }).sentTo}`);
-      load();
-    } catch (e) {
-      setMsg(`❌ ${e instanceof Error ? e.message : 'Could not send clearance'}`);
-    } finally {
-      setSendingClearance(false);
-    }
   };
 
   const retryGc = async () => {
@@ -558,16 +622,12 @@ export default function ClientDetailPage() {
               <Download size={13} /> Preview signed copy (specimen)
             </a>
           )}
-          {/* Clearance without waiting for a signature. Sends our clearance
-              letter only — the client authority letter is withheld, because the
-              client has not authorised anything yet. */}
-          {!signed && !d.previousAccountant?.noPreviousAccountant && (
-            <button onClick={sendClearance} disabled={sendingClearance}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-amber-400 text-amber-800 hover:bg-amber-50 disabled:opacity-40">
-              <Send size={13} /> {sendingClearance ? 'Sending…' : 'Request clearance now'}
-            </button>
-          )}
         </div>
+
+        {/* Clearance raised by us, ahead of any signature. */}
+        {!signed && !d.previousAccountant?.noPreviousAccountant && (
+          <ClearanceRequestForm token={token} details={d} onSent={load} />
+        )}
         {!signed && (
           <div className="mt-3 flex items-center gap-3 flex-wrap">
             {/* Rebuilds the letter from the CURRENT template. The letter HTML is
