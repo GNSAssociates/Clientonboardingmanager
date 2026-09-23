@@ -38,6 +38,7 @@ interface OnboardingLinkData {
   expiresAt: string;
   status: string;
   letterMeta?: { sendMode?: string; paymentMethod?: string; includeClearance?: boolean } | null;
+  prevAccountant?: { firmName: string | null; email: string | null; phone: string | null; address: string | null } | null;
 }
 
 export default function EngagementPage() {
@@ -77,6 +78,9 @@ export default function EngagementPage() {
   const [prevPhone, setPrevPhone] = useState('');
   const [prevAddress, setPrevAddress] = useState('');
   const [noPrevAccountant, setNoPrevAccountant] = useState(false);
+  // True when we pre-filled the outgoing accountant from our own record.
+  const [prevPrefilled, setPrevPrefilled] = useState(false);
+  const [prevEditing, setPrevEditing] = useState(false);
 
   // Director ID document statuses
   const [docStatus, setDocStatus] = useState<Record<string, string>>({});
@@ -115,6 +119,17 @@ export default function EngagementPage() {
       .then((data) => {
         setLink(data);
         if (data?.directorName) setSignatureName(data.directorName);
+        /* Present what we already hold rather than asking for it again. Only
+           fills blanks, so a client part-way through never has their own
+           typing overwritten by our record. */
+        const known = data?.prevAccountant;
+        if (known) {
+          if (known.firmName) setPrevFirmName((v) => v || known.firmName!);
+          if (known.email) setPrevEmail((v) => v || known.email!);
+          if (known.phone) setPrevPhone((v) => v || known.phone!);
+          if (known.address) setPrevAddress((v) => v || known.address!);
+          if (known.firmName && known.email) setPrevPrefilled(true);
+        }
       })
       .catch(() => setPageError('Link not found or invalid'))
       .finally(() => setLoading(false));
@@ -634,13 +649,13 @@ export default function EngagementPage() {
   // hold the signature back — an invisible unmet requirement is an unsignable
   // contract with no explanation on screen.
   const prevOk = !includeClearance || noPrevAccountant
-    || (prevFirmName && prevEmail && prevPhone && prevAddress.trim());
+    || (prevFirmName.trim() && prevEmail.trim());
 
   const canSubmit = mode === 'details_only'
-    ? Boolean(authorised && esignConsent && signatureName.trim().length > 1 && prevOk) && !isExpired
+    ? Boolean(authorised && signatureName.trim().length > 1 && prevOk) && !isExpired
     : mode === 'proposal_only'
-    ? Boolean(authorised && esignConsent && signatureName.trim().length > 1) && !isExpired
-    : Boolean(authorised && esignConsent && signatureName.trim().length > 1 && prevOk && ddValid) && !isExpired;
+    ? Boolean(authorised && signatureName.trim().length > 1) && !isExpired
+    : Boolean(authorised && signatureName.trim().length > 1 && prevOk && ddValid) && !isExpired;
 
   // Keep the Sign button visible/clickable at all times (see below) — when
   // clicked with something missing, scroll the client to the first thing
@@ -653,8 +668,7 @@ export default function EngagementPage() {
   const requirements: Array<{ ok: boolean; selector: string; label: string }> = [];
   if (mode !== 'proposal_only' && includeClearance) requirements.push({ ok: Boolean(prevOk), selector: '[data-field="prevAccountant"]', label: 'Previous accountant details' });
   if (mode === 'engagement' && !isManualPayment) requirements.push({ ok: ddValid, selector: '[data-field="directDebit"]', label: 'Direct Debit' });
-  requirements.push({ ok: authorised, selector: '[data-field="authorised"]', label: 'Authorisation tick box' });
-  requirements.push({ ok: esignConsent, selector: '[data-field="esignConsent"]', label: 'Consent to sign electronically' });
+  requirements.push({ ok: authorised, selector: '[data-field="authorised"]', label: 'Confirmation tick box' });
   requirements.push({ ok: signatureName.trim().length > 1, selector: '[data-field="signatureName"]', label: 'Your signature' });
   const outstanding = requirements.filter((r) => !r.ok);
 
@@ -894,23 +908,23 @@ export default function EngagementPage() {
                 </p>
               </div>
 
-              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-3">
-                <input type="checkbox" checked={authorised} onChange={(e) => setAuthorised(e.target.checked)}
-                  className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
-                <p className="font-bold text-gray-900">
-                  I authorise {firm.name} to contact my previous accountant on my behalf
-                </p>
-              </label>
-
-              <label data-field="esignConsent" className="flex items-start gap-3 cursor-pointer mb-5">
-                <input type="checkbox" checked={esignConsent} onChange={(e) => setEsignConsent(e.target.checked)}
+              {/* One tick here too — the shared "what's left" list now carries a
+                  single confirmation entry, so a second box would be a blocker
+                  the client is never told about. */}
+              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-5">
+                <input type="checkbox" checked={authorised}
+                  onChange={(e) => { setAuthorised(e.target.checked); setEsignConsent(e.target.checked); }}
                   className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
                 <div>
-                  <p className="font-bold text-gray-900 flex items-center gap-2">
-                    <ShieldCheck size={16} className="text-purple-600" /> I agree to sign this authorisation electronically
+                  <p className="font-bold text-gray-900 flex items-start gap-2">
+                    <ShieldCheck size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                    <span>
+                      I authorise {firm.name} to contact my previous accountant on my behalf, and agree to sign
+                      this authorisation electronically
+                    </span>
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    I understand that typing my name below constitutes my legal electronic signature, with the same legal
+                    I understand that signing below constitutes my legal electronic signature, with the same legal
                     effect as a handwritten signature (Electronic Communications Act 2000 / UK eIDAS), and that the date,
                     time and network address will be recorded.
                   </p>
@@ -946,8 +960,7 @@ export default function EngagementPage() {
             {!canSubmit && !isExpired && (
               <p className="text-center text-sm text-gray-500">
                 {!authorised && 'Please tick the authorisation. '}
-                {!esignConsent && 'Please agree to sign electronically. '}
-                {signatureName.trim().length <= 1 && 'Type your full name in the signature box. '}
+                                {signatureName.trim().length <= 1 && 'Type your full name in the signature box. '}
                 {!prevOk && 'Fill in your previous accountant details or confirm you have none.'}
               </p>
             )}
@@ -973,65 +986,73 @@ export default function EngagementPage() {
             every field is controlled React state read by handleSubmit, and
             the requirement list below still gates the signature on it. */}
         {mode !== 'proposal_only' && includeClearance && !isExpired && (
-            <div data-field="prevAccountant" className="bg-white rounded-2xl p-5 sm:p-8 border border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Previous Accountant Details</h2>
-              <p className="text-sm text-gray-500 mb-3">We need these details to request professional clearance and your records on your behalf.</p>
-
-              {/* State the rule plainly and BEFORE the fields. A client who has
-                  no previous accountant otherwise sits on four required fields
-                  they cannot fill and has no idea why the signature stays
-                  locked — which is exactly how a signing gets abandoned. */}
-              {!prevOk && (
-                <p className="flex items-start gap-2 mb-4 text-[13px] leading-snug text-red-700">
-                  <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
-                  <span>
-                    The engagement <strong>cannot be signed until</strong> these details are complete.
-                    If you have never had an accountant, tick the box below instead.
-                  </span>
-                </p>
-              )}
-
-              <label className={`flex items-center gap-3 mb-5 cursor-pointer rounded-lg border p-3 transition-colors ${
-                noPrevAccountant ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
-              }`}>
-                <input type="checkbox" checked={noPrevAccountant} onChange={(e) => setNoPrevAccountant(e.target.checked)} className="w-4 h-4 rounded text-purple-600" />
-                <span className="text-sm text-gray-700">I do not have a previous accountant / this is a new business</span>
-              </label>
+            <div data-field="prevAccountant" className="bg-white rounded-xl px-4 py-3 sm:px-5 sm:py-4 border border-gray-200">
+              {/* Deliberately compact. This sits above the contract, so anything
+                  taller pushes the letter itself off the first screen — and for
+                  most clients there is nothing to do here but confirm. */}
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Previous Accountant</h2>
+                  <p className="text-xs text-gray-500">So we can request clearance and your records.</p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 whitespace-nowrap">
+                  <input type="checkbox" checked={noPrevAccountant}
+                    onChange={(e) => setNoPrevAccountant(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600" />
+                  I don&apos;t have one
+                </label>
+              </div>
 
               {!noPrevAccountant && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Previous Accountant Firm Name *</label>
-                    <input type="text" value={prevFirmName} onChange={(e) => setPrevFirmName(e.target.value)} placeholder="e.g., Smith & Associates Ltd" required={!noPrevAccountant}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Their Email Address *</label>
-                    <input type="email" value={prevEmail} onChange={(e) => setPrevEmail(e.target.value)} placeholder="contact@previousfirm.com" required={!noPrevAccountant}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Their Phone Number *</label>
-                    <input type="tel" value={prevPhone} onChange={(e) => setPrevPhone(e.target.value)} placeholder="+44 20 1234 5678" required={!noPrevAccountant}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Their Postal Address *</label>
-                    <textarea value={prevAddress} onChange={(e) => setPrevAddress(e.target.value)} required={!noPrevAccountant} rows={3}
-                      placeholder={'Building & Street\nTown / City\nPostcode'}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  {/* Red, small, and specific. This is a consequence the client
-                      should notice before signing, and a blue "info" panel reads
-                      as decoration people skim past. */}
-                  <p className="flex items-start gap-2 text-[13px] leading-snug text-red-700">
-                    <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
-                    <span>
-                      On signing we will contact this firm directly to request professional clearance
-                      and the handover of your records.
-                    </span>
+                <>
+                  {/* Already on file: show it back for a glance, nothing to fill in. */}
+                  {prevPrefilled && !prevEditing ? (
+                    <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
+                      <div className="text-sm text-gray-800 min-w-0">
+                        <p className="font-semibold truncate">{prevFirmName}</p>
+                        <p className="text-gray-600 truncate">{prevEmail}</p>
+                        {prevPhone && <p className="text-gray-600 truncate">{prevPhone}</p>}
+                      </div>
+                      <button type="button" onClick={() => setPrevEditing(true)}
+                        className="text-xs font-semibold text-purple-700 hover:text-purple-900 whitespace-nowrap">
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Firm name *</label>
+                        <input type="text" value={prevFirmName} onChange={(e) => setPrevFirmName(e.target.value)}
+                          placeholder="e.g. Smith &amp; Associates Ltd"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Their email *</label>
+                        <input type="email" value={prevEmail} onChange={(e) => setPrevEmail(e.target.value)}
+                          placeholder="contact@previousfirm.com"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Phone <span className="font-normal">(optional)</span></label>
+                        <input type="tel" value={prevPhone} onChange={(e) => setPrevPhone(e.target.value)}
+                          placeholder="+44 20 1234 5678"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Postal address <span className="font-normal">(optional)</span></label>
+                        <input type="text" value={prevAddress} onChange={(e) => setPrevAddress(e.target.value)}
+                          placeholder="Street, town, postcode"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="mt-2 text-[11px] leading-snug text-gray-500">
+                    {prevOk
+                      ? 'On signing we will contact this firm to request clearance and the handover of your records.'
+                      : 'Firm name and email are needed before you can sign.'}
                   </p>
-                </div>
+                </>
               )}
             </div>
         )}
@@ -1253,32 +1274,32 @@ export default function EngagementPage() {
                 </p>
               </div>
 
-              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-3">
-                <input type="checkbox" checked={authorised} onChange={(e) => setAuthorised(e.target.checked)}
+              {/* ONE tick, not two. The client was confirming they had read the
+                  contract and, separately, that they consented to sign it
+                  electronically — two boxes a step apart saying things nobody
+                  reaching this point disagrees with. Both statements are still
+                  made, and both are still recorded (authorised + esignConsent
+                  move together), but the client affirms them once. */}
+              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-5">
+                <input type="checkbox" checked={authorised}
+                  onChange={(e) => { setAuthorised(e.target.checked); setEsignConsent(e.target.checked); }}
                   className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
                 <div>
-                  <p className="font-bold text-gray-900">
-                    {mode === 'proposal_only'
-                      ? `I have reviewed this proposal and wish to proceed with ${firm.name}`
-                      : `I have read and understood the contract in its entirety and authorise ${firm.name} to take over all my accountancy work`}
-                  </p>
-                </div>
-              </label>
-
-              <label data-field="esignConsent" className="flex items-start gap-3 cursor-pointer mb-5">
-                <input type="checkbox" checked={esignConsent} onChange={(e) => setEsignConsent(e.target.checked)}
-                  className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
-                <div>
-                  <p className="font-bold text-gray-900 flex items-center gap-2">
-                    <ShieldCheck size={16} className="text-purple-600" /> I agree to sign this contract electronically
+                  <p className="font-bold text-gray-900 flex items-start gap-2">
+                    <ShieldCheck size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                    <span>
+                      {mode === 'proposal_only'
+                        ? `I have reviewed this proposal, wish to proceed with ${firm.name}, and agree to approve it electronically`
+                        : `I have read and understood this contract in full, authorise ${firm.name} to take over all my accountancy work, and agree to sign electronically`}
+                    </span>
                   </p>
                   <details className="group mt-1">
                     <summary className="text-xs font-semibold text-purple-700 cursor-pointer select-none list-none flex items-center gap-1">
                       <ChevronRight size={12} className="group-open:rotate-90 transition-transform" />
-                      What this means (legal note)
+                      What signing electronically means (legal note)
                     </summary>
                     <p className="text-sm text-gray-600 mt-1 pl-4">
-                      I understand that typing my name below constitutes my legal electronic signature, with the same legal
+                      I understand that signing below constitutes my legal electronic signature, with the same legal
                       effect as a handwritten signature (Electronic Communications Act 2000 / UK eIDAS), and that the date,
                       time, network address and a fingerprint of this document will be recorded in a signature certificate.
                     </p>
@@ -1331,8 +1352,7 @@ export default function EngagementPage() {
             {!canSubmit && !isExpired && (
               <p className="text-center text-sm text-gray-500">
                 {!authorised && 'Please tick the declaration. '}
-                {!esignConsent && 'Please agree to sign electronically. '}
-                {signatureName.trim().length <= 1 && 'Type your full name in the signature box. '}
+                                {signatureName.trim().length <= 1 && 'Type your full name in the signature box. '}
                 {!isManualPayment && !ddValid && 'Set up your Direct Debit with GoCardless above — this must be confirmed before you can sign. '}
                 {!prevOk && 'Fill in your previous accountant details or confirm you have none.'}
               </p>

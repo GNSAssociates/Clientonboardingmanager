@@ -3,6 +3,7 @@ import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { getFirm } from "@/lib/firms";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
+import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,6 +51,56 @@ export async function GET(
 
   // Resolve the letter HTML: stored signed copy, stored letter, or freshly built.
   let html: string | null = wantSigned ? (link.signedHtml ?? null) : (wantRefresh ? null : (link.letterHtml ?? null));
+
+  /* SPECIMEN: what the contract will look like once the client signs, rendered
+     before anyone has. Staff-only, and every page is stamped — it carries a
+     signature the client has not given, so it must never be mistakable for an
+     executed contract. Refused without a staff session precisely because a
+     client holding the token must not be able to produce one. */
+  const wantSpecimen = req.nextUrl.searchParams.get("specimen") === "1";
+  if (wantSpecimen && !link.signedHtml) {
+    if (!getSession()) {
+      return NextResponse.json({ error: "Staff sign-in required to preview a signed copy." }, { status: 401 });
+    }
+    try {
+      const { buildEngagementPdf, engagementPdfFilename } = await import("@/lib/engagement-pdf");
+      const m = (link.letterMeta ?? {}) as Record<string, unknown>;
+      const signatory = link.directorName || "Client Name";
+      const pdf = await buildEngagementPdf({
+        firm,
+        regBody: meta.regBody ?? firm.regBody,
+        companyName: link.companyName ?? "",
+        companyNumber: link.companyNumber ?? undefined,
+        clientAddress: meta.clientAddress,
+        directorName: link.directorName ?? undefined,
+        partnerName: meta.partnerName,
+        services: (link.services ?? []) as LetterService[],
+        customFees: meta.customFees ?? [],
+        scopeRows: meta.scopeRows ?? undefined,
+        ch: meta.ch ?? null,
+        paymentMethod: m.paymentMethod as string | undefined,
+        includeAnnexA: m.includeAnnexA as boolean | undefined,
+        clientType: m.clientType as string | undefined,
+        clientName: m.clientName as string | undefined,
+        utr: m.utr as string | undefined,
+        softwareItems: m.softwareItems as Array<{ name: string; price: number }> | undefined,
+        dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+        specimen: true,
+        signedName: signatory,
+        signedAt: new Date().toISOString(),
+      });
+      return new NextResponse(new Uint8Array(pdf), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `${download ? "attachment" : "inline"}; filename="SPECIMEN - ${engagementPdfFilename(link.companyName ?? "client")}"`,
+        },
+      });
+    } catch (e) {
+      console.error("specimen render failed:", e);
+      return NextResponse.json({ error: "Could not build the preview." }, { status: 500 });
+    }
+  }
+
   if (wantSigned && !html) return NextResponse.json({ error: "Not signed yet" }, { status: 404 });
   if (!html) {
     const overrides = await loadEngagementLetterOverrides(firm.slug);

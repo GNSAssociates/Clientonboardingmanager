@@ -198,6 +198,11 @@ export interface EngagementPdfInput extends LetterData {
    *  "Certificate of Completion" page is appended (agreement history, signature
    *  details, document fingerprint, legal basis). */
   audit?: AuditData | null;
+  /** Staff preview of how the contract will look once signed, rendered before
+   *  any client has signed it. Stamps every page as a specimen: it carries a
+   *  signature the client has not actually given, so it must never be capable
+   *  of being mistaken for — or passed off as — an executed contract. */
+  specimen?: boolean;
 }
 
 export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buffer> {
@@ -300,6 +305,22 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   const drawFurniture = (p: PDFPage) => {
     // Client requirement 1: cream background, drawn first, behind everything.
     p.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: CREAM_BG });
+
+    /* Specimen stamp, on EVERY page and impossible to miss. This copy shows a
+       signature the client has not given, so it exists only to show staff what
+       the executed contract will look like. Marking just the first page would
+       leave every other page indistinguishable from a real signed contract the
+       moment someone prints or forwards it. */
+    if (d.specimen) {
+      const band = 18;
+      p.drawRectangle({ x: 0, y: PAGE_H - band, width: PAGE_W, height: band, color: rgb(0.72, 0.11, 0.11) });
+      const label = sanitize("SPECIMEN - PREVIEW ONLY - NOT A SIGNED CONTRACT");
+      p.drawText(label, {
+        x: (PAGE_W - bold.widthOfTextAtSize(label, 8.5)) / 2,
+        y: PAGE_H - band + 5.5,
+        size: 8.5, font: bold, color: rgb(1, 1, 1),
+      });
+    }
 
     // ── Header ──────────────────────────────────────────────────────────────
     if (logo) {

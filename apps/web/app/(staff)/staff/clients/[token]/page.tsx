@@ -505,6 +505,15 @@ export default function ClientDetailPage() {
               </a>
             </>
           )}
+          {/* Before signing: the same contract rendered as it will look once
+              the client signs, stamped SPECIMEN on every page so it can never
+              be mistaken for the executed one. */}
+          {!signed && (
+            <a href={`/api/onboarding/links/${token}/letter?specimen=1&download=1`}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:border-gray-500 hover:bg-gray-50">
+              <Download size={13} /> Preview signed copy (specimen)
+            </a>
+          )}
         </div>
         {!signed && (
           <div className="mt-3 flex items-center gap-3 flex-wrap">

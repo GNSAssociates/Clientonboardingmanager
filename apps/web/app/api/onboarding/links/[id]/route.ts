@@ -117,6 +117,17 @@ export async function GET(
       sentAt: link.sentAt,
       expiresAt: link.expiresAt,
       acceptedAt: link.acceptedAt,
+      /* Whatever we already hold about the outgoing accountant, so the signing
+         page can present it for confirmation instead of making the client type
+         details we are already sitting on. Safe to expose to the token holder:
+         it is the client's own previous accountant, and it is what we would
+         otherwise be asking them for on this very page. */
+      prevAccountant: {
+        firmName: link.prevAccountantFirmName,
+        email: link.prevAccountantEmail,
+        phone: ((link.acceptanceData as Record<string, unknown> | null)?.prevPhone as string) ?? null,
+        address: ((link.acceptanceData as Record<string, unknown> | null)?.prevFirmAddress as string) ?? null,
+      },
       // Only the presentation flags the signing page branches on — the rest of
       // letterMeta is internal (pricing workings, partner routing, drafts).
       letterMeta: {
