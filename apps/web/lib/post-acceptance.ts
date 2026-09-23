@@ -29,6 +29,35 @@ import type { LetterService, CustomFee, ScopeRow, ChDetails } from "./letter-htm
 
 interface DocStatus { id: string; label: string; status: string }
 
+/**
+ * The records we ask an outgoing accountant for, tracked with ids so staff can
+ * tick them off as they arrive.
+ *
+ * Exported because clearance can be raised from two places — automatically when
+ * a client signs, and by staff ahead of that (see the clearance-send route) —
+ * and the checklist must be the same list in both, or the tracker shows
+ * different items depending on who started it.
+ */
+export function buildClearanceItems(directorDocs?: DocStatus[]) {
+  const mkItem = (id: string, type: string, label: string, year: string) =>
+    ({ id, type, label, year, status: "pending" as const, receivedDate: null, notes: "" });
+  return [
+    mkItem("bookkeeping", "AA", "Bookkeeping Files / Working Files", "Current"),
+    mkItem("pl_bs", "AA", "P&L and Balance Sheet ledgers (detailed breakdown)", "Previous"),
+    mkItem("trial_balance", "AA", "Current Year YTD Trial Balance", "Current"),
+    mkItem("filed_accounts", "CT", "Detailed P&L, BS, schedules, capital allowances, DLA, s455", "Last 2 years"),
+    mkItem("personal_tax", "SA", "Director's personal tax returns + P60s/P45s", "Last 2 years"),
+    mkItem("online_access", "REFS", "Online access (MTD software, HMRC, Companies House, NEST)", "All"),
+    mkItem("tax_refs", "REFS", "Tax references (UTR, CH Auth Code, VAT cert, PAYE refs, NI)", "All"),
+    mkItem("payroll_rti", "PAYROLL", "Payroll RTI & Pensions records", "Current + 2 years"),
+    mkItem("vat_returns", "VAT", "VAT returns (last 4 quarters) + HMRC correspondence", "Last 4 quarters"),
+    // Director docs marked "not applicable to me" are requested from the previous accountant
+    ...(directorDocs ?? [])
+      .filter((d) => d.status === "na")
+      .map((d) => mkItem(`director_${d.id}`, "REFS", `${d.label} (director's copy held on your file)`, "All")),
+  ];
+}
+
 export interface PostAcceptanceLink {
   id: string;
   token: string;
@@ -83,6 +112,9 @@ export interface PostAcceptanceContext {
    *  request record, the email to the outgoing accountant, and the client
    *  authority letter. Defaults to true — omitting it keeps today's behaviour. */
   includeClearance?: boolean;
+  /** Staff already raised clearance for this client before they signed, so the
+   *  outgoing firm must not be emailed a second time when the signature lands. */
+  clearanceAlreadySent?: boolean;
   ipAddress: string;
   userAgent: string;
   documentSha256?: string;
@@ -101,7 +133,8 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
     link, token, mode, firm, meta, appUrl, today, now,
     signatureName, signatureImage, contactPrefs, directorDocs, companyDocs,
     prevFirmName, prevEmail, prevPhone, prevFirmAddress, noPrevAccountant,
-    includeClearance, ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
+    includeClearance, clearanceAlreadySent,
+    ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
   } = ctx;
   const db = getDb();
 
@@ -117,7 +150,9 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
      narrowed string inside the block rather than something we have to assert
      is non-null. */
   const clearanceEmail: string | null =
-    includeClearance !== false && !noPrevAccountant ? (prevEmail || null) : null;
+    includeClearance !== false && !noPrevAccountant && !clearanceAlreadySent
+      ? (prevEmail || null)
+      : null;
 
   // Hold the generated PDFs so they can be BOTH archived AND attached to the
   // client's welcome email further down (built once, reused).
@@ -199,23 +234,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
   }
 
   // ── Clearance request — items tracked with ids so staff can tick them off ─
-  const mkItem = (id: string, type: string, label: string, year: string) =>
-    ({ id, type, label, year, status: "pending" as const, receivedDate: null, notes: "" });
-  const clearanceItems = [
-    mkItem("bookkeeping", "AA", "Bookkeeping Files / Working Files", "Current"),
-    mkItem("pl_bs", "AA", "P&L and Balance Sheet ledgers (detailed breakdown)", "Previous"),
-    mkItem("trial_balance", "AA", "Current Year YTD Trial Balance", "Current"),
-    mkItem("filed_accounts", "CT", "Detailed P&L, BS, schedules, capital allowances, DLA, s455", "Last 2 years"),
-    mkItem("personal_tax", "SA", "Director's personal tax returns + P60s/P45s", "Last 2 years"),
-    mkItem("online_access", "REFS", "Online access (MTD software, HMRC, Companies House, NEST)", "All"),
-    mkItem("tax_refs", "REFS", "Tax references (UTR, CH Auth Code, VAT cert, PAYE refs, NI)", "All"),
-    mkItem("payroll_rti", "PAYROLL", "Payroll RTI & Pensions records", "Current + 2 years"),
-    mkItem("vat_returns", "VAT", "VAT returns (last 4 quarters) + HMRC correspondence", "Last 4 quarters"),
-    // Director docs marked "not applicable to me" are requested from the previous accountant
-    ...(directorDocs ?? [])
-      .filter((d) => d.status === "na")
-      .map((d) => mkItem(`director_${d.id}`, "REFS", `${d.label} (director's copy held on your file)`, "All")),
-  ];
+  const clearanceItems = buildClearanceItems(directorDocs);
 
   if (clearanceEmail) {
     try {

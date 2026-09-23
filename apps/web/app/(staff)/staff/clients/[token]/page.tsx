@@ -292,6 +292,7 @@ export default function ClientDetailPage() {
   const [d, setD] = useState<Details | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [sendingClearance, setSendingClearance] = useState(false);
   const [savingChase, setSavingChase] = useState(false);
   const [msg, setMsg] = useState('');
   const [emailLog, setEmailLog] = useState<EmailLogRow[] | null>(null);
@@ -317,6 +318,49 @@ export default function ClientDetailPage() {
       });
       if (res.ok) load();
     } finally { setSavingChase(false); }
+  };
+
+  /* Raise professional clearance now, without waiting for the client to sign.
+     Sends OUR clearance letter only — never the client authority letter, which
+     is written in the client's voice and carries their name as a signature. */
+  const sendClearance = async () => {
+    const firmName = window.prompt(
+      "Previous accountant — firm name:",
+      d?.previousAccountant?.firmName ?? '',
+    );
+    if (firmName === null) return;
+    const firmEmail = window.prompt(
+      "Previous accountant — email address:",
+      d?.previousAccountant?.email ?? '',
+    );
+    if (firmEmail === null) return;
+    if (!firmName.trim() || !firmEmail.trim()) {
+      setMsg('❌ Both the firm name and email are needed to request clearance.');
+      return;
+    }
+    if (!window.confirm(
+      `Email a professional clearance request to ${firmEmail.trim()} now?\n\n`
+      + `Only our clearance letter is sent. The client authority letter is NOT included, `
+      + `because ${d?.company?.name ?? 'this client'} has not signed one yet.`
+    )) return;
+
+    setSendingClearance(true);
+    setMsg('');
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}/clearance-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prevFirmName: firmName.trim(), prevFirmEmail: firmEmail.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Could not send clearance');
+      setMsg(`✅ Clearance request sent to ${(data as { sentTo?: string }).sentTo}`);
+      load();
+    } catch (e) {
+      setMsg(`❌ ${e instanceof Error ? e.message : 'Could not send clearance'}`);
+    } finally {
+      setSendingClearance(false);
+    }
   };
 
   const retryGc = async () => {
@@ -513,6 +557,15 @@ export default function ClientDetailPage() {
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:border-gray-500 hover:bg-gray-50">
               <Download size={13} /> Preview signed copy (specimen)
             </a>
+          )}
+          {/* Clearance without waiting for a signature. Sends our clearance
+              letter only — the client authority letter is withheld, because the
+              client has not authorised anything yet. */}
+          {!signed && !d.previousAccountant?.noPreviousAccountant && (
+            <button onClick={sendClearance} disabled={sendingClearance}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-amber-400 text-amber-800 hover:bg-amber-50 disabled:opacity-40">
+              <Send size={13} /> {sendingClearance ? 'Sending…' : 'Request clearance now'}
+            </button>
           )}
         </div>
         {!signed && (

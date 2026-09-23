@@ -330,6 +330,8 @@ export async function POST(
       companyDocs: companyDocs ?? [],
       prevFirmName, prevEmail, prevPhone, prevFirmAddress: prevAddress, noPrevAccountant,
       includeClearance,
+      // Staff may have raised clearance already; do not email the outgoing firm twice.
+      clearanceAlreadySent: Boolean(((link.acceptanceData ?? {}) as Record<string, unknown>).clearanceSentAt),
       ipAddress, userAgent, documentSha256, ddSummary, signedHtml,
     };
     const postResult = await runPostAcceptanceEffects(postCtx);
