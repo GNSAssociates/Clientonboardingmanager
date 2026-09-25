@@ -96,3 +96,25 @@ body {
   }
   .gns-reveal { opacity: 1 !important; }
 }
+
+/* ── "Take me to signing" guidance ────────────────────────────────────────────
+   Scrolling to a section and focusing something is not enough on a long
+   contract page: a focus ring halfway down the screen is easy to miss, and
+   where the next step is a BUTTON (the Direct Debit set-up) there was nothing
+   focusable at all, so the client was delivered to the right area and left to
+   work it out. This ring pulses briefly on whatever they need to do next. */
+@keyframes gnsGuidePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+.gns-guide {
+  animation: gnsGuidePulse 1.4s ease-out 3;
+  border-radius: 0.6rem;
+  outline: 2px solid rgba(37, 99, 235, 0.9);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the ring, drop the pulsing. */
+  .gns-guide { animation: none; }
+}

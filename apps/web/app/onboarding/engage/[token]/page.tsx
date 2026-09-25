@@ -678,15 +678,50 @@ export default function EngagementPage() {
   requirements.push({ ok: signatureName.trim().length > 1, selector: '[data-field="signatureName"]', label: 'Your signature' });
   const outstanding = requirements.filter((r) => !r.ok);
 
+  /* Take the client TO THE NEXT THING, not merely to the right area.
+
+     This used to scroll to the section and focus its first input, which failed
+     in two ways people actually hit. It focused the first field even when that
+     one was already filled — so someone missing only the postal address was
+     pointed at the firm name. And the Direct Debit section contains no input at
+     all, just a button, so focus() found nothing and they were dropped into the
+     middle of a long page with no idea what to press.
+
+     Now it picks the first EMPTY required field, falls back to the section's
+     button when there is no field to fill, and rings it so the eye lands on it
+     after the scroll. */
   const focusFirstError = () => {
-    const checks = requirements;
-    const firstBad = checks.find((c) => !c.ok);
+    const firstBad = requirements.find((c) => !c.ok);
     if (!firstBad) return;
-    const el = document.querySelector(firstBad.selector) as HTMLElement | null;
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const focusable = (el.matches('input,textarea,select') ? el : el.querySelector('input,textarea,select')) as HTMLElement | null;
-    focusable?.focus();
+    const section = document.querySelector(firstBad.selector) as HTMLElement | null;
+    if (!section) return;
+
+    const isBlank = (el: HTMLInputElement | HTMLTextAreaElement) =>
+      el.type === 'checkbox' ? !(el as HTMLInputElement).checked : !el.value.trim();
+
+    let target: HTMLElement | null = null;
+    if (section.matches('input,textarea,select')) {
+      target = section;
+    } else {
+      const fields = Array.from(
+        section.querySelectorAll('input:not([type=hidden]), textarea, select'),
+      ) as Array<HTMLInputElement | HTMLTextAreaElement>;
+      target = fields.find((el) => !el.disabled && isBlank(el))
+        ?? fields.find((el) => !el.disabled)
+        // No field to fill — the next action is a button (e.g. set up the
+        // Direct Debit). That is the case that used to guide them nowhere.
+        ?? (section.querySelector('button:not([disabled])') as HTMLElement | null);
+    }
+
+    const scrollTo = target ?? section;
+    scrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // After the smooth scroll, so the ring is seen rather than scrolled past.
+    window.setTimeout(() => {
+      target?.focus({ preventScroll: true });
+      const ringed = target ?? section;
+      ringed.classList.add('gns-guide');
+      window.setTimeout(() => ringed.classList.remove('gns-guide'), 4200);
+    }, 450);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
