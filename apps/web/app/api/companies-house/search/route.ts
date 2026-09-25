@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { tidyName } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     const data = await res.json() as { items?: Array<{ company_number: string; title: string; company_status: string; address_snippet?: string; date_of_creation?: string }> };
     const items = (data.items ?? []).map((c) => ({
       companyNumber: c.company_number,
-      name: c.title,
+      name: tidyName(c.title),
       status: c.company_status,
       address: c.address_snippet ?? '',
       incorporationDate: c.date_of_creation ?? null,

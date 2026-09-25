@@ -4,6 +4,7 @@ import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { moveClientFolderToStage } from "@/lib/onedrive";
 import { getSession } from "@/lib/auth/session";
 import { getFirm } from "@/lib/firms";
+import { tidyName } from "@/lib/format";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 
@@ -47,10 +48,10 @@ export async function PATCH(
     updates.firmSlug = body.firmSlug;
   }
   if (typeof body.companyName === "string" && body.companyName.trim()) {
-    updates.companyName = body.companyName.trim();
+    updates.companyName = tidyName(body.companyName);
   }
   if (typeof body.directorName === "string") {
-    updates.directorName = body.directorName.trim() || null;
+    updates.directorName = tidyName(body.directorName) || null;
   }
   if (typeof body.clientEmail === "string" && body.clientEmail.trim()) {
     updates.clientEmail = body.clientEmail.trim();

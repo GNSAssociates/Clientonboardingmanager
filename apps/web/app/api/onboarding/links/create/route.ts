@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, createOnboardingLink, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
+import { tidyName } from "@/lib/format";
 import { randomBytes } from "crypto";
 import { getFirm } from "@/lib/firms";
 import { ensureClientFolder } from "@/lib/onedrive";
@@ -176,9 +177,11 @@ export async function POST(req: NextRequest) {
       entityId: resolvedEntityId,
       token,
       companyNumber,
-      companyName,
+      // Tidied so a stray double space does not follow the client onto the
+      // contract, the clearance letter and every generated filename.
+      companyName: tidyName(companyName),
       clientEmail: directorEmail,
-      directorName,
+      directorName: tidyName(directorName) || null,
       directorEmail,
       firmSlug,
       services: (serviceDetails || []).map((s) => ({ ...s, id: s.id ?? s.name })),

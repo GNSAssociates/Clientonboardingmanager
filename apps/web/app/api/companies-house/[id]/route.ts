@@ -5,8 +5,10 @@ export const dynamic = "force-dynamic";
 const CH_BASE = "https://api.companieshouse.gov.uk";
 
 /** Reformat "SURNAME, Forename" → "Forename Surname". */
+import { tidyName } from "@/lib/format";
+
 function reformatName(name: string): string {
-  return name.split(",").reverse().map((p) => p.trim()).filter(Boolean).join(" ");
+  return tidyName(name.split(",").reverse().map((p) => p.trim()).filter(Boolean).join(" "));
 }
 
 export async function GET(
@@ -127,7 +129,7 @@ export async function GET(
 
   return NextResponse.json({
     number: data.company_number,
-    name: data.company_name,
+    name: tidyName(data.company_name),
     type: data.type ?? null,
     address,
     addressStructured,
