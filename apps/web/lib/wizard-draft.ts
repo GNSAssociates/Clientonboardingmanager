@@ -28,6 +28,10 @@ export interface WizardDraftState {
   /** Run professional clearance for this client (prev-accountant details are
    *  collected, the outgoing firm is emailed, the authority letter is sent). */
   includeClearance?: boolean;
+  clearanceMode?: 'client' | 'firm' | 'none';
+  /** Outgoing accountant known up front, so the client only confirms it. */
+  prevFirmName?: string;
+  prevFirmEmail?: string;
   /** Opt-in Direct Debit clause in the engagement letter (default off). */
   includeDdClause?: boolean;
   /** Optional note printed inside that clause. */

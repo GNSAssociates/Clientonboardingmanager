@@ -612,7 +612,7 @@ export function buildLetterHtml(d: LetterData): string {
     <p style="text-align:left">The Client's fees are invoiced monthly and are payable within 14 days of the invoice date.
     Fees for one-off and ad-hoc work are invoiced on completion and payable upfront. No Direct Debit mandate is
     required for this engagement.</p>
-  </div>` : d.includeDdClause ? `
+  </div>` : `
   <div class="dd sans">
     <div class="t">Direct Debit — GoCardless Mandate</div>
     <p style="text-align:left">The Client's fees are collected by GoCardless Direct Debit. By signing this contract the Client authorises
@@ -620,7 +620,7 @@ export function buildLetterHtml(d: LetterData): string {
     GoCardless, who hold the bank details; ${esc(f.name)} never receives or stores them. Payments are protected by the
     Direct Debit Guarantee.</p>
     ${d.ddClauseNote ? `<p style="text-align:left">${esc(d.ddClauseNote)}</p>` : ''}
-  </div>` : ''}
+  </div>`}
 
   <div class="imp sans">
     <div class="t">Important!</div>

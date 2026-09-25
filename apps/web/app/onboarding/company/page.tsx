@@ -318,6 +318,8 @@ function CompanyPageInner() {
       paymentMethod: paymentMethodParam,
       includeAnnexA: includeAnnexAParam,
       includeClearance: includeClearanceParam,
+      prevFirmName: searchParams.get('prevFirmName') || undefined,
+      prevFirmEmail: searchParams.get('prevFirmEmail') || undefined,
       includeDdClause: includeDdClauseParam,
       ddClauseNote: ddClauseNoteParam,
       clientType: clientTypeParam,

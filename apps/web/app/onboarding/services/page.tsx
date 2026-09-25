@@ -367,6 +367,17 @@ function ServicesPageInner() {
      leaving it on would queue a SECOND clearance request to the same outgoing
      accountant when the client signs. */
   const [clearanceSentAt, setClearanceSentAt] = useState<string | null>(null);
+  /* How clearance is handled for this client. Replaces a yes/no toggle that
+     could not express "we are sending it ourselves" — which is what staff were
+     actually doing, and why clearance kept being raised in two places without
+     either knowing about the other.
+       client = the letter asks them for their previous accountant
+       firm   = we send it from here; the client is never asked
+       none   = not required (handled outside the app entirely) */
+  const [clearanceMode, setClearanceMode] = useState<'client' | 'firm' | 'none'>('client');
+  // Optional: staff already know the outgoing accountant, so the client only confirms.
+  const [prefillPrevFirm, setPrefillPrevFirm] = useState('');
+  const [prefillPrevEmail, setPrefillPrevEmail] = useState('');
   // Direct Debit clause in the contract — OPT-IN. Most engagements do not spell
   // the DD arrangement out in the letter, so this stays OFF unless the fee-earner
   // deliberately turns it on and (optionally) adds a note.
@@ -511,7 +522,10 @@ function ServicesPageInner() {
         if (d.includeInLetter) setIncludeInLetter(d.includeInLetter as Record<string, boolean>);
         if (d.includeAnnexA !== undefined) setIncludeAnnexA(d.includeAnnexA as boolean);
         if (d.includeClearance !== undefined) setIncludeClearance(d.includeClearance as boolean);
-        if (d.clearanceSentAt) { setClearanceSentAt(d.clearanceSentAt as string); setIncludeClearance(false); }
+        if (d.clearanceMode) { const m = d.clearanceMode as 'client'|'firm'|'none'; setClearanceMode(m); setIncludeClearance(m === 'client'); }
+        if (d.prevFirmName) setPrefillPrevFirm(d.prevFirmName as string);
+        if (d.prevFirmEmail) setPrefillPrevEmail(d.prevFirmEmail as string);
+        if (d.clearanceSentAt) { setClearanceSentAt(d.clearanceSentAt as string); setIncludeClearance(false); setClearanceMode('firm'); }
         if (d.includeDdClause !== undefined) setIncludeDdClause(d.includeDdClause as boolean);
         if (typeof d.ddClauseNote === 'string') setDdClauseNote(d.ddClauseNote);
         if (d.softwareItems?.length) setSoftwareItems(d.softwareItems as SoftwareItem[]);
@@ -556,6 +570,9 @@ function ServicesPageInner() {
         includeInLetter,
         includeAnnexA,
         includeClearance,
+        clearanceMode,
+        prevFirmName: prefillPrevFirm || undefined,
+        prevFirmEmail: prefillPrevEmail || undefined,
         softwareItems,
         clientType,
         clientName,
@@ -742,6 +759,8 @@ function ServicesPageInner() {
     q.set('paymentMethod', paymentMethod);
     q.set('includeAnnexA', includeAnnexA ? '1' : '0');
     q.set('includeClearance', includeClearance ? '1' : '0');
+    if (prefillPrevFirm.trim()) q.set('prevFirmName', prefillPrevFirm.trim());
+    if (prefillPrevEmail.trim()) q.set('prevFirmEmail', prefillPrevEmail.trim());
     q.set('includeDdClause', includeDdClause ? '1' : '0');
     if (includeDdClause && ddClauseNote.trim()) q.set('ddClauseNote', ddClauseNote.trim());
     q.set('frequencies', JSON.stringify(frequencies));
@@ -833,10 +852,16 @@ function ServicesPageInner() {
             <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-gray-700">Include Direct Debit terms in the engagement letter</p>
+                  {/* The clause itself is no longer optional. Direct Debit is
+                      compulsory for these clients — they cannot sign until a
+                      mandate is confirmed — so a contract that never mentions
+                      it was silent about the one payment method it enforces.
+                      It is now always in the letter, and this toggle adds a
+                      note of your own beneath it. */}
+                  <p className="text-sm font-semibold text-gray-700">Add your own note to the Direct Debit clause</p>
                   <p className="text-xs text-gray-500">
-                    Off by default — not included in the scope. Turn on to add a short Direct Debit
-                    clause, plus your own note, to the contract.
+                    The Direct Debit clause is always included for Direct Debit clients. Turn this on to
+                    add a line of your own beneath it (e.g. the collection date).
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
@@ -880,31 +905,69 @@ function ServicesPageInner() {
               Locked off entirely once clearance has already gone out for this
               client — otherwise signing would send the same outgoing accountant
               a second request. */}
-          <div className={`flex items-center justify-between pt-4 mt-4 border-t border-purple-100 ${clearanceSentAt ? 'opacity-60' : ''}`}>
-            <div className="pr-4">
-              <p className="text-sm font-semibold text-gray-700">Include Professional Clearance</p>
-              <p className="text-xs text-gray-500">
-                Ask the client for their previous accountant, then email that firm for clearance
+          <div className={`pt-4 mt-4 border-t border-purple-100 ${clearanceSentAt ? 'opacity-70' : ''}`}>
+            <p className="text-sm font-semibold text-gray-700">Professional Clearance</p>
+            <p className="text-xs text-gray-500 mb-3">How the handover is requested from the outgoing accountant</p>
+
+            {clearanceSentAt ? (
+              <p className="text-xs text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <strong>Already sent</strong> on {new Date(clearanceSentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                Locked, so the outgoing accountant is not sent a second request when this client signs.
+                The client authority letter still follows automatically once they sign.
               </p>
-              {clearanceSentAt ? (
-                <p className="mt-2 text-xs text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  <strong>Already sent</strong> on {new Date(clearanceSentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.
-                  Turned off and locked so the outgoing accountant is not sent a second request when this client signs.
-                  The client authority letter still follows automatically once they sign.
-                </p>
-              ) : !includeClearance && (
-                <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  <strong>Excluded.</strong> The client will not be asked for their previous accountant,
-                  and no clearance email or client authority letter will be sent. Arrange the handover
-                  yourself.
-                </p>
-              )}
-            </div>
-            <label className={`relative inline-flex items-center flex-shrink-0 ${clearanceSentAt ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-              <input type="checkbox" checked={includeClearance} disabled={!!clearanceSentAt}
-                onChange={(e) => setIncludeClearance(e.target.checked)} className="sr-only peer" />
-              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 peer-disabled:opacity-60" />
-            </label>
+            ) : (
+              <div className="space-y-2">
+                {([
+                  {
+                    v: 'client' as const,
+                    t: 'Ask the client in the engagement letter',
+                    d: 'They give their previous accountant at signing, and we email that firm once they sign — with their signed authority attached.',
+                  },
+                  {
+                    v: 'firm' as const,
+                    t: 'We send it ourselves',
+                    d: 'You send clearance from here, now. The client is not asked, and the letter carries no clearance section. The signed authority letter follows if they sign later.',
+                  },
+                  {
+                    v: 'none' as const,
+                    t: 'Not required',
+                    d: 'No clearance at all — new business, or you are arranging the handover outside this system.',
+                  },
+                ]).map((o) => (
+                  <label key={o.v}
+                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                      clearanceMode === o.v ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}>
+                    <input type="radio" name="clearanceMode" checked={clearanceMode === o.v}
+                      onChange={() => { setClearanceMode(o.v); setIncludeClearance(o.v === 'client'); }}
+                      className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-gray-800">{o.t}</span>
+                      <span className="block text-xs text-gray-500 mt-0.5">{o.d}</span>
+                    </span>
+                  </label>
+                ))}
+
+                {/* Asked in the letter, but we may already know the firm — then
+                    the client only confirms it rather than digging it out. */}
+                {clearanceMode === 'client' && (
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-xs font-semibold text-gray-700">Already know their previous accountant? <span className="font-normal text-gray-500">(optional)</span></p>
+                    <p className="text-[11px] text-gray-500 mb-2">
+                      Fill these in and the client just checks them instead of typing them. Leave blank to ask them.
+                    </p>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <input value={prefillPrevFirm} onChange={(e) => setPrefillPrevFirm(e.target.value)}
+                        placeholder="Previous accountant firm"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      <input value={prefillPrevEmail} onChange={(e) => setPrefillPrevEmail(e.target.value)} type="email"
+                        placeholder="Their email"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1128,7 +1191,7 @@ function ServicesPageInner() {
             uses the client on this page and the draft the wizard is already
             autosaving, so it is the same record either way — carry on with the
             letter whenever you like. */}
-        {!clearanceSentAt && includeClearance && (chCompany || clientName.trim()) && (
+        {!clearanceSentAt && clearanceMode === 'firm' && (chCompany || clientName.trim()) && (
           <ClearanceNowPanel
             companyLabel={chCompany?.name || clientName.trim()}
             getToken={ensureDraft}

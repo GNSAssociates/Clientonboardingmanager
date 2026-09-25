@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
       includeInLetter,
       includeAnnexA,
       includeClearance,
+      clearanceMode,
+      prevFirmName,
+      prevFirmEmail,
       softwareItems,
       clientType,
       clientName,
@@ -65,6 +68,9 @@ export async function POST(req: NextRequest) {
       includeInLetter?: Record<string, boolean>;
       includeAnnexA?: boolean;
       includeClearance?: boolean;
+      clearanceMode?: string;
+      prevFirmName?: string;
+      prevFirmEmail?: string;
       softwareItems?: Array<{ name: string; price: number }>;
       clientType?: string;
       clientName?: string;
@@ -111,6 +117,9 @@ export async function POST(req: NextRequest) {
             includeInLetter: includeInLetter ?? {},
             includeAnnexA: includeAnnexA ?? true,
             includeClearance: includeClearance ?? true,
+            clearanceMode: clearanceMode ?? "client",
+            prevFirmName: prevFirmName ?? null,
+            prevFirmEmail: prevFirmEmail ?? null,
             softwareItems: softwareItems ?? [],
             clientType: clientType ?? "limited",
             clientName: clientName ?? null,

@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
       paymentMethod,   // 'dd' | 'manual'
       includeAnnexA,   // bool — include the SSC annex
       includeClearance, // bool — run professional clearance (ask for prev accountant, email them)
+      prevFirmName,     // outgoing accountant, when staff already know it
+      prevFirmEmail,
       softwareItems,   // the individual packages behind the software line
       includeDdClause, // bool — opt-in Direct Debit clause in the letter
       ddClauseNote,    // optional note printed in that clause
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
       customFees?: CustomFee[]; scopeRows?: ScopeRow[]; ch?: ChDetails | null;
       draftToken?: string; scheduledSendAt?: string;
       paymentMethod?: string; includeAnnexA?: boolean; includeClearance?: boolean; clientType?: string;
+      prevFirmName?: string; prevFirmEmail?: string;
       softwareItems?: Array<{ name: string; price: number }>;
       includeDdClause?: boolean; ddClauseNote?: string;
       clientName?: string; businessAddress?: string; utr?: string;
@@ -185,6 +188,11 @@ export async function POST(req: NextRequest) {
       resendCount: "0",
       letterMeta,
       letterHtml,
+      /* Outgoing accountant, when staff already knew it at letter-writing time.
+         The signing page reads these and shows them back for confirmation, so
+         the client checks a detail instead of hunting for it. */
+      ...(prevFirmName?.trim() ? { prevAccountantFirmName: prevFirmName.trim() } : {}),
+      ...(prevFirmEmail?.trim() ? { prevAccountantEmail: prevFirmEmail.trim() } : {}),
     };
 
     const link = promoteDraft
