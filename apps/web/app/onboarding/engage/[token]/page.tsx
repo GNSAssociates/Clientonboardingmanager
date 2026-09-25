@@ -652,8 +652,11 @@ export default function EngagementPage() {
   // With clearance excluded the section is not rendered at all, so it must not
   // hold the signature back — an invisible unmet requirement is an unsignable
   // contract with no explanation on screen.
+  /* Either they tick "I don't have one", or the firm name, email AND postal
+     address are all given. The address is what the clearance letter is posted
+     to, so a request raised without it cannot actually be sent anywhere. */
   const prevOk = !includeClearance || noPrevAccountant
-    || (prevFirmName.trim() && prevEmail.trim());
+    || (prevFirmName.trim() && prevEmail.trim() && prevAddress.trim());
 
   const canSubmit = mode === 'details_only'
     ? Boolean(signatureName.trim().length > 1 && prevOk) && !isExpired
@@ -1049,9 +1052,9 @@ export default function EngagementPage() {
                           className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Postal address <span className="font-normal">(optional)</span></label>
-                        <input type="text" value={prevAddress} onChange={(e) => setPrevAddress(e.target.value)}
-                          placeholder="Street, town, postcode"
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Postal address *</label>
+                        <textarea value={prevAddress} onChange={(e) => setPrevAddress(e.target.value)} rows={2}
+                          placeholder={'Building and street, town, postcode'}
                           className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
                       </div>
                     </div>
@@ -1060,7 +1063,7 @@ export default function EngagementPage() {
                   <p className="mt-2 text-[11px] leading-snug text-gray-500">
                     {prevOk
                       ? 'On signing we will contact this firm to request clearance and the handover of your records. Upon your signature, a signed authority letter will also be sent to them, authorising the release of your records to us.'
-                      : 'Firm name and email are needed before you can sign.'}
+                      : 'Their firm name, email and postal address are all needed before you can sign — the address is printed on the clearance letter we post to them.'}
                   </p>
                 </>
               )}

@@ -101,8 +101,12 @@ export async function POST(
 
     // ── Validation ────────────────────────────────────────────────────────────
     // Proposal-only doesn't collect previous-accountant details.
-    if (mode !== "proposal_only" && includeClearance && !noPrevAccountant && (!prevFirmName || !prevEmail)) {
-      return NextResponse.json({ error: "Previous accountant details are required" }, { status: 400 });
+    if (mode !== "proposal_only" && includeClearance && !noPrevAccountant
+        && (!prevFirmName?.trim() || !prevEmail?.trim() || !prevAddress?.trim())) {
+      return NextResponse.json(
+        { error: "Your previous accountant's firm name, email and postal address are all required — or tick that you do not have one." },
+        { status: 400 },
+      );
     }
 
     // Only the person the link was emailed to may sign — the signer must
