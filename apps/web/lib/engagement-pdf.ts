@@ -931,42 +931,6 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     y -= boxH + 8;
   }
 
-  /* ── Blank signature block, for a copy that will be printed and signed ─────
-     Only on the UNSIGNED download. The printed contract previously carried the
-     firm's signature and no space whatsoever for the client's, so anyone who
-     asked to sign on paper was handed a document they could not sign. Ruled
-     lines for signature, name and date, in the same order as the executed copy
-     so the two read alike. */
-  if (!d.signedName && d.paperSignatureBlock) {
-    // ~195pt of rules, labels and the closing note, reserved in one go so the
-    // block never splits with the signature line on one page and the name on
-    // the next.
-    need(210);
-    text("Agreed and accepted for and on behalf of the Client:", { size: 10, color: GREY, gap: 14 });
-
-    const ruleW = 250;
-    const rule = (label: string, gapAfter: number) => {
-      need(34);
-      page.drawRectangle({ x: MARGIN_X, y, width: ruleW, height: 0.6, color: HAIRLINE });
-      y -= 11;
-      page.drawText(sanitize(label), { x: MARGIN_X, y, size: 8.5, font, color: GREY });
-      y -= gapAfter;
-    };
-
-    y -= 26; // room to sign above the first rule
-    rule("Signature", 26);
-    rule("Name (please print)", 26);
-
-    const clientLabel = `${d.clientName || d.companyName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ""}`;
-    rule("Position held", 26);
-    rule("Date", 10);
-
-    text(`For and on behalf of ${clientLabel}`, { size: 9, color: GREY, gap: 12 });
-    text(
-      "Please sign, date and return this page to us. A signed copy will be added to your file.",
-      { size: 8.5, color: GREY, gap: 10 },
-    );
-  }
 
   need(LINE);
   page.drawRectangle({ x: MARGIN_X, y, width: CONTENT_W, height: 0.6, color: HAIRLINE });
@@ -1154,6 +1118,43 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     text(
       "Legal notice: signed electronically under the Electronic Communications Act 2000, the UK eIDAS Regulations (SI 2016/696) and the Law Commission's 2019 Statement on the Electronic Execution of Documents. The signatory verified their email against the address the signing link was issued to and confirmed intent to be bound before signing. The fingerprint is the SHA-256 hash of the contract at the point of signature; any later alteration produces a different fingerprint. Personal data is processed under UK GDPR Art. 6(1)(b) and (c).",
       { size: 7.2, color: GREY },
+    );
+  }
+
+  /* ── Blank signature block, for a copy that will be printed and signed ─────
+     Only on the UNSIGNED download. The printed contract previously carried the
+     firm's signature and no space whatsoever for the client's, so anyone who
+     asked to sign on paper was handed a document they could not sign. Ruled
+     lines for signature, name and date, in the same order as the executed copy
+     so the two read alike. */
+  if (!d.signedName && d.paperSignatureBlock) {
+    // ~195pt of rules, labels and the closing note, reserved in one go so the
+    // block never splits with the signature line on one page and the name on
+    // the next.
+    need(210);
+    text("Agreed and accepted for and on behalf of the Client:", { size: 10, color: GREY, gap: 14 });
+
+    const ruleW = 250;
+    const rule = (label: string, gapAfter: number) => {
+      need(34);
+      page.drawRectangle({ x: MARGIN_X, y, width: ruleW, height: 0.6, color: HAIRLINE });
+      y -= 11;
+      page.drawText(sanitize(label), { x: MARGIN_X, y, size: 8.5, font, color: GREY });
+      y -= gapAfter;
+    };
+
+    y -= 26; // room to sign above the first rule
+    rule("Signature", 26);
+    rule("Name (please print)", 26);
+
+    const clientLabel = `${d.clientName || d.companyName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ""}`;
+    rule("Position held", 26);
+    rule("Date", 10);
+
+    text(`For and on behalf of ${clientLabel}`, { size: 9, color: GREY, gap: 12 });
+    text(
+      "Please sign, date and return this page to us. A signed copy will be added to your file.",
+      { size: 8.5, color: GREY, gap: 10 },
     );
   }
 

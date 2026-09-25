@@ -56,6 +56,16 @@ export async function POST(
     );
   }
 
+  /* The client's name goes on the clearance letter. Raised from the wizard this
+     can be a draft saved moments earlier, so refuse rather than send a letter
+     asking an accountant to release the records of a blank. */
+  if (!(link.companyName ?? "").trim()) {
+    return NextResponse.json(
+      { error: "This client has no name saved yet. Enter the company or client name first, then request clearance." },
+      { status: 400 },
+    );
+  }
+
   if (acc.clearanceSentAt) {
     return NextResponse.json(
       { error: `Clearance was already requested for this client on ${new Date(acc.clearanceSentAt as string).toLocaleDateString("en-GB")}.` },

@@ -206,6 +206,111 @@ const SCOPE_MAP: Record<string, number> = {
   management_fees: 6,
 };
 
+/**
+ * Send professional clearance for the client already entered on this step,
+ * before the engagement letter goes anywhere.
+ *
+ * Attaches to the draft the wizard is autosaving, so clearance and the eventual
+ * engagement letter are the same client record rather than two entries of the
+ * same company. Sends our clearance letter only — the client authority letter
+ * carries the client's signature, and nothing has been signed at this point.
+ */
+function ClearanceNowPanel({
+  companyLabel,
+  getToken,
+}: {
+  companyLabel: string;
+  getToken: () => Promise<string | null>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [firmName, setFirmName] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const ready = firmName.trim().length > 1 && /\S+@\S+\.\S+/.test(email.trim());
+
+  const send = async () => {
+    setSending(true); setMsg(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Could not save this client yet — try again in a moment.');
+      const res = await fetch(`/api/onboarding/links/${token}/clearance-send`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prevFirmName: firmName.trim(),
+          prevFirmEmail: email.trim(),
+          prevFirmAddress: address.trim() || undefined,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not send the clearance request');
+      setMsg({ text: `Clearance request sent to ${j.sentTo}. Carry on with the engagement letter below.`, ok: true });
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Could not send', ok: false });
+    } finally { setSending(false); }
+  };
+
+  const field = "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500";
+
+  if (!open) {
+    return (
+      <div className="mb-8">
+        <button type="button" onClick={() => { setOpen(true); setMsg(null); }}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-amber-400 text-amber-800 hover:bg-amber-50">
+          Request professional clearance now — without waiting for the engagement letter
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50/60 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-bold text-gray-900 text-sm">Request clearance for {companyLabel || 'this client'}</p>
+          <p className="text-xs text-gray-600 mt-0.5">
+            Goes to the outgoing accountant now. The engagement letter continues below and stays with this same client.
+          </p>
+        </div>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-gray-500 hover:text-gray-700">Close</button>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Previous accountant firm *</label>
+          <input value={firmName} onChange={(e) => setFirmName(e.target.value)} placeholder="e.g. Smith &amp; Associates Ltd" className={field} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Their email *</label>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="contact@previousfirm.com" className={field} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-gray-500 mb-1">Their postal address <span className="font-normal">(optional — printed on the letter)</span></label>
+          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, town, postcode" className={field} />
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs text-gray-700 bg-white border border-amber-200 rounded-lg px-3 py-2">
+        <strong>Only our clearance letter is sent.</strong> The client authority letter is not included — it carries the
+        client&apos;s signature, and nothing has been signed yet. It follows automatically if they sign later, and the
+        outgoing firm will not be emailed twice.
+      </p>
+
+      {msg && <p className={`mt-2 text-xs font-semibold ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</p>}
+
+      <div className="flex items-center gap-2 mt-3">
+        <button type="button" onClick={send} disabled={!ready || sending}
+          className="px-3 py-2 rounded-lg text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40">
+          {sending ? 'Sending…' : 'Send clearance request'}
+        </button>
+        {!ready && <span className="text-xs text-gray-500">Firm name and a valid email are needed.</span>}
+      </div>
+    </div>
+  );
+}
+
 function ServicesPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -430,6 +535,7 @@ function ServicesPageInner() {
         firmSlug,
         step: 'services',
         companyNumber,
+        companyName: chCompany?.name || clientName || undefined,
         directorEmail,
         services: selectedServices,
         prices,
@@ -462,6 +568,37 @@ function ServicesPageInner() {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, selectedOneoff, prices, customFees, scopeRows, companyNumber, directorEmail, firmSlug, draftToken, frequencies, paymentMethod, includeInLetter, includeAnnexA, includeClearance, includeDdClause, ddClauseNote, softwareItems, clientType, clientName, businessAddress, oneoffScopes, utr]);
+
+  /* Clearance has to attach to a saved record. The wizard autosaves a draft,
+     but on a debounce — so a user who fills the company in and immediately asks
+     for clearance can get here before the first save has landed. Force one and
+     return its token rather than failing on a race the user cannot see. */
+  const ensureDraft = useCallback(async (): Promise<string | null> => {
+    if (draftToken) return draftToken;
+    const token = await saveWizardDraft({
+      token: null,
+      firmSlug,
+      step: 'services',
+      companyNumber,
+      companyName: chCompany?.name || clientName || undefined,
+      directorEmail,
+      services: [],
+      prices,
+      clientType,
+      clientName,
+      businessAddress,
+      utr,
+    });
+    if (token) {
+      setDraftToken(token);
+      const sp = new URLSearchParams(Array.from(searchParams.entries()));
+      sp.set('draft', token);
+      sp.set('firm', firmSlug);
+      router.replace(`/onboarding/services?${sp.toString()}`);
+    }
+    return token ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftToken, firmSlug, companyNumber, chCompany, clientName, directorEmail, clientType, businessAddress, utr]);
 
   const updateScope = (i: number, field: keyof ScopeRow, value: string) =>
     setScopeRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -964,6 +1101,20 @@ function ServicesPageInner() {
             </p>
           </div>
         </div>
+
+        {/* ═══════ CLEARANCE, FROM THE CLIENT ALREADY IN FRONT OF US ═══════
+            Clearance often needs to go before the engagement letter is ready.
+            Doing that from the clearance screen meant typing the company in a
+            second time, having just pulled it from Companies House here. This
+            uses the client on this page and the draft the wizard is already
+            autosaving, so it is the same record either way — carry on with the
+            letter whenever you like. */}
+        {includeClearance && (chCompany || clientName.trim()) && (
+          <ClearanceNowPanel
+            companyLabel={chCompany?.name || clientName.trim()}
+            getToken={ensureDraft}
+          />
+        )}
 
         {/* Services grid — filtered by client type */}
         <div className="grid md:grid-cols-2 gap-4 mb-8">
