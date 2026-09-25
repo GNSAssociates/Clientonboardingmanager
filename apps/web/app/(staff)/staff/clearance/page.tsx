@@ -62,7 +62,16 @@ const DOC_PIVOT_LABELS = [
  * an authority nobody has given.
  */
 function NewClearanceForm({ onSent }: { onSent: () => void }) {
+  /* Opens straight away when arrived at via ?new=1 (the dashboard's "Request
+     Clearance"), so raising one is a single click rather than navigate, find
+     the button, then click. Read from location rather than useSearchParams to
+     avoid forcing a Suspense boundary around the whole page. */
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === '1') {
+      setOpen(true);
+    }
+  }, []);
   const [firmSlug, setFirmSlug] = useState('gns');
   const [clientName, setClientName] = useState('');
   const [companyNumber, setCompanyNumber] = useState('');
