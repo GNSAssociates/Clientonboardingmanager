@@ -24,6 +24,11 @@ export async function PATCH(
     companyName?: string;
     directorName?: string;
     clientEmail?: string;
+    /* Changeable after the letter has gone out. Plans change between sending
+       and signing — the client asks to pay by invoice, or turns out to have no
+       previous accountant — and the alternative was reissuing the engagement. */
+    paymentMethod?: "dd" | "manual";
+    includeClearance?: boolean;
   };
   const db = getDb();
   const link = await db.transaction((tx) => getOnboardingLinkByToken(tx, params.id));
@@ -57,13 +62,29 @@ export async function PATCH(
      it; editing the signatory or the email on one would rewrite who entered
      into an agreement that has already been entered into. Refuse, rather than
      quietly producing a contract that disagrees with its own signature. */
+  /* Both of these live in letterMeta and both change what the contract SAYS —
+     the Direct Debit clause, and whether the client is asked for their previous
+     accountant — so they are rebuilt into the letter like any identity edit. */
+  const meta0 = (link.letterMeta ?? {}) as Record<string, unknown>;
+  let nextMeta = meta0;
+  if (body.paymentMethod === "dd" || body.paymentMethod === "manual") {
+    nextMeta = { ...nextMeta, paymentMethod: body.paymentMethod };
+  }
+  if (typeof body.includeClearance === "boolean") {
+    nextMeta = { ...nextMeta, includeClearance: body.includeClearance,
+                 clearanceMode: body.includeClearance ? "client" : "none" };
+  }
+  const metaChanged = nextMeta !== meta0;
+  if (metaChanged) updates.letterMeta = nextMeta;
+
   const identityChanged =
     updates.companyName !== undefined ||
     updates.directorName !== undefined ||
-    updates.clientEmail !== undefined;
+    updates.clientEmail !== undefined ||
+    metaChanged;
   if (identityChanged && link.status === "accepted") {
     return NextResponse.json(
-      { error: "This engagement has been signed. The signatory and email cannot be changed on an executed contract." },
+      { error: "This engagement has been signed. The signatory, email, payment method and clearance setting cannot be changed on an executed contract." },
       { status: 409 },
     );
   }
@@ -79,7 +100,7 @@ export async function PATCH(
       const nextCompanyName = (updates.companyName as string) ?? link.companyName ?? "";
       const nextDirectorName = (updates.directorName as string | null) ?? link.directorName ?? undefined;
       const firm = getFirm((updates.firmSlug as string) ?? link.firmSlug ?? "gns");
-      const meta = (link.letterMeta ?? {}) as {
+      const meta = (nextMeta ?? {}) as {
         partnerName?: string; customFees?: CustomFee[]; scopeRows?: ScopeRow[];
         clientAddress?: string; ch?: ChDetails | null; regBody?: string;
         paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;

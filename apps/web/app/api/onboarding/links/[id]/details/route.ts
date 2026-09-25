@@ -52,6 +52,8 @@ export async function GET(
     firm: link.firmSlug,
     sendMode,
     paymentMethod,
+    // Needed by the client screen so the clearance toggle shows its real state.
+    includeClearance: (lm.includeClearance as boolean | undefined) !== false,
     engagement: {
       status: link.status,
       sentAt: link.sentAt,

@@ -30,6 +30,7 @@ interface Details {
   firm: string | null;
   sendMode?: string;
   paymentMethod?: string;
+  includeClearance?: boolean;
   gocardless?: { mandateId?: string; ddConfirmed?: boolean; success?: boolean; configured?: boolean; error?: string } | null;
   engagement: {
     status: string; sentAt: string | null; acceptedAt: string | null; expiresAt: string;
@@ -148,6 +149,96 @@ function SendTemplateForm({ token, details, onSent }: { token: string; details: 
   );
 }
 
+
+/**
+ * Change how a SENT engagement works, without reissuing it.
+ *
+ * Plans change between sending the letter and getting it back: the client asks
+ * to pay by invoice, or turns out to have no previous accountant after all.
+ * The alternative was rebuilding the whole engagement to alter one setting.
+ * Same link, same token, nothing re-sent — the stored letter is rebuilt so the
+ * contract matches the new arrangement.
+ */
+function EngagementSettingsForm({ token, details, onSaved }: { token: string; details: Details; onSaved: () => void }) {
+  const currentDd = details.paymentMethod !== 'manual';
+  const currentClearance = details.includeClearance !== false;
+  const [dd, setDd] = useState(currentDd);
+  const [clearance, setClearance] = useState(currentClearance);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const changed = dd !== currentDd || clearance !== currentClearance;
+  const ddAlreadySetUp = Boolean(details.gocardless?.ddConfirmed);
+
+  const save = async () => {
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethod: dd ? 'dd' : 'manual', includeClearance: clearance }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not save');
+      setMsg({ text: 'Saved. The letter has been updated to match.', ok: true });
+      onSaved();
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Could not save', ok: false });
+    } finally { setSaving(false); }
+  };
+
+  const Row = ({ on, set, title, desc }: { on: boolean; set: (v: boolean) => void; title: string; desc: string }) => (
+    <div className="flex items-center justify-between gap-4 py-2">
+      <div className="pr-2">
+        <p className="text-sm font-semibold text-gray-800">{title}</p>
+        <p className="text-xs text-gray-500">{desc}</p>
+      </div>
+      <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+        <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} className="sr-only peer" />
+        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
+      </label>
+    </div>
+  );
+
+  return (
+    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+      <p className="text-sm font-bold text-gray-900">Engagement settings</p>
+      <p className="text-xs text-gray-600 mt-0.5 mb-2">
+        Change these on a letter already sent. The client keeps the same link.
+      </p>
+
+      <div className="divide-y divide-gray-200">
+        <Row on={dd} set={setDd}
+          title="Collect fees by Direct Debit"
+          desc={dd
+            ? 'The client must set up a GoCardless mandate before they can sign.'
+            : 'Switched off — fees are invoiced monthly and no mandate is needed to sign.'} />
+        <Row on={clearance} set={setClearance}
+          title="Ask the client for their previous accountant"
+          desc={clearance
+            ? 'The letter collects their previous accountant, and we request clearance when they sign.'
+            : 'Switched off — the client is not asked, and no clearance or authority letter is sent.'} />
+      </div>
+
+      {dd !== currentDd && !dd && ddAlreadySetUp && (
+        <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          This client already has a confirmed Direct Debit mandate. Switching to invoicing removes the
+          requirement to have one before signing, but <strong>does not cancel the mandate</strong> — cancel it in
+          GoCardless if it should no longer collect.
+        </p>
+      )}
+
+      {msg && <p className={`mt-2 text-xs font-semibold ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</p>}
+
+      <div className="flex items-center gap-2 mt-3">
+        <button onClick={save} disabled={!changed || saving}
+          className="px-3 py-2 rounded-lg text-xs font-bold bg-gray-800 text-white hover:bg-gray-900 disabled:opacity-40">
+          {saving ? 'Saving…' : 'Save settings'}
+        </button>
+        {!changed && <span className="text-xs text-gray-500">Nothing changed yet.</span>}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Correct who signs and where the letter goes, without reissuing anything.
@@ -853,6 +944,9 @@ export default function ClientDetailPage() {
 
         {/* Correct the signatory or the address without reissuing. */}
         {!signed && <EditSignatoryForm token={token} details={d} onSaved={load} />}
+
+        {/* Direct Debit and clearance, changeable after sending. */}
+        {!signed && <EngagementSettingsForm token={token} details={d} onSaved={load} />}
 
         {/* For a client who signs a printed copy rather than in the browser. */}
         {!signed && <PaperSignatureForm token={token} details={d} onDone={load} />}
