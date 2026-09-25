@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   Users, PoundSterling, Clock, CheckCircle2, AlertTriangle, TrendingUp,
-  ArrowUpRight, Plus, Building2, ChevronRight, RefreshCw, Activity, Send,
+  ArrowUpRight, Plus, Building2, ChevronRight, RefreshCw, Activity,
 } from 'lucide-react';
 
 interface FirmData {
@@ -141,15 +141,6 @@ export default function MasterDashboard() {
             <button onClick={load} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <RefreshCw size={16} />
             </button>
-            {/* Clearance often starts BEFORE any engagement letter — the client
-                says yes, and waiting to raise the handover only delays the
-                records. It was reachable only by going to the clearance tracker
-                and finding a button there, which is not where anyone starting a
-                new client looks. ?new=1 opens the form on arrival. */}
-            <Link href="/staff/clearance?new=1"
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border border-amber-400 text-amber-800 hover:bg-amber-50 transition-colors">
-              <Send size={14} /> Request Clearance
-            </Link>
             <Link href="/onboarding"
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white rounded-lg transition-all hover:shadow-md"
               style={{ background: 'linear-gradient(135deg, #cc2229, #1e3a8a)' }}>
