@@ -211,6 +211,13 @@ export interface EngagementPdfInput extends LetterData {
    *  and who recorded it, so the file shows what actually happened and the
    *  wet-signed original remains the executed document. */
   signedOnPaper?: { recordedBy: string; recordedAt: string } | null;
+  /** Draw empty ruled lines for a hand signature on the UNSIGNED copy.
+   *
+   *  For the download that gets printed and posted. Without it the printed
+   *  contract has the firm's signature and nowhere at all for the client to
+   *  sign. Ignored once there is a signature, and never applied to the
+   *  on-screen letter, so the electronic signing flow is untouched. */
+  paperSignatureBlock?: boolean;
 }
 
 export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buffer> {
@@ -766,8 +773,18 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("You may request that we provide other services from time to time. If these services will exceed £200, we will issue a separate letter of engagement and scope of work to be performed accordingly.", { gap: 8 });
   text("Because rules and regulations frequently change you must ask us to confirm any advice already given if a transaction is delayed or a similar transaction is to be undertaken.", { gap: 8 });
 
+  /* The printed copy is signed by hand, so it must not tell the reader the
+     contract "is executed by electronic signature" and that they sign it by
+     typing their name into a box — there is no box on paper, and the clause
+     would contradict the wet signature they are about to give. Same legal
+     footing, described as it actually happens. */
+  if (!d.signedName && d.paperSignatureBlock) {
+    heading2("Signature");
+    text("This copy of the contract is provided for signature by hand. Please sign and date the signature block at the end of this letter and return it to us; the signed original will be retained on your file and a copy provided to you for your records. Where a contract is instead signed electronically, an electronic signature (including a typed name entered with intent to sign) is equally valid and binding in England and Wales under the Electronic Communications Act 2000, the Electronic Identification and Trust Services for Electronic Transactions Regulations 2016 (UK eIDAS) and the Law Commission's 2019 Statement on the Electronic Execution of Documents.", { gap: 8 });
+  } else {
   heading2("Electronic signature");
   text("This contract is executed by electronic signature. In accordance with the Electronic Communications Act 2000, the Electronic Identification and Trust Services for Electronic Transactions Regulations 2016 (UK eIDAS) and the Law Commission's 2019 Statement on the Electronic Execution of Documents, an electronic signature (including a typed name entered with intent to sign) is legally valid and binding in England and Wales. By typing their name in the signature box and submitting, the signatory confirms their intention to be bound by this contract. A tamper-evident audit record (signatory, date and time, network address and document fingerprint) is retained with the signed copy, and a copy of the signed contract is provided to the Client for their records.", { gap: 8 });
+  }
 
   heading2("Data Protection");
   text("We comply with the provisions of the General Data Protection Regulation (GDPR) when processing personal data about you, your directors and employees and your/their family.", { gap: 6 });
@@ -912,6 +929,43 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       if (meta) page.drawText(sanitize(meta), { x: sx, y: sy, size: 8, font, color: GREY });
     }
     y -= boxH + 8;
+  }
+
+  /* ── Blank signature block, for a copy that will be printed and signed ─────
+     Only on the UNSIGNED download. The printed contract previously carried the
+     firm's signature and no space whatsoever for the client's, so anyone who
+     asked to sign on paper was handed a document they could not sign. Ruled
+     lines for signature, name and date, in the same order as the executed copy
+     so the two read alike. */
+  if (!d.signedName && d.paperSignatureBlock) {
+    // ~195pt of rules, labels and the closing note, reserved in one go so the
+    // block never splits with the signature line on one page and the name on
+    // the next.
+    need(210);
+    text("Agreed and accepted for and on behalf of the Client:", { size: 10, color: GREY, gap: 14 });
+
+    const ruleW = 250;
+    const rule = (label: string, gapAfter: number) => {
+      need(34);
+      page.drawRectangle({ x: MARGIN_X, y, width: ruleW, height: 0.6, color: HAIRLINE });
+      y -= 11;
+      page.drawText(sanitize(label), { x: MARGIN_X, y, size: 8.5, font, color: GREY });
+      y -= gapAfter;
+    };
+
+    y -= 26; // room to sign above the first rule
+    rule("Signature", 26);
+    rule("Name (please print)", 26);
+
+    const clientLabel = `${d.clientName || d.companyName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ""}`;
+    rule("Position held", 26);
+    rule("Date", 10);
+
+    text(`For and on behalf of ${clientLabel}`, { size: 9, color: GREY, gap: 12 });
+    text(
+      "Please sign, date and return this page to us. A signed copy will be added to your file.",
+      { size: 8.5, color: GREY, gap: 10 },
+    );
   }
 
   need(LINE);

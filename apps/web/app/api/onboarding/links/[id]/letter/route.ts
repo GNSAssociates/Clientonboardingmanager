@@ -259,6 +259,10 @@ export async function GET(
         clientName: m.clientName as string | undefined,
         utr: m.utr as string | undefined,
         dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+        /* The unsigned PDF is the copy that gets printed and posted, so it
+           needs somewhere to sign by hand. Only here: the on-screen letter and
+           the signed copy are untouched, so electronic signing is unchanged. */
+        paperSignatureBlock: !wantSigned,
         ...signedFields,
       });
       const fname = `${wantSigned ? "SIGNED - " : ""}${engagementPdfFilename(link.companyName ?? "client")}`;
