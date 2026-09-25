@@ -86,6 +86,10 @@ export default function EngagementPage() {
   const [docStatus, setDocStatus] = useState<Record<string, string>>({});
 
   // Declaration + typed signature + e-sign consent
+  /* No longer a tick box: the client affirms by signing, exactly as on paper.
+     Kept as state because the accept route and the audit record still carry the
+     affirmation — it is now derived from the signature instead of collected
+     separately. */
   const [authorised, setAuthorised] = useState(false);
   const [esignConsent, setEsignConsent] = useState(false);
   const [signatureName, setSignatureName] = useState('');
@@ -652,10 +656,10 @@ export default function EngagementPage() {
     || (prevFirmName.trim() && prevEmail.trim());
 
   const canSubmit = mode === 'details_only'
-    ? Boolean(authorised && signatureName.trim().length > 1 && prevOk) && !isExpired
+    ? Boolean(signatureName.trim().length > 1 && prevOk) && !isExpired
     : mode === 'proposal_only'
-    ? Boolean(authorised && signatureName.trim().length > 1) && !isExpired
-    : Boolean(authorised && signatureName.trim().length > 1 && prevOk && ddValid) && !isExpired;
+    ? Boolean(signatureName.trim().length > 1) && !isExpired
+    : Boolean(signatureName.trim().length > 1 && prevOk && ddValid) && !isExpired;
 
   // Keep the Sign button visible/clickable at all times (see below) — when
   // clicked with something missing, scroll the client to the first thing
@@ -668,7 +672,6 @@ export default function EngagementPage() {
   const requirements: Array<{ ok: boolean; selector: string; label: string }> = [];
   if (mode !== 'proposal_only' && includeClearance) requirements.push({ ok: Boolean(prevOk), selector: '[data-field="prevAccountant"]', label: 'Previous accountant details' });
   if (mode === 'engagement' && !isManualPayment) requirements.push({ ok: ddValid, selector: '[data-field="directDebit"]', label: 'Direct Debit' });
-  requirements.push({ ok: authorised, selector: '[data-field="authorised"]', label: 'Confirmation tick box' });
   requirements.push({ ok: signatureName.trim().length > 1, selector: '[data-field="signatureName"]', label: 'Your signature' });
   const outstanding = requirements.filter((r) => !r.ok);
 
@@ -707,7 +710,8 @@ export default function EngagementPage() {
           // No bank details cross our servers — GoCardless holds them. We only
           // signal that the mandate was confirmed via the hosted flow.
           directDebitConfirmed: (mode === 'engagement' && !isManualPayment) ? ddConfirmed : null,
-          authorised,
+          authorised: true,
+          esignConsent: true,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -908,28 +912,22 @@ export default function EngagementPage() {
                 </p>
               </div>
 
-              {/* One tick here too — the shared "what's left" list now carries a
-                  single confirmation entry, so a second box would be a blocker
-                  the client is never told about. */}
-              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-5">
-                <input type="checkbox" checked={authorised}
-                  onChange={(e) => { setAuthorised(e.target.checked); setEsignConsent(e.target.checked); }}
-                  className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
-                <div>
-                  <p className="font-bold text-gray-900 flex items-start gap-2">
-                    <ShieldCheck size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
-                    <span>
-                      I authorise {firm.name} to contact my previous accountant on my behalf, and agree to sign
-                      this authorisation electronically
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    I understand that signing below constitutes my legal electronic signature, with the same legal
-                    effect as a handwritten signature (Electronic Communications Act 2000 / UK eIDAS), and that the date,
-                    time and network address will be recorded.
-                  </p>
-                </div>
-              </label>
+              {/* No tick here either — the declaration sits above the signature
+                  and signing adopts it, as on paper. */}
+              <div data-field="authorised" className="mb-5">
+                <p className="font-bold text-gray-900 flex items-start gap-2">
+                  <ShieldCheck size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                  <span>
+                    By signing below, I authorise {firm.name} to contact my previous accountant on my behalf,
+                    and agree to sign this authorisation electronically.
+                  </span>
+                </p>
+                <p className="text-sm text-gray-600 mt-1 pl-6">
+                  I understand that signing below constitutes my legal electronic signature, with the same legal
+                  effect as a handwritten signature (Electronic Communications Act 2000 / UK eIDAS), and that the date,
+                  time and network address will be recorded.
+                </p>
+              </div>
 
               <SignaturePad
                 label="Sign here to confirm *"
@@ -959,7 +957,6 @@ export default function EngagementPage() {
 
             {!canSubmit && !isExpired && (
               <p className="text-center text-sm text-gray-500">
-                {!authorised && 'Please tick the authorisation. '}
                                 {signatureName.trim().length <= 1 && 'Type your full name in the signature box. '}
                 {!prevOk && 'Fill in your previous accountant details or confirm you have none.'}
               </p>
@@ -1274,25 +1271,24 @@ export default function EngagementPage() {
                 </p>
               </div>
 
-              {/* ONE tick, not two. The client was confirming they had read the
-                  contract and, separately, that they consented to sign it
-                  electronically — two boxes a step apart saying things nobody
-                  reaching this point disagrees with. Both statements are still
-                  made, and both are still recorded (authorised + esignConsent
-                  move together), but the client affirms them once. */}
-              <label data-field="authorised" className="flex items-start gap-3 cursor-pointer mb-5">
-                <input type="checkbox" checked={authorised}
-                  onChange={(e) => { setAuthorised(e.target.checked); setEsignConsent(e.target.checked); }}
-                  className="w-5 h-5 rounded border-purple-400 text-purple-600 mt-0.5" />
+              {/* NO TICK BOX. The signature is the act of agreement, which is
+                  how a paper contract has always worked: the declaration sits
+                  immediately above the signature and signing adopts it. A tick
+                  confirming you are about to sign, followed by signing, asked
+                  the client to agree twice. The wording is unchanged — it is
+                  simply stated here rather than attached to a checkbox — and
+                  the audit trail still records the same affirmation. */}
+              <div data-field="authorised" className="mb-5">
+                <p className="font-bold text-gray-900 flex items-start gap-2">
+                  <ShieldCheck size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                  <span>
+                    By signing below, I confirm that{' '}
+                    {mode === 'proposal_only'
+                      ? `I have reviewed this proposal, wish to proceed with ${firm.name}, and agree to approve it electronically.`
+                      : `I have read and understood this contract in full, authorise ${firm.name} to take over all my accountancy work, and agree to sign electronically.`}
+                  </span>
+                </p>
                 <div>
-                  <p className="font-bold text-gray-900 flex items-start gap-2">
-                    <ShieldCheck size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
-                    <span>
-                      {mode === 'proposal_only'
-                        ? `I have reviewed this proposal, wish to proceed with ${firm.name}, and agree to approve it electronically`
-                        : `I have read and understood this contract in full, authorise ${firm.name} to take over all my accountancy work, and agree to sign electronically`}
-                    </span>
-                  </p>
                   <details className="group mt-1">
                     <summary className="text-xs font-semibold text-purple-700 cursor-pointer select-none list-none flex items-center gap-1">
                       <ChevronRight size={12} className="group-open:rotate-90 transition-transform" />
@@ -1305,7 +1301,7 @@ export default function EngagementPage() {
                     </p>
                   </details>
                 </div>
-              </label>
+              </div>
 
               {/* Shown as an EXECUTED signature — the name in script above a rule,
                   with the attribution beneath it — so the client can see what
@@ -1351,7 +1347,6 @@ export default function EngagementPage() {
 
             {!canSubmit && !isExpired && (
               <p className="text-center text-sm text-gray-500">
-                {!authorised && 'Please tick the declaration. '}
                                 {signatureName.trim().length <= 1 && 'Type your full name in the signature box. '}
                 {!isManualPayment && !ddValid && 'Set up your Direct Debit with GoCardless above — this must be confirmed before you can sign. '}
                 {!prevOk && 'Fill in your previous accountant details or confirm you have none.'}
@@ -1374,8 +1369,15 @@ export default function EngagementPage() {
           letter. One button, and it goes where the client needs to be. */}
       {!isExpired && (
         <>
-          {/* Desktop: against the right edge, vertically centred. */}
-          <div className="hidden lg:block fixed right-5 top-1/2 -translate-y-1/2 z-50 w-60">
+          {/* Desktop: tucked in beside the letter rather than out on the right
+              edge of the screen. Against the edge it read as a detached badge;
+              close to the page it reads as pointing at the thing it is talking
+              about. Clamped so it never overlaps the letter on a narrow window
+              nor drifts miles away on a very wide one. */}
+          <div
+            className="hidden lg:block fixed top-1/2 -translate-y-1/2 z-50 w-60"
+            style={{ left: 'min(calc(50vw + 400px), calc(100vw - 260px))' }}
+          >
             <div className="rounded-2xl border border-gray-200/70 bg-white/75 backdrop-blur-md shadow-lg overflow-hidden">
               <div className="h-1 w-full bg-gray-200/70">
                 <div
@@ -1400,6 +1402,16 @@ export default function EngagementPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">All complete</p>
                     <p className="text-sm font-bold text-gray-900 mt-0.5">Ready to sign</p>
                   </>
+                )}
+
+                {/* The Direct Debit is the one prerequisite that cannot be done
+                    at the end — the signature stays locked until GoCardless
+                    confirms the mandate. Said here, where the client is looking
+                    when they wonder why they cannot sign yet. */}
+                {mode === 'engagement' && !isManualPayment && !ddConfirmed && (
+                  <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11px] font-semibold leading-snug text-amber-900">
+                    Your Direct Debit must be set up before you can sign.
+                  </p>
                 )}
 
                 {/* The expiry used to be a red slab across the top of the

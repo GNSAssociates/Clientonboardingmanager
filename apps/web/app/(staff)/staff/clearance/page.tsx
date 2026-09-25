@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle2, Clock, AlertTriangle, ArrowRight, Send,
@@ -50,6 +50,155 @@ const DOC_PIVOT_LABELS = [
   'HMRC Correspondence',
 ];
 
+/**
+ * Raise clearance for a client who has no engagement letter yet.
+ *
+ * The other routes into clearance both need something already on file — a case,
+ * or a sent onboarding link. This is for the common case of starting the
+ * handover the moment a client says yes, before anything has been issued.
+ *
+ * Our clearance letter only. There is no client record here and certainly no
+ * signature, so the client authority letter is not sent — it would be asserting
+ * an authority nobody has given.
+ */
+function NewClearanceForm({ onSent }: { onSent: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [firmSlug, setFirmSlug] = useState('gns');
+  const [clientName, setClientName] = useState('');
+  const [companyNumber, setCompanyNumber] = useState('');
+  const [directorName, setDirectorName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [prevFirmName, setPrevFirmName] = useState('');
+  const [prevFirmEmail, setPrevFirmEmail] = useState('');
+  const [prevFirmAddress, setPrevFirmAddress] = useState('');
+  const [ccClient, setCcClient] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const ready = clientName.trim().length > 1
+    && prevFirmName.trim().length > 1
+    && /\S+@\S+\.\S+/.test(prevFirmEmail.trim())
+    && (!ccClient || /\S+@\S+\.\S+/.test(clientEmail.trim()));
+
+  const send = async () => {
+    setSending(true); setMsg(null);
+    try {
+      const res = await fetch('/api/clearance/standalone', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firmSlug,
+          clientName: clientName.trim(),
+          companyNumber: companyNumber.trim() || undefined,
+          directorName: directorName.trim() || undefined,
+          clientEmail: clientEmail.trim() || undefined,
+          prevFirmName: prevFirmName.trim(),
+          prevFirmEmail: prevFirmEmail.trim(),
+          prevFirmAddress: prevFirmAddress.trim() || undefined,
+          ccClient,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not send the clearance request');
+      setMsg({ text: `Clearance request sent to ${j.sentTo}.`, ok: true });
+      setClientName(''); setCompanyNumber(''); setDirectorName(''); setClientEmail('');
+      setPrevFirmName(''); setPrevFirmEmail(''); setPrevFirmAddress(''); setCcClient(false);
+      onSent();
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Could not send', ok: false });
+    } finally { setSending(false); }
+  };
+
+  const field = "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500";
+
+  if (!open) {
+    return (
+      <button onClick={() => { setOpen(true); setMsg(null); }}
+        className="px-4 py-2 rounded-xl text-sm font-semibold border border-amber-400 text-amber-800 hover:bg-amber-50 flex items-center gap-1.5">
+        <Send size={14} /> Request clearance (no engagement letter)
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-amber-300 bg-amber-50/60 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-bold text-gray-900">Request clearance without an engagement letter</p>
+          <p className="text-xs text-gray-600 mt-0.5">
+            For a client who has agreed to move but has not been sent an engagement letter yet.
+          </p>
+        </div>
+        <button onClick={() => setOpen(false)} className="text-xs text-gray-500 hover:text-gray-700">Close</button>
+      </div>
+
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mt-4 mb-2">The client</p>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Client / company name *</label>
+          <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. DD Limited" className={field} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Acting for (our firm)</label>
+          <select value={firmSlug} onChange={(e) => setFirmSlug(e.target.value)} className={field}>
+            <option value="gns">GNS Associates Ltd</option>
+            <option value="llp">GNS Associates UK LLP</option>
+            <option value="galaxy">Galaxy Accountants</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Company number <span className="font-normal">(optional)</span></label>
+          <input value={companyNumber} onChange={(e) => setCompanyNumber(e.target.value)} placeholder="05314405" className={field} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Director / contact <span className="font-normal">(optional)</span></label>
+          <input value={directorName} onChange={(e) => setDirectorName(e.target.value)} placeholder="Jane Smith" className={field} />
+        </div>
+      </div>
+
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mt-5 mb-2">The outgoing accountant</p>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Firm name *</label>
+          <input value={prevFirmName} onChange={(e) => setPrevFirmName(e.target.value)} placeholder="e.g. Smith &amp; Associates Ltd" className={field} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Their email *</label>
+          <input value={prevFirmEmail} onChange={(e) => setPrevFirmEmail(e.target.value)} type="email" placeholder="contact@previousfirm.com" className={field} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-gray-500 mb-1">Their postal address <span className="font-normal">(optional — printed on the letter)</span></label>
+          <input value={prevFirmAddress} onChange={(e) => setPrevFirmAddress(e.target.value)} placeholder="Street, town, postcode" className={field} />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 mt-4 text-xs text-gray-700 cursor-pointer">
+        <input type="checkbox" checked={ccClient} onChange={(e) => setCcClient(e.target.checked)} className="w-4 h-4 rounded text-amber-600" />
+        Copy the client in
+      </label>
+      {ccClient && (
+        <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} type="email"
+          placeholder="Client email address" className={`${field} mt-2 sm:max-w-sm`} />
+      )}
+
+      <p className="mt-4 text-xs text-gray-700 bg-white border border-amber-200 rounded-lg px-3 py-2">
+        <strong>Only our clearance letter is sent.</strong> The client authority letter is not included — it carries the
+        client&apos;s signature, and there is no signed authority on file. This request is tracked and chased like any
+        other, and appears in the list below.
+      </p>
+
+      {msg && <p className={`mt-3 text-xs font-semibold ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</p>}
+
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={send} disabled={!ready || sending}
+          className="px-4 py-2 rounded-lg text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40">
+          {sending ? 'Sending…' : 'Send clearance request'}
+        </button>
+        {!ready && <span className="text-xs text-gray-500">Client name, outgoing firm name and a valid email are needed.</span>}
+      </div>
+    </div>
+  );
+}
+
 function clearanceHref(r: ClearanceRow) {
   if (r.caseId) return `/staff/cases/${r.caseId}/clearance`;
   return `/staff/clearance/${r.id}`;
@@ -62,13 +211,16 @@ export default function ClearanceOverviewPage() {
   const [firmFilter, setFirmFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'list' | 'pivot'>('list');
 
-  useEffect(() => {
+  // Reusable, so a newly raised request shows up without reloading the page.
+  const load = useCallback(() => {
     fetch('/api/clearance/list')
       .then(r => r.json())
       .then((data: ClearanceRow[]) => setRows(data))
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const now = new Date();
 
@@ -134,6 +286,8 @@ export default function ClearanceOverviewPage() {
           </Link>
         </div>
       </div>
+
+      <NewClearanceForm onSent={load} />
 
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-3">

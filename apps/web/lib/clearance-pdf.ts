@@ -373,7 +373,9 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
   section("Online access and software");
   numbered([
     `MTD-compatible software - please send an invitation to ${firm.mtdEmail}.`,
-    "HMRC and Companies House login details, if created on the client's behalf.",
+    // We must not receive the client's own government credentials — asking the
+    // outgoing firm to hand them to the client keeps them out of our hands.
+    "HMRC and Companies House login details, if created on the client's behalf - please provide the credentials to the client directly, do not share them with us.",
     `NEST pension - please delegate access using Organisation Name: ${firm.nestOrgName}, Delegate Organisation ID: ${firm.nestDelegateId}.`,
   ]);
 

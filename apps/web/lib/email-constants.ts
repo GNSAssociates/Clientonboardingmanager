@@ -194,7 +194,9 @@ ${letterhead(d.firm, d.today)}
       ]],
       ['Online Access Information', [
         `MTD Compatible Software — please send an invite to <strong>${d.firm.mtdEmail}</strong>`,
-        'HMRC and Companies House login credentials (if created for the client)',
+        // Same instruction as the clearance letter itself — these credentials
+        // should go to the client, never to us.
+        'HMRC and Companies House login credentials (if created for the client) — please provide these to the client directly, do not share them with us',
         `NEST Pension — please use:<br>Organisation Name: <strong>${d.firm.nestOrgName}</strong><br>Delegate Organisation ID: <strong>${d.firm.nestDelegateId}</strong>`,
       ]],
       ['Tax Reference Numbers / Codes', [
