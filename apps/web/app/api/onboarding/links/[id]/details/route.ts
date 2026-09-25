@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOnboardingLinkByToken, getDocumentSubmissions } from "@gns/db";
+import { getDb, getOnboardingLinkByToken, getDocumentSubmissions, listClearanceRequestsByLinkToken } from "@gns/db";
 import { DOCUMENT_TYPES, REQUIRED_DOC_IDS } from "@/lib/document-types";
 import { getSession } from "@/lib/auth/session";
 
@@ -23,6 +23,11 @@ export async function GET(
   const submissions = await db
     .transaction((tx) => getDocumentSubmissions(tx, params.id))
     .catch(() => [] as Array<{ docType: string; status: string; fileName: string | null; uploadedAt: Date | null }>);
+
+  // Non-fatal: a client with no clearance simply has none to show.
+  const clearanceRequests = await db
+    .transaction((tx) => listClearanceRequestsByLinkToken(tx, params.id))
+    .catch(() => [] as Awaited<ReturnType<typeof listClearanceRequestsByLinkToken>>);
 
   const acc = (link.acceptanceData ?? {}) as Record<string, unknown>;
   const lm = (link.letterMeta ?? {}) as Record<string, unknown>;
@@ -57,6 +62,26 @@ export async function GET(
       signedAt: acc.signedAt ?? null,
       contactPreferences: acc.contactPrefs ?? [],
     },
+    /* What clearance has actually gone out for this client, and what went
+       with it. Clearance can be raised from three places now, so without this
+       the client area gave no sign it had happened at all — the fee-earner
+       would have had to go hunting in the clearance tracker. */
+    clearance: clearanceRequests.map((c) => {
+      const rd = (c.responseData ?? {}) as Record<string, unknown>;
+      return {
+        id: c.id,
+        prevFirmName: c.prevFirmName,
+        prevFirmEmail: c.prevFirmEmail,
+        status: c.status,
+        sentAt: c.sentAt,
+        receivedAt: c.receivedAt,
+        nextChaseAt: c.nextChaseAt,
+        attachmentsSent: (rd.attachmentsSent as string[]) ?? null,
+        authorityLetterIncluded: rd.authorityLetterIncluded as boolean | undefined ?? null,
+        raisedByStaff: (rd.raisedByStaff as string) ?? null,
+        href: c.caseId ? `/staff/cases/${c.caseId}/clearance` : `/staff/clearance/${c.id}`,
+      };
+    }),
     previousAccountant: {
       firmName: link.prevAccountantFirmName,
       email: link.prevAccountantEmail,

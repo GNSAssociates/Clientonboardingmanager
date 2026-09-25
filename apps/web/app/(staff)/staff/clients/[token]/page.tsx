@@ -6,7 +6,7 @@ import KycPanel from './_kyc';
 import {
   RefreshCw, ChevronLeft, Eye, Download, FileSignature, FileJson, Banknote,
   CheckCircle2, XCircle, AlertTriangle, RotateCw, FilePlus2, UserSearch, FileText, Cloud, Mail,
-  Copy, Check, Send, IdCard, Link2, Clock3, FileSpreadsheet, FileDown,
+  Copy, Check, Send, IdCard, Link2, Clock3, FileSpreadsheet, FileDown, ChevronRight,
 } from 'lucide-react';
 
 interface EmailLogRow {
@@ -36,6 +36,12 @@ interface Details {
     services: Array<{ name: string; price: number; oneoff?: boolean; frequency?: string }> | null;
     signatureName: string | null; signedAt: string | null; contactPreferences: string[];
   };
+  clearance?: Array<{
+    id: string; prevFirmName: string; prevFirmEmail: string | null;
+    status: string; sentAt: string | null; receivedAt: string | null; nextChaseAt: string | null;
+    attachmentsSent: string[] | null; authorityLetterIncluded: boolean | null;
+    raisedByStaff: string | null; href: string;
+  }>;
   previousAccountant: {
     firmName: string | null; email: string | null; phone: string | null;
     address?: string | null; noPreviousAccountant?: boolean; missing?: string[];
@@ -870,6 +876,83 @@ export default function ClientDetailPage() {
 
       {/* AI ID verification (KYC) */}
       <KycPanel token={token} expectedName={d?.director?.name} />
+
+      {/* Professional Clearance — raised from any of the three routes, shown
+          here so the client's own page answers "has it gone, and what went
+          with it" without anyone opening the clearance tracker. */}
+      {d.clearance && d.clearance.length > 0 && (
+        <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <Send size={16} className="text-amber-600" /> Professional Clearance
+          </h2>
+          <div className="space-y-3">
+            {d.clearance.map((c) => (
+              <div key={c.id} className="rounded-xl border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{c.prevFirmName}</p>
+                    {c.prevFirmEmail && <p className="text-xs text-gray-500">{c.prevFirmEmail}</p>}
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    c.receivedAt ? 'bg-green-100 text-green-800'
+                      : c.status === 'sent' ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {c.receivedAt ? 'Records received' : c.status === 'sent' ? 'Awaiting response' : c.status}
+                  </span>
+                </div>
+
+                <dl className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                  {c.sentAt && (
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-gray-500">Sent</dt>
+                      <dd className="text-gray-900 font-medium">{new Date(c.sentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</dd>
+                    </div>
+                  )}
+                  {c.nextChaseAt && !c.receivedAt && (
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-gray-500">Next chase</dt>
+                      <dd className="text-gray-900 font-medium">{new Date(c.nextChaseAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</dd>
+                    </div>
+                  )}
+                  {c.raisedByStaff && (
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-gray-500">Raised by</dt>
+                      <dd className="text-gray-900 font-medium truncate">{c.raisedByStaff}</dd>
+                    </div>
+                  )}
+                </dl>
+
+                {/* What actually went with it — the question the email log
+                    cannot answer, since it does not record attachments. */}
+                {c.attachmentsSent && c.attachmentsSent.length > 0 && (
+                  <div className="mt-3 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Sent with it</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {c.attachmentsSent.map((a) => (
+                        <li key={a} className="text-xs text-gray-700 flex items-center gap-1.5">
+                          <Check size={12} className="text-green-600 flex-shrink-0" /> {a}
+                        </li>
+                      ))}
+                      {c.authorityLetterIncluded === false && (
+                        <li className="text-xs text-amber-800 flex items-start gap-1.5">
+                          <AlertTriangle size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                          Client authority letter not included — raised before the client signed one.
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                <a href={c.href} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-purple-700 hover:text-purple-900">
+                  Open in clearance tracker <ChevronRight size={13} />
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Email History — what we've sent to (or about) this client */}
       <div className="gns-reveal gns-press bg-white border border-gray-200 rounded-2xl p-6 transition-shadow hover:shadow-lg">
