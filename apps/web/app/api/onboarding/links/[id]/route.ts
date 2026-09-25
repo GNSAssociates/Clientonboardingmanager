@@ -3,6 +3,9 @@ import { sql } from "drizzle-orm";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { moveClientFolderToStage } from "@/lib/onedrive";
 import { getSession } from "@/lib/auth/session";
+import { getFirm } from "@/lib/firms";
+import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
+import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 
 // Staff edits: pause/resume the client document chase, move a client to another
 // firm, or correct core details (name / director / email).
@@ -49,12 +52,76 @@ export async function PATCH(
     updates.directorEmail = body.clientEmail.trim();
   }
 
+  /* WHO SIGNS, AND WHERE IT GOES, CAN CHANGE BEFORE SIGNATURE — BUT NOT AFTER.
+     A signed letter is the executed contract and the audit certificate hashes
+     it; editing the signatory or the email on one would rewrite who entered
+     into an agreement that has already been entered into. Refuse, rather than
+     quietly producing a contract that disagrees with its own signature. */
+  const identityChanged =
+    updates.companyName !== undefined ||
+    updates.directorName !== undefined ||
+    updates.clientEmail !== undefined;
+  if (identityChanged && link.status === "accepted") {
+    return NextResponse.json(
+      { error: "This engagement has been signed. The signatory and email cannot be changed on an executed contract." },
+      { status: 409 },
+    );
+  }
+
+  /* The letter body names the signatory, and it is stored as HTML when the link
+     is created — so changing the name in the database alone left the client
+     reading a contract addressed to the previous person. Rebuild the stored
+     letter from the corrected details. This is NOT a reissue: same link, same
+     token, nothing re-sent; only the copy the client opens is brought back into
+     agreement with who is actually signing it. */
+  if (identityChanged && link.status !== "accepted") {
+    try {
+      const nextCompanyName = (updates.companyName as string) ?? link.companyName ?? "";
+      const nextDirectorName = (updates.directorName as string | null) ?? link.directorName ?? undefined;
+      const firm = getFirm((updates.firmSlug as string) ?? link.firmSlug ?? "gns");
+      const meta = (link.letterMeta ?? {}) as {
+        partnerName?: string; customFees?: CustomFee[]; scopeRows?: ScopeRow[];
+        clientAddress?: string; ch?: ChDetails | null; regBody?: string;
+        paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
+        clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
+      };
+      const overrides = await loadEngagementLetterOverrides(firm.slug);
+      updates.letterHtml = buildLetterHtml({
+        firm,
+        ...overrides,
+        regBody: meta.regBody ?? firm.regBody,
+        companyName: nextCompanyName,
+        companyNumber: link.companyNumber ?? undefined,
+        clientAddress: meta.clientAddress,
+        directorName: nextDirectorName,
+        partnerName: meta.partnerName,
+        services: (link.services ?? []) as LetterService[],
+        customFees: meta.customFees ?? [],
+        scopeRows: meta.scopeRows,
+        ch: meta.ch ?? null,
+        dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+        appUrl: process.env.NEXT_PUBLIC_APP_URL,
+        paymentMethod: meta.paymentMethod,
+        includeAnnexA: meta.includeAnnexA,
+        clientType: meta.clientType,
+        clientName: meta.clientName,
+        utr: meta.utr,
+        softwareItems: meta.softwareItems,
+      });
+    } catch (e) {
+      // Better a correct database record with a stale letter than a failed edit.
+      console.error("Could not rebuild the letter after an identity change:", e);
+    }
+  }
+
   if (Object.keys(updates).length) {
     await db.transaction((tx) =>
       updateOnboardingLink(tx, link.id, updates as Parameters<typeof updateOnboardingLink>[2])
     );
   }
-  return NextResponse.json({ success: true, ...updates });
+  // letterHtml is large and of no use to the caller; report it as a flag only.
+  const { letterHtml, ...rest } = updates;
+  return NextResponse.json({ success: true, ...rest, letterRebuilt: letterHtml !== undefined });
 }
 
 export async function GET(

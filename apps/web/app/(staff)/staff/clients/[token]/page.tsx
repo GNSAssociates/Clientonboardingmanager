@@ -144,6 +144,119 @@ function SendTemplateForm({ token, details, onSent }: { token: string; details: 
 
 
 /**
+ * Correct who signs and where the letter goes, without reissuing anything.
+ *
+ * The signatory leaves, or the address was wrong, and the whole engagement had
+ * to be rebuilt to fix one line. Same link, same token, nothing re-sent — the
+ * record is corrected and the stored letter is rebuilt so the contract names
+ * the person who will actually sign it. Refused once signed: that contract is
+ * executed, and editing the signatory on it would rewrite who entered into it.
+ */
+function EditSignatoryForm({ token, details, onSaved }: { token: string; details: Details; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(details.director.name ?? '');
+  const [email, setEmail] = useState(details.director.email ?? '');
+  const [resend, setResend] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const emailChanged = email.trim().toLowerCase() !== (details.director.email ?? '').toLowerCase();
+  const nameChanged = name.trim() !== (details.director.name ?? '');
+  const ready = name.trim().length > 1 && /\S+@\S+\.\S+/.test(email.trim()) && (emailChanged || nameChanged);
+
+  const save = async () => {
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directorName: name.trim(), clientEmail: email.trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Could not save the change');
+
+      if (resend) {
+        const r2 = await fetch(`/api/onboarding/links/${token}/resend`, { method: 'POST' });
+        if (!r2.ok) {
+          const j2 = await r2.json().catch(() => ({}));
+          setMsg({ text: `Saved, but the letter could not be re-sent: ${j2.error ?? 'send failed'}`, ok: false });
+          onSaved();
+          return;
+        }
+      }
+      setMsg({
+        text: resend
+          ? `Saved and the letter re-sent to ${email.trim()}.`
+          : `Saved.${j.letterRebuilt ? ' The letter now names the new signatory.' : ''}`,
+        ok: true,
+      });
+      onSaved();
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Could not save', ok: false });
+    } finally { setSaving(false); }
+  };
+
+  const field = "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500";
+
+  if (!open) {
+    return (
+      <button onClick={() => { setOpen(true); setMsg(null); }}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:border-gray-500 hover:bg-gray-50">
+        <UserSearch size={13} /> Change signatory / email
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-purple-300 bg-purple-50/50 p-4">
+      <p className="text-sm font-bold text-gray-900">Change who signs, or where it goes</p>
+      <p className="text-xs text-gray-600 mt-0.5">
+        Keeps the same link and the same engagement — nothing is reissued.
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Signatory *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={field} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Email the letter goes to *</label>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="name@company.com" className={field} />
+        </div>
+      </div>
+
+      {emailChanged && (
+        <label className="flex items-start gap-2 mt-3 text-xs text-gray-700 cursor-pointer">
+          <input type="checkbox" checked={resend} onChange={(e) => setResend(e.target.checked)}
+            className="w-4 h-4 rounded text-purple-600 mt-0.5" />
+          <span>
+            Send the engagement letter to the new address now. The old address keeps the same link, so
+            revoke it separately if it should no longer be used.
+          </span>
+        </label>
+      )}
+
+      {nameChanged && (
+        <p className="mt-3 text-xs text-gray-700 bg-white border border-purple-200 rounded-lg px-3 py-2">
+          The stored letter will be rebuilt so the contract names <strong>{name.trim()}</strong> as the signatory.
+          The fees, services and terms are untouched.
+        </p>
+      )}
+
+      {msg && <p className={`mt-2 text-xs font-semibold ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</p>}
+
+      <div className="flex items-center gap-2 mt-3">
+        <button onClick={save} disabled={!ready || saving}
+          className="px-3 py-2 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40">
+          {saving ? 'Saving…' : 'Save change'}
+        </button>
+        <button onClick={() => setOpen(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+        {!ready && !saving && <span className="text-xs text-gray-500">Change a name or email to save.</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Record that the client signed a PRINTED copy.
  *
  * Not everyone will sign in a browser. This marks the engagement signed so the
@@ -731,6 +844,9 @@ export default function ClientDetailPage() {
         {!signed && !d.previousAccountant?.noPreviousAccountant && (
           <ClearanceRequestForm token={token} details={d} onSent={load} />
         )}
+
+        {/* Correct the signatory or the address without reissuing. */}
+        {!signed && <EditSignatoryForm token={token} details={d} onSaved={load} />}
 
         {/* For a client who signs a printed copy rather than in the browser. */}
         {!signed && <PaperSignatureForm token={token} details={d} onDone={load} />}
