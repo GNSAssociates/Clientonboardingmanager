@@ -987,18 +987,31 @@ export default function EngagementPage() {
               {/* Deliberately compact. This sits above the contract, so anything
                   taller pushes the letter itself off the first screen — and for
                   most clients there is nothing to do here but confirm. */}
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <h2 className="text-base font-bold text-gray-900">Previous Accountant</h2>
-                  <p className="text-xs text-gray-500">So we can request clearance and your records.</p>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 whitespace-nowrap">
-                  <input type="checkbox" checked={noPrevAccountant}
-                    onChange={(e) => setNoPrevAccountant(e.target.checked)}
-                    className="w-4 h-4 rounded text-purple-600" />
-                  I don&apos;t have one
-                </label>
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Previous Accountant</h2>
+                <p className="text-xs text-gray-500">So we can request clearance and your records.</p>
               </div>
+
+              {/* A client with no previous accountant faces two required fields
+                  they cannot fill. The way out was small grey text in the top
+                  corner, which is exactly where it went unnoticed — so it now
+                  reads as a real choice, sits in the reading order above the
+                  fields, and turns green once taken. */}
+              <label className={`flex items-center gap-2.5 mt-3 cursor-pointer rounded-lg border p-3 transition-colors ${
+                noPrevAccountant
+                  ? 'border-green-400 bg-green-50'
+                  : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
+              }`}>
+                <input type="checkbox" checked={noPrevAccountant}
+                  onChange={(e) => setNoPrevAccountant(e.target.checked)}
+                  className="w-5 h-5 rounded text-green-600 flex-shrink-0" />
+                <span className="text-sm font-semibold text-gray-800">
+                  I don&apos;t have a previous accountant
+                  <span className="block text-xs font-normal text-gray-500">
+                    New business, or you have not used an accountant before — tick this and the fields below disappear.
+                  </span>
+                </span>
+              </label>
 
               {!noPrevAccountant && (
                 <>
@@ -1046,7 +1059,7 @@ export default function EngagementPage() {
 
                   <p className="mt-2 text-[11px] leading-snug text-gray-500">
                     {prevOk
-                      ? 'On signing we will contact this firm to request clearance and the handover of your records.'
+                      ? 'On signing we will contact this firm to request clearance and the handover of your records. Upon your signature, a signed authority letter will also be sent to them, authorising the release of your records to us.'
                       : 'Firm name and email are needed before you can sign.'}
                   </p>
                 </>
@@ -1374,10 +1387,12 @@ export default function EngagementPage() {
               close to the page it reads as pointing at the thing it is talking
               about. Clamped so it never overlaps the letter on a narrow window
               nor drifts miles away on a very wide one. */}
-          <div
-            className="hidden lg:block fixed top-1/2 -translate-y-1/2 z-50 w-60"
-            style={{ left: 'min(calc(50vw + 400px), calc(100vw - 260px))' }}
-          >
+          {/* Anchored to the right EDGE, not measured in from the middle. The
+              letter is max-w-4xl (896px), so its right edge sits at
+              50vw + 448px — placing the panel at 50vw + 400px put it 48px
+              INSIDE the page, sitting on top of the contract. Anchoring to the
+              edge cannot overlap wherever there is margin to sit in. */}
+          <div className="hidden lg:block fixed right-4 top-1/2 -translate-y-1/2 z-50 w-60">
             <div className="rounded-2xl border border-gray-200/70 bg-white/75 backdrop-blur-md shadow-lg overflow-hidden">
               <div className="h-1 w-full bg-gray-200/70">
                 <div
