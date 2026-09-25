@@ -18,7 +18,8 @@
  * so issuing one would be inventing an authority that does not exist.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, insertClearanceRequest } from "@gns/db";
+import { randomBytes } from "crypto";
+import { getDb, insertClearanceRequest, upsertDraftLink, updateOnboardingLink, getOnboardingLinkByToken } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { getFirm } from "@/lib/firms";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
@@ -73,7 +74,46 @@ export async function POST(req: NextRequest) {
   const today = now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const db = getDb();
 
-  // Recorded first, so the request exists to chase even if the send fails.
+  /* SAVE THE COMPANY, DON'T STRAND IT IN A JSON BLOB.
+     The details looked up on Companies House are the same ones the engagement
+     letter needs. Recording them only inside the clearance request would mean
+     re-entering them later and leaving the clearance orphaned from the client
+     it belongs to. So a DRAFT onboarding link is created to hold them: it sends
+     nothing by itself, it is what the wizard already resumes from
+     (/onboarding/services?draft=<token>), and it gives the clearance a link
+     token — so this request shows on that client's profile and the engagement
+     letter continues from here instead of starting again. */
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  try {
+    await db.transaction((tx) =>
+      upsertDraftLink(tx, {
+        token,
+        firmSlug: firm.slug,
+        companyName: clientName,
+        companyNumber: body.companyNumber?.trim() || null,
+        directorName: body.directorName?.trim() || null,
+        directorEmail: clientEmail || null,
+        // NOT NULL on the column; blank until the engagement letter needs it.
+        clientEmail: clientEmail || "",
+        services: [],
+        sentAt: now,
+        expiresAt,
+        prevAccountantFirmName: prevFirmName,
+        prevAccountantEmail: prevFirmEmail,
+        letterMeta: {
+          // Marks where this client came from, and pre-fills the wizard.
+          startedFrom: "clearance-first",
+          wizardDraft: { step: "services", clientType: "limited" },
+        },
+      }),
+    );
+  } catch (e) {
+    console.error("standalone clearance: could not save the company draft:", e);
+    return NextResponse.json({ error: "Could not save the company record." }, { status: 500 });
+  }
+
+  // Recorded next, so the request exists to chase even if the send fails.
   try {
     await db.transaction((tx) =>
       insertClearanceRequest(tx, {
@@ -83,8 +123,8 @@ export async function POST(req: NextRequest) {
         status: "sent",
         sentAt: now,
         nextChaseAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-        // No link and no case — this client has no engagement letter yet.
-        linkToken: null,
+        // Ties the request to the saved company above.
+        linkToken: token,
         responseData: {
           companyName: clientName,
           companyNumber: body.companyNumber?.trim() || null,
@@ -155,5 +195,36 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ success: true, sentTo: prevFirmEmail, attachedClearanceLetter: attachments.length > 0 });
+  /* Stamp the saved company so that if this client later signs an engagement
+     letter, the outgoing firm is not emailed a clearance request a second time
+     — the acceptance flow skips clearance when it finds this. */
+  try {
+    const saved = await db.transaction((tx) => getOnboardingLinkByToken(tx, token));
+    if (saved) {
+      const acc = (saved.acceptanceData ?? {}) as Record<string, unknown>;
+      await db.transaction((tx) =>
+        updateOnboardingLink(tx, saved.id, {
+          acceptanceData: {
+            ...acc,
+            ...(prevFirmAddress ? { prevFirmAddress } : {}),
+            clearanceSentAt: now.toISOString(),
+            clearanceSentBy: session.displayName ?? session.userId,
+            clearanceSentWithoutClientAuthority: true,
+          },
+        }),
+      );
+    }
+  } catch (e) {
+    console.error("standalone clearance: could not stamp the saved company:", e);
+  }
+
+  return NextResponse.json({
+    success: true,
+    sentTo: prevFirmEmail,
+    attachedClearanceLetter: attachments.length > 0,
+    // So the UI can offer to carry straight on into the engagement letter.
+    token,
+    continueUrl: `/onboarding/services?draft=${token}`,
+    clientUrl: `/staff/clients/${token}`,
+  });
 }

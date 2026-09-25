@@ -77,12 +77,53 @@ function NewClearanceForm({ onSent }: { onSent: () => void }) {
   const [companyNumber, setCompanyNumber] = useState('');
   const [directorName, setDirectorName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+
+  /* Companies House lookup, the same one the engagement wizard uses. Typing a
+     company's name, number and director by hand is both slower and how a
+     clearance letter ends up addressed to a slightly wrong legal name — the
+     details are a search away and authoritative. Manual entry still works for
+     sole traders and partnerships, which are not on the register at all. */
+  const [chQuery, setChQuery] = useState('');
+  const [chResults, setChResults] = useState<Array<{ companyNumber: string; name: string; address?: string; status?: string }> | null>(null);
+  const [chBusy, setChBusy] = useState(false);
+  const [chPicked, setChPicked] = useState<string | null>(null);
+
+  const chSearch = async () => {
+    if (chQuery.trim().length < 2) return;
+    setChBusy(true); setChResults(null);
+    try {
+      const r = await fetch(`/api/companies-house/search?q=${encodeURIComponent(chQuery.trim())}`);
+      const j = await r.json().catch(() => ({}));
+      setChResults(j.items ?? []);
+    } catch { setChResults([]); }
+    finally { setChBusy(false); }
+  };
+
+  const chPick = async (companyNo: string) => {
+    setChBusy(true);
+    try {
+      const r = await fetch(`/api/companies-house/${encodeURIComponent(companyNo)}`);
+      const j = await r.json().catch(() => ({}));
+      if (j?.name) {
+        setClientName(j.name);
+        setCompanyNumber(j.number ?? companyNo);
+        // First active director, when Companies House lists one.
+        const first = (j.officers as Array<{ name: string }> | undefined)?.[0]?.name;
+        if (first) setDirectorName(first);
+        setChPicked(`${j.name} (${j.number ?? companyNo})`);
+        setChResults(null);
+        setChQuery('');
+      }
+    } catch { /* leave the fields for manual entry */ }
+    finally { setChBusy(false); }
+  };
   const [prevFirmName, setPrevFirmName] = useState('');
   const [prevFirmEmail, setPrevFirmEmail] = useState('');
   const [prevFirmAddress, setPrevFirmAddress] = useState('');
   const [ccClient, setCcClient] = useState(false);
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [continueUrl, setContinueUrl] = useState<string | null>(null);
 
   const ready = clientName.trim().length > 1
     && prevFirmName.trim().length > 1
@@ -109,8 +150,12 @@ function NewClearanceForm({ onSent }: { onSent: () => void }) {
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || 'Could not send the clearance request');
       setMsg({ text: `Clearance request sent to ${j.sentTo}.`, ok: true });
+      // The company was saved, so offer to carry straight on rather than making
+      // staff start the engagement letter from a blank wizard.
+      setContinueUrl(j.continueUrl ?? null);
       setClientName(''); setCompanyNumber(''); setDirectorName(''); setClientEmail('');
       setPrevFirmName(''); setPrevFirmEmail(''); setPrevFirmAddress(''); setCcClient(false);
+      setChPicked(null);
       onSent();
     } catch (e) {
       setMsg({ text: e instanceof Error ? e.message : 'Could not send', ok: false });
@@ -141,6 +186,47 @@ function NewClearanceForm({ onSent }: { onSent: () => void }) {
       </div>
 
       <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mt-4 mb-2">The client</p>
+
+      {/* Pull from Companies House first; fall back to typing for unregistered
+          clients (sole traders, partnerships). */}
+      <div className="mb-3">
+        <label className="block text-xs font-semibold text-gray-700 mb-1">Find on Companies House</label>
+        <div className="flex gap-2">
+          <input
+            value={chQuery}
+            onChange={(e) => setChQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void chSearch(); } }}
+            placeholder="Company name or number"
+            className={`${field} flex-1`}
+          />
+          <button type="button" onClick={chSearch} disabled={chBusy || chQuery.trim().length < 2}
+            className="px-3 py-2 rounded-lg text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:border-gray-500 disabled:opacity-40 whitespace-nowrap">
+            {chBusy ? 'Searching…' : 'Search'}
+          </button>
+        </div>
+        {chPicked && (
+          <p className="mt-1.5 text-xs text-green-700 font-semibold">Using {chPicked} — details filled in below.</p>
+        )}
+        {chResults && chResults.length === 0 && (
+          <p className="mt-1.5 text-xs text-gray-500">Nothing found. Fill the details in by hand below.</p>
+        )}
+        {chResults && chResults.length > 0 && (
+          <ul className="mt-2 border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 max-h-56 overflow-auto">
+            {chResults.map((c) => (
+              <li key={c.companyNumber}>
+                <button type="button" onClick={() => chPick(c.companyNumber)}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50">
+                  <p className="text-sm font-semibold text-gray-900">{c.name}</p>
+                  <p className="text-[11px] text-gray-500">
+                    {c.companyNumber}{c.status ? ` · ${c.status}` : ''}{c.address ? ` · ${c.address}` : ''}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-gray-700 mb-1">Client / company name *</label>
@@ -196,6 +282,20 @@ function NewClearanceForm({ onSent }: { onSent: () => void }) {
       </p>
 
       {msg && <p className={`mt-3 text-xs font-semibold ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</p>}
+
+      {/* The company is now on file, so the engagement letter continues from it
+          rather than being typed out again. */}
+      {continueUrl && (
+        <div className="mt-3 rounded-lg border border-green-300 bg-green-50 px-3 py-2.5">
+          <p className="text-xs text-gray-800">
+            This client is saved. You can send their engagement letter whenever you are ready — the company details
+            are already filled in, and this clearance is attached to them.
+          </p>
+          <Link href={continueUrl} className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-green-600 text-white hover:bg-green-700">
+            Continue to engagement letter <ArrowRight size={13} />
+          </Link>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 mt-4">
         <button onClick={send} disabled={!ready || sending}
