@@ -50,6 +50,13 @@ export async function GET(
       utr: draft.utr ?? null,
       ch: meta.ch ?? null,
       savedAt: draft.savedAt ?? null,
+      /* Clearance may already have been raised for this client from the wizard
+         itself or from their profile. The wizard needs to know, or it carries
+         on offering to send clearance on signature for an outgoing accountant
+         who has already had it. Read from the link, not the draft blob, because
+         it is the clearance routes that set it. */
+      clearanceSentAt:
+        ((link.acceptanceData ?? {}) as Record<string, unknown>).clearanceSentAt as string | undefined ?? null,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

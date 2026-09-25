@@ -256,6 +256,11 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
             directorDocs: directorDocs ?? [],
             companyDocs: companyDocs ?? [],
             docItems: clearanceItems,
+            // What actually went with it. This path runs after a signature, so
+            // the client authority letter IS included — unlike a staff-raised
+            // request, where there is no signed authority to send.
+            attachmentsSent: ["Professional clearance letter", "Client authority letter"],
+            authorityLetterIncluded: true,
           },
         })
       );

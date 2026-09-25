@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { clearanceFollowups, clearanceRequests } from "../schema/clearance";
 import type { Tx } from "../client";
 
@@ -72,4 +72,20 @@ export async function listFollowupsByCase(
       ),
     )
     .orderBy(clearanceFollowups.sentAt);
+}
+
+/**
+ * Clearance requests raised for an onboarding link, newest first.
+ *
+ * Clearance can be raised from the client's own screen or before any
+ * engagement letter exists, so the client area needs to be able to show what
+ * went out and when — otherwise a staff-raised request leaves no trace anywhere
+ * the fee-earner actually looks.
+ */
+export async function listClearanceRequestsByLinkToken(tx: Tx, linkToken: string) {
+  return tx
+    .select()
+    .from(clearanceRequests)
+    .where(eq(clearanceRequests.linkToken, linkToken))
+    .orderBy(desc(clearanceRequests.sentAt));
 }

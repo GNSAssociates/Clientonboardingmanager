@@ -134,6 +134,11 @@ export async function POST(req: NextRequest) {
           docItems: buildClearanceItems([]),
           raisedByStaff: session.displayName ?? session.userId,
           raisedWithoutClientAuthority: true,
+          // Exactly what left the building, so the client area can say so rather
+          // than leaving staff to infer it from which route was used.
+          attachmentsSent: ["Professional clearance letter"],
+          authorityLetterIncluded: false,
+          authorityLetterWithheldBecause: "the client has not signed an authority",
           raisedBeforeEngagementLetter: true,
         },
       }),
@@ -168,6 +173,10 @@ export async function POST(req: NextRequest) {
     const r = await sendTemplatedMail({
       key: "prev_clearance_request",
       firm,
+      // Against the company saved above, so this send shows in that client's
+      // email history rather than vanishing — it is the only record the client
+      // area would otherwise have that clearance went out at all.
+      token,
       to: prevFirmEmail,
       toName: prevFirmName,
       replyTo: firm.email,

@@ -100,6 +100,11 @@ export async function POST(
           // signed client authority — worth being able to tell apart later.
           raisedByStaff: session.displayName ?? session.userId,
           raisedWithoutClientAuthority: true,
+          // Exactly what left the building, so the client area can say so rather
+          // than leaving staff to infer it from which route was used.
+          attachmentsSent: ["Professional clearance letter"],
+          authorityLetterIncluded: false,
+          authorityLetterWithheldBecause: "the client has not signed an authority",
         },
       }),
     );

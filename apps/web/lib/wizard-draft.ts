@@ -44,6 +44,9 @@ export interface LoadedWizardDraft extends WizardDraftState {
   token: string;
   status: string;
   savedAt: string | null;
+  /** Set when professional clearance has already gone to the outgoing
+   *  accountant for this client, so the wizard does not offer to send it again. */
+  clearanceSentAt?: string | null;
 }
 
 /** Upsert the wizard draft. Returns the server-assigned token (or null on failure). */
