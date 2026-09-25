@@ -144,6 +144,109 @@ function SendTemplateForm({ token, details, onSent }: { token: string; details: 
 
 
 /**
+ * Record that the client signed a PRINTED copy.
+ *
+ * Not everyone will sign in a browser. This marks the engagement signed so the
+ * client stops being chased and everything that follows a signature happens —
+ * but it never pretends an electronic signature took place: the stored copy
+ * says "signed on paper", shows no handwriting, carries no e-signature
+ * certificate, and names whoever recorded it.
+ */
+function PaperSignatureForm({ token, details, onDone }: { token: string; details: Details; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(details.director.name ?? '');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [ddAck, setDdAck] = useState(false);
+  const [needsDdAck, setNeedsDdAck] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const ready = name.trim().length > 1 && !!date;
+
+  const submit = async () => {
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/onboarding/links/${token}/paper-signature`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signatureName: name.trim(), signedAt: date, ddAcknowledged: ddAck }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.status === 409 && j.error === 'needs_dd_acknowledgement') {
+        setNeedsDdAck(true);
+        setMsg({ text: j.message || 'No confirmed Direct Debit mandate for this client.', ok: false });
+        return;
+      }
+      if (!res.ok) throw new Error(j.error || 'Could not record the signature');
+      setMsg({ text: 'Recorded. The engagement is now marked as signed.', ok: true });
+      onDone();
+    } catch (e) {
+      setMsg({ text: e instanceof Error ? e.message : 'Could not record', ok: false });
+    } finally { setSaving(false); }
+  };
+
+  const field = "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+  if (!open) {
+    return (
+      <button onClick={() => { setOpen(true); setMsg(null); setNeedsDdAck(false); }}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-blue-300 text-blue-700 hover:border-blue-500 hover:bg-blue-50">
+        <FileSignature size={13} /> Signed on paper
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-blue-300 bg-blue-50/60 p-4">
+      <p className="text-sm font-bold text-gray-900">Record a paper signature</p>
+      <p className="text-xs text-gray-600 mt-0.5">
+        For a client who signed a printed copy. Marks the engagement signed and triggers everything that normally
+        follows — clearance, the welcome email, and the archived copy.
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Who signed it *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name as signed" className={field} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">Date on the signed copy *</label>
+          <input type="date" value={date} max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setDate(e.target.value)} className={field} />
+        </div>
+      </div>
+
+      {needsDdAck && (
+        <label className="flex items-start gap-2 mt-3 text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 cursor-pointer">
+          <input type="checkbox" checked={ddAck} onChange={(e) => setDdAck(e.target.checked)}
+            className="w-4 h-4 rounded text-amber-600 mt-0.5" />
+          <span>
+            <strong>No confirmed Direct Debit mandate.</strong> Recording this signature completes their onboarding
+            without one. Tick to confirm you know, and that the fees are arranged another way. This is recorded
+            against the client.
+          </span>
+        </label>
+      )}
+
+      <p className="mt-3 text-xs text-gray-700 bg-white border border-blue-200 rounded-lg px-3 py-2">
+        The stored copy will state <strong>&ldquo;signed on paper&rdquo;</strong> — no signature is drawn and no
+        e-signature certificate is produced, because none was given. <strong>Keep the wet-signed original on file;</strong> it
+        is the executed contract.
+      </p>
+
+      {msg && <p className={`mt-2 text-xs font-semibold ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</p>}
+
+      <div className="flex items-center gap-2 mt-3">
+        <button onClick={submit} disabled={!ready || saving || (needsDdAck && !ddAck)}
+          className="px-3 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
+          {saving ? 'Recording…' : 'Record paper signature'}
+        </button>
+        <button onClick={() => setOpen(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Raise professional clearance ourselves, before the client has signed.
  *
  * Staff type the outgoing accountant's details straight in (pre-filled with
@@ -628,6 +731,9 @@ export default function ClientDetailPage() {
         {!signed && !d.previousAccountant?.noPreviousAccountant && (
           <ClearanceRequestForm token={token} details={d} onSent={load} />
         )}
+
+        {/* For a client who signs a printed copy rather than in the browser. */}
+        {!signed && <PaperSignatureForm token={token} details={d} onDone={load} />}
         {!signed && (
           <div className="mt-3 flex items-center gap-3 flex-wrap">
             {/* Rebuilds the letter from the CURRENT template. The letter HTML is

@@ -198,7 +198,23 @@ export async function GET(
       // Acceptance record (signatory + timestamp + audit) for the signed copy.
       const acc = (link as { acceptanceData?: Record<string, unknown> }).acceptanceData ?? {};
       const audit = (acc.audit ?? {}) as Record<string, unknown>;
-      const signedFields = wantSigned
+      /* A paper signature gets the paper treatment: no handwriting drawn, no
+         e-signature certificate. Building the normal signed copy for one would
+         produce a document asserting an electronic signature that was never
+         given, with an IP address that does not exist. */
+      const paperSig = acc.signatureMethod === "paper"
+        ? (acc.paperSignature as { recordedBy?: string; recordedAt?: string } | undefined)
+        : undefined;
+      const signedFields = wantSigned && paperSig
+        ? {
+            signedName: (acc.signatureName as string) || link.directorName || undefined,
+            signedAt: (acc.signedAt as string) || undefined,
+            signedOnPaper: {
+              recordedBy: paperSig.recordedBy ?? "staff",
+              recordedAt: paperSig.recordedAt ?? (acc.signedAt as string) ?? new Date().toISOString(),
+            },
+          }
+        : wantSigned
         ? {
             signedName: (acc.signatureName as string) || link.directorName || undefined,
             signedAt: (acc.signedAt as string) || undefined,

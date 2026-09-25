@@ -203,6 +203,14 @@ export interface EngagementPdfInput extends LetterData {
    *  signature the client has not actually given, so it must never be capable
    *  of being mistaken for — or passed off as — an executed contract. */
   specimen?: boolean;
+  /** The client signed a printed copy by hand; staff recorded it here.
+   *
+   *  Changes what the signature block SAYS, on purpose. No handwriting is drawn
+   *  and no "electronically executed" stamp is printed, because neither is true
+   *  — the signature exists on paper, not in this system. It states that fact
+   *  and who recorded it, so the file shows what actually happened and the
+   *  wet-signed original remains the executed document. */
+  signedOnPaper?: { recordedBy: string; recordedAt: string } | null;
 }
 
 export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buffer> {
@@ -833,8 +841,17 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
        while the on-screen letter showed their drawing meant the two versions
        of the same signed document did not match. */
     const sigSize = 28;
-    const drawn = d.signedImage ? await embedDataUri(pdf, d.signedImage) : null;
-    if (drawn) {
+    const paper = d.signedOnPaper ?? null;
+    const drawn = (!paper && d.signedImage) ? await embedDataUri(pdf, d.signedImage) : null;
+    if (paper) {
+      /* Nothing is drawn where a signature would go. Rendering the name in
+         handwriting here would show a signature that was never made in this
+         system, on a document we email and archive as the signed copy. */
+      y -= 16;
+      page.drawText(sanitize("[ Signed by hand on the printed copy ]"), {
+        x: MARGIN_X, y, size: 11, font: italic, color: GREY,
+      });
+    } else if (drawn) {
       // Fit inside the signature rule, keeping the aspect ratio.
       const maxW = 200, maxH = 46;
       const scale = Math.min(maxW / drawn.width, maxH / drawn.height, 1);
@@ -858,22 +875,42 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       : d.dateStr;
     text(`Date: ${signedDate}`, { size: 9.5, color: GREY, gap: 10 });
 
-    // Compact e-signature evidence stamp.
+    // Evidence stamp. What it claims depends on what actually happened.
     const boxH = 44;
     need(boxH + 8);
-    page.drawRectangle({
-      x: MARGIN_X, y: y - boxH, width: CONTENT_W, height: boxH,
-      color: rgb(0.91, 0.96, 0.92), borderColor: rgb(0.36, 0.66, 0.46), borderWidth: 0.9,
-    });
-    const sx = MARGIN_X + 12;
-    let sy = y - 15;
-    page.drawText(sanitize("SIGNED - Electronically executed"), { x: sx, y: sy, size: 9.5, font: serifBold, color: rgb(0.09, 0.42, 0.24) });
-    sy -= 14;
-    const when = d.signedAt
-      ? new Date(d.signedAt).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
-      : "";
-    const meta = [`Signed by ${d.signedName}`, when && `Date: ${when}`, d.signedIp && `IP: ${d.signedIp}`].filter(Boolean).join("     ");
-    if (meta) page.drawText(sanitize(meta), { x: sx, y: sy, size: 8, font, color: GREY });
+    if (paper) {
+      page.drawRectangle({
+        x: MARGIN_X, y: y - boxH, width: CONTENT_W, height: boxH,
+        color: rgb(0.96, 0.95, 0.90), borderColor: rgb(0.62, 0.56, 0.42), borderWidth: 0.9,
+      });
+      const sx = MARGIN_X + 12;
+      let sy = y - 15;
+      page.drawText(sanitize("SIGNED ON PAPER - wet-signed original held on file"), {
+        x: sx, y: sy, size: 9.5, font: serifBold, color: rgb(0.35, 0.28, 0.10),
+      });
+      sy -= 14;
+      const recordedWhen = new Date(paper.recordedAt).toLocaleString("en-GB", {
+        day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+      });
+      page.drawText(
+        sanitize(`Recorded by ${paper.recordedBy} on ${recordedWhen}. This copy is a record of that signature, not an electronic signature.`),
+        { x: sx, y: sy, size: 8, font, color: GREY },
+      );
+    } else {
+      page.drawRectangle({
+        x: MARGIN_X, y: y - boxH, width: CONTENT_W, height: boxH,
+        color: rgb(0.91, 0.96, 0.92), borderColor: rgb(0.36, 0.66, 0.46), borderWidth: 0.9,
+      });
+      const sx = MARGIN_X + 12;
+      let sy = y - 15;
+      page.drawText(sanitize("SIGNED - Electronically executed"), { x: sx, y: sy, size: 9.5, font: serifBold, color: rgb(0.09, 0.42, 0.24) });
+      sy -= 14;
+      const when = d.signedAt
+        ? new Date(d.signedAt).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
+        : "";
+      const meta = [`Signed by ${d.signedName}`, when && `Date: ${when}`, d.signedIp && `IP: ${d.signedIp}`].filter(Boolean).join("     ");
+      if (meta) page.drawText(sanitize(meta), { x: sx, y: sy, size: 8, font, color: GREY });
+    }
     y -= boxH + 8;
   }
 

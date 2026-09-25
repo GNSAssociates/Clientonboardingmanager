@@ -950,6 +950,60 @@ function buildClientSignatureBlock(a: AuditData): string {
   </div>`;
 }
 
+/**
+ * The stored copy for a contract the client signed ON PAPER.
+ *
+ * Deliberately NOT buildSignedHtml with different words. That function renders
+ * the client's name in handwriting and appends an e-signature certificate
+ * asserting an IP address, a timestamp and a document fingerprint captured when
+ * they signed in the browser. None of that happened here, so none of it is
+ * printed. What goes in instead is a plain statement of what did happen, who
+ * recorded it, and where the executed document actually is.
+ */
+export function buildPaperSignedHtml(
+  letterHtml: string,
+  d: {
+    signatureName: string;
+    signedAtIso: string;
+    companyName: string;
+    companyNumber?: string;
+    firmName: string;
+    recordedBy: string;
+    recordedAtIso: string;
+  },
+): string {
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', {
+    timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const fmtStamp = (iso: string) => new Date(iso).toLocaleString('en-GB', {
+    timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }) + ' (Europe/London)';
+  const company = `${d.companyName}${d.companyNumber ? ` (Company No. ${d.companyNumber})` : ''}`;
+
+  const block = `
+  <div class="paper-sig" style="margin:26px 0 8px;page-break-inside:avoid">
+    <p style="margin:0 0 6px;font-size:13px;color:#4b5563">Agreed and accepted for and on behalf of ${esc(company)}:</p>
+    <p style="margin:0;font-size:15px;font-style:italic;color:#6b7280">[ Signed by hand on the printed copy ]</p>
+    <div style="width:260px;border-top:1px solid #9aa1ab;margin:6px 0"></div>
+    <div style="font-size:13px;color:#4b5563">${esc(d.signatureName)}</div>
+    <div style="font-size:13px;color:#4b5563">Date signed: ${esc(fmtDate(d.signedAtIso))}</div>
+  </div>
+  <div style="border:1px solid #9d8d6a;background:#f7f5ee;border-radius:6px;padding:12px 14px;margin:14px 0">
+    <p style="margin:0;font-size:13px;font-weight:bold;color:#5a4a1e">Signed on paper — wet-signed original held on file</p>
+    <p style="margin:4px 0 0;font-size:12px;color:#6b7280;line-height:1.5">
+      ${esc(d.signatureName)} signed a printed copy of this engagement letter on ${esc(fmtDate(d.signedAtIso))}.
+      Recorded in this system by ${esc(d.recordedBy)} on ${esc(fmtStamp(d.recordedAtIso))}.
+      This copy is ${esc(d.firmName)}&rsquo;s record of that signature; it is not an electronic signature,
+      and the signed original is the executed document.
+    </p>
+  </div>`;
+
+  return letterHtml.includes('<!--CLIENT-SIGNATURE-->')
+    ? letterHtml.replace('<!--CLIENT-SIGNATURE-->', block)
+    : (letterHtml.includes('</body>') ? letterHtml.replace('</body>', `${block}</body>`) : letterHtml + block);
+}
+
 export function buildSignedHtml(letterHtml: string, audit: AuditData): string {
   const cert = buildAuditCertificate(audit);
   const sig = buildClientSignatureBlock(audit);
