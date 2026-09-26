@@ -7,6 +7,7 @@ import { getFirm } from "@/lib/firms";
 import { tidyName } from "@/lib/format";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
+import { resolve648 } from "@/lib/form-648-shared";
 
 // Staff edits: pause/resume the client document chase, move a client to another
 // firm, or correct core details (name / director / email).
@@ -242,6 +243,14 @@ export async function GET(
         // Defaults to true so every letter issued before this flag existed
         // keeps asking, exactly as it does today.
         includeClearance: (link.letterMeta as Record<string, unknown> | null)?.includeClearance !== false,
+        /* The 64-8, and the taxes it would authorise, so the signing page can
+           show the client what they are about to authorise and let them untick
+           any of it. Resolved rather than read raw, so an engagement issued
+           before this existed reports no 64-8 instead of defaulting to one. */
+        ...(() => {
+          const r = resolve648({ letterMeta: link.letterMeta as Record<string, unknown> | null, signed: false });
+          return { include648: r.included, taxes648: r.included ? r.taxes : null };
+        })(),
       },
     });
   } catch (error) {

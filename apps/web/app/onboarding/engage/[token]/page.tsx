@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { AlertCircle, Clock, CheckCircle2, FileText, Lock, ChevronDown, ChevronUp, ChevronRight, Upload, ShieldCheck } from 'lucide-react';
 import { getFirm } from '@/lib/firms';
 import { SignaturePad } from '@/components/signature-pad';
+import { FORM_648_TAX_LABELS, EMPTY_648_TAXES, read648Taxes, type Form648Taxes } from '@/lib/form-648-shared';
 
 // Documents the DIRECTOR personally provides (KYC / ID), chosen via dropdown at
 // signing. "ready" → upload immediately after signing; "later" → we email the
@@ -37,7 +38,13 @@ interface OnboardingLinkData {
   services: Array<{ id: string; name: string; price: number; oneoff?: boolean }>;
   expiresAt: string;
   status: string;
-  letterMeta?: { sendMode?: string; paymentMethod?: string; includeClearance?: boolean } | null;
+  letterMeta?: {
+    sendMode?: string;
+    paymentMethod?: string;
+    includeClearance?: boolean;
+    include648?: boolean;
+    taxes648?: Form648Taxes | null;
+  } | null;
   prevAccountant?: { firmName: string | null; email: string | null; phone: string | null; address: string | null } | null;
 }
 
@@ -93,6 +100,10 @@ export default function EngagementPage() {
   const [authorised, setAuthorised] = useState(false);
   const [esignConsent, setEsignConsent] = useState(false);
   const [signatureName, setSignatureName] = useState('');
+  /* The 64-8 tick set as the client leaves it. Seeded from what the engagement
+     offered once the link loads; the client may untick, never add — the server
+     intersects what comes back with what was offered. */
+  const [taxes648, setTaxes648] = useState<Form648Taxes>(EMPTY_648_TAXES);
   /* Three ways to sign, as in Adobe: type it, draw it, or bring an image of a
      wet signature from the desktop. The typed name is ALWAYS captured (it is
      the legal name on the letter and the audit trail); the image, when there is
@@ -123,6 +134,8 @@ export default function EngagementPage() {
       .then((data) => {
         setLink(data);
         if (data?.directorName) setSignatureName(data.directorName);
+        // Start the 64-8 from what the engagement offered; the client narrows it.
+        if (data?.letterMeta?.taxes648) setTaxes648(read648Taxes(data.letterMeta.taxes648));
         /* Present what we already hold rather than asking for it again. Only
            fills blanks, so a client part-way through never has their own
            typing overwritten by our record. */
@@ -515,6 +528,10 @@ export default function EngagementPage() {
      handover by email themselves. The client is then never asked for their
      previous accountant. Absent = included, so existing letters are unchanged. */
   const includeClearance = link.letterMeta?.includeClearance !== false;
+  /* HMRC form 64-8, appended to this contract and covered by this signature.
+     Opt-in: a letter issued before this existed reports false and shows
+     nothing, so nothing changes for anyone mid-flow. */
+  const include648 = link.letterMeta?.include648 === true && mode === 'engagement';
   const firmForGate = getFirm(link.firmSlug || 'gns');
 
   // ── OTP identity gate: send a verification code to the client's email ──
@@ -749,6 +766,10 @@ export default function EngagementPage() {
           // signal that the mandate was confirmed via the hosted flow.
           directDebitConfirmed: (mode === 'engagement' && !isManualPayment) ? ddConfirmed : null,
           authorised: true,
+          /* The 64-8 as the client left it. Sent only when this engagement
+             actually offered one, so an older letter cannot post a tick set
+             that the server would then have to reason about. */
+          ...(include648 ? { taxes648 } : {}),
           esignConsent: true,
         }),
       });
@@ -1296,6 +1317,105 @@ export default function EngagementPage() {
               </div>
             </div>
             </>)}
+
+            {/* WHAT THIS ONE SIGNATURE COVERS.
+                The client signs once, and that signature carries several
+                distinct things — the contract, an HMRC authorisation, a
+                clearance request to their old accountant, a Direct Debit
+                mandate. Listed here immediately above the signature so they
+                see all of it in one place before they sign, rather than having
+                to infer it from pages of contract. Only what actually applies
+                to this engagement is shown. */}
+            {/* mode is already narrowed here: details_only never reaches this
+                part of the page, so there is nothing further to guard on. */}
+            {(
+              <div data-field="coverage" className="bg-white border-2 border-gray-200 rounded-2xl p-5 sm:p-6 mb-5">
+                <div className="flex items-center gap-3 mb-1">
+                  <ShieldCheck className="text-purple-600" size={20} />
+                  <h2 className="text-lg font-bold text-gray-900">What your signature covers</h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                  You only sign once. That single signature applies to everything listed below.
+                </p>
+
+                <ul className="divide-y divide-gray-100">
+                  <li className="flex items-start gap-3 py-3">
+                    <CheckCircle2 size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {mode === 'proposal_only' ? 'This proposal' : 'The engagement letter and terms of business'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Including the schedule of services, privacy notice and standard terms.
+                      </p>
+                    </div>
+                  </li>
+
+                  {include648 && (
+                    <li className="flex items-start gap-3 py-3">
+                      <CheckCircle2 size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                      <div className="w-full">
+                        <p className="text-sm font-semibold text-gray-900">
+                          HMRC form 64-8 — authorising us to act as your tax agent
+                        </p>
+                        <p className="text-xs text-gray-500 mb-2">
+                          Attached to the end of this contract. Untick any tax you do <strong>not</strong> want us to
+                          act on. You do not need to sign it separately — your signature below is applied to it,
+                          along with today&apos;s date.
+                        </p>
+                        <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                          {FORM_648_TAX_LABELS.filter((t) => link.letterMeta?.taxes648?.[t.key]).map((t) => (
+                            <label key={t.key} className="flex items-start gap-2 text-sm text-gray-800 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={taxes648[t.key]}
+                                onChange={(e) => setTaxes648((prev) => ({ ...prev, [t.key]: e.target.checked }))}
+                                className="mt-0.5 w-4 h-4 rounded text-purple-600"
+                              />
+                              <span>{t.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                        {!FORM_648_TAX_LABELS.some((t) => taxes648[t.key]) && (
+                          <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                            You have unticked every tax, so the 64-8 will not authorise us for anything. That is fine
+                            if it is what you intend — you can still sign, and we will simply not be appointed as your
+                            agent with HMRC.
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  )}
+
+                  {includeClearance && !noPrevAccountant && (
+                    <li className="flex items-start gap-3 py-3">
+                      <CheckCircle2 size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          A clearance letter to your previous accountant
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          On signing we will send {prevFirmName.trim() || 'your previous accountant'} a signed authority
+                          letter requesting professional clearance and the handover of your records.
+                        </p>
+                      </div>
+                    </li>
+                  )}
+
+                  {!isManualPayment && (
+                    <li className="flex items-start gap-3 py-3">
+                      <CheckCircle2 size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Direct Debit instruction</p>
+                        <p className="text-xs text-gray-500">
+                          Set up separately and securely with GoCardless. We never see or hold your bank details.
+                        </p>
+                      </div>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
 
             {/* Declaration + E-Signature */}
             <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-2xl p-5 sm:p-8">
