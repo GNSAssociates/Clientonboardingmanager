@@ -1,3 +1,22 @@
+/**
+ * The firm's HMRC agent identifiers, as they appear on form 64-8.
+ *
+ * Each firm is registered with HMRC separately, so these must never be shared
+ * or defaulted between firms — an authorisation carrying the wrong agent codes
+ * would give HMRC access to the wrong practice. A firm with no `agent648` block
+ * simply cannot offer 64-8 on its engagements.
+ */
+export interface Agent648Config {
+  /** Self Assessment agent code, e.g. 1319LR. */
+  saCode: string;
+  /** Corporation Tax agent code, e.g. H6558B. */
+  ctCode: string;
+  /** Agent Government Gateway identifier (online access). */
+  gatewayId: string;
+  /** PAYE agent ID code. */
+  payeAgentId: string;
+}
+
 export interface FirmConfig {
   slug: string;
   name: string;
@@ -38,6 +57,8 @@ export interface FirmConfig {
   gradient: string;
   accentColor: string;
   description: string;
+  /** HMRC agent codes for form 64-8. Absent = this firm cannot issue a 64-8. */
+  agent648?: Agent648Config;
 }
 
 export const FIRMS: Record<string, FirmConfig> = {
@@ -73,6 +94,12 @@ export const FIRMS: Record<string, FirmConfig> = {
     gradient: 'from-red-700 to-blue-900',
     accentColor: '#cc2229',
     description: 'Chartered Accountants providing comprehensive accounting, tax, and compliance services for businesses across the UK.',
+    agent648: {
+      saCode: '1319LR',
+      ctCode: 'H6558B',
+      gatewayId: 'GNSAssociate-T29GTG2XQMUD',
+      payeAgentId: 'HT1865',
+    },
   },
   llp: {
     slug: 'llp',
@@ -109,7 +136,16 @@ export const FIRMS: Record<string, FirmConfig> = {
     gradient: 'from-indigo-700 to-blue-900',
     accentColor: '#1e3a8a',
     description: 'Partnership-focused accounting, tax planning, and business advisory services for businesses across the UK.',
+    agent648: {
+      saCode: '2904RD',
+      ctCode: 'H7698B',
+      gatewayId: 'F3MBHIDTA1U7-UAWPX6DQBF8C',
+      payeAgentId: 'HZ0824',
+    },
   },
+  // Galaxy has no `agent648` block: its HMRC agent codes have not been supplied,
+  // and guessing or borrowing another firm's would misdirect the authorisation.
+  // Add the block here and 64-8 becomes available for Galaxy automatically.
   galaxy: {
     slug: 'galaxy',
     name: 'Galaxy GNS Accountants',
