@@ -1,7 +1,7 @@
 'use client';
 import { useState, Suspense, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, ChevronDown, ChevronUp, Plus, Trash2, Check, Search, AlertTriangle, Building2, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, ChevronDown, ChevronUp, Plus, Trash2, Check, Search, AlertTriangle, Building2, CheckCircle2, FileText } from 'lucide-react';
 import { DEFAULT_SCOPE_ROWS, type ScopeRow } from '@/lib/letter-html';
 import { saveWizardDraft, loadWizardDraft } from '@/lib/wizard-draft';
 import {
@@ -377,6 +377,7 @@ function ServicesPageInner() {
   /* Staff must not silently overwrite their own edits when the service
      selection changes, so the seed only applies until they touch the list. */
   const [taxes648Touched, setTaxes648Touched] = useState(false);
+  const [preview648Busy, setPreview648Busy] = useState(false);
   // Professional clearance: ON unless staff deliberately exclude it (some
   // handovers are arranged by email outside the app).
   const [includeClearance, setIncludeClearance] = useState(true);
@@ -982,6 +983,46 @@ function ServicesPageInner() {
                       </label>
                     ))}
                   </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setPreview648Busy(true);
+                      try {
+                        const res = await fetch('/api/forms/648/preview', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            firmSlug,
+                            clientName: clientName || chCompany?.name || '',
+                            companyName: chCompany?.name || clientName || '',
+                            companyNumber,
+                            address: businessAddress || chCompany?.address || '',
+                            utr,
+                            taxes: taxes648,
+                          }),
+                        });
+                        if (!res.ok) {
+                          const e = await res.json().catch(() => ({}));
+                          alert(e.error || 'Could not build the preview.');
+                          return;
+                        }
+                        /* Opened as a blob rather than a link because the
+                           preview is a POST of the current, unsaved form
+                           state — there is no URL that represents it. */
+                        const url = URL.createObjectURL(await res.blob());
+                        window.open(url, '_blank');
+                        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                      } finally {
+                        setPreview648Busy(false);
+                      }
+                    }}
+                    disabled={preview648Busy}
+                    className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-purple-700 border border-purple-300 rounded-lg px-3 py-1.5 hover:bg-purple-50 disabled:opacity-60"
+                  >
+                    {preview648Busy ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                    Preview the 64-8 as the client will see it
+                  </button>
+
                   {!FORM_648_TAX_LABELS.some((t) => taxes648[t.key]) && (
                     <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
                       Nothing ticked — the 64-8 would authorise nothing. Tick at least one tax, or turn the form off.
