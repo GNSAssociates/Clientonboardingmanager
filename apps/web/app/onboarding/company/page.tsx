@@ -293,6 +293,18 @@ function CompanyPageInner() {
     const paymentMethodParam = searchParams.get('paymentMethod') || 'dd';
     const includeAnnexAParam = searchParams.get('includeAnnexA') !== '0';
     const includeClearanceParam = searchParams.get('includeClearance') !== '0';
+    /* Form 64-8 is opt-IN here, unlike Annex A. The wizard always sends the
+       flag explicitly, so an absent one means this came from somewhere that
+       knows nothing about 64-8 — and the safe reading of that is "no". */
+    const include648Param = searchParams.get('include648') === '1';
+    const taxes648Param = (() => {
+      if (!include648Param) return undefined;
+      try {
+        return JSON.parse(searchParams.get('taxes648') ?? '{}') as Record<string, boolean>;
+      } catch {
+        return undefined;
+      }
+    })();
     // DD contract clause is opt-IN: absent or '0' means not included.
     const includeDdClauseParam = searchParams.get('includeDdClause') === '1';
     const ddClauseNoteParam = searchParams.get('ddClauseNote') ?? '';
@@ -317,6 +329,8 @@ function CompanyPageInner() {
       scopeRows,
       paymentMethod: paymentMethodParam,
       includeAnnexA: includeAnnexAParam,
+      include648: include648Param,
+      taxes648: taxes648Param,
       includeClearance: includeClearanceParam,
       prevFirmName: searchParams.get('prevFirmName') || undefined,
       prevFirmEmail: searchParams.get('prevFirmEmail') || undefined,

@@ -14,56 +14,12 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import type { FirmConfig } from "./firms";
 import { FORM_648_TEMPLATE_BASE64 } from "./form-648-template";
+import type { Form648Taxes } from "./form-648-shared";
 
-/** The tax heads a 64-8 can authorise. Field names are HMRC's, not ours. */
-export interface Form648Taxes {
-  /** Self Assessment (individual). */
-  sa: boolean;
-  /** Partnership Self Assessment. */
-  partnership: boolean;
-  /** Trust. */
-  trust: boolean;
-  /** Corporation Tax. */
-  corpTax: boolean;
-  /** Individual PAYE / NIC. */
-  paye: boolean;
-  /** Employer's PAYE scheme. */
-  employerPaye: boolean;
-  /** VAT. */
-  vat: boolean;
-  /** Construction Industry Scheme. */
-  cis: boolean;
-  /** Tax credits. */
-  taxCredits: boolean;
-  /** VAT DIY housebuilder scheme. */
-  vatDiy: boolean;
-}
-
-export const FORM_648_TAX_LABELS: Array<{ key: keyof Form648Taxes; label: string; hint?: string }> = [
-  { key: "corpTax", label: "Corporation Tax", hint: "Limited companies" },
-  { key: "sa", label: "Self Assessment", hint: "Individual tax returns" },
-  { key: "partnership", label: "Partnership", hint: "Partnership tax returns" },
-  { key: "vat", label: "VAT" },
-  { key: "employerPaye", label: "Employer's PAYE scheme", hint: "If we run your payroll" },
-  { key: "paye", label: "Individual PAYE and National Insurance" },
-  { key: "cis", label: "Construction Industry Scheme (CIS)" },
-  { key: "trust", label: "Trust" },
-  { key: "taxCredits", label: "Tax credits" },
-  { key: "vatDiy", label: "VAT DIY housebuilder scheme" },
-];
-
-export const EMPTY_648_TAXES: Form648Taxes = {
-  sa: false,
-  partnership: false,
-  trust: false,
-  corpTax: false,
-  paye: false,
-  employerPaye: false,
-  vat: false,
-  cis: false,
-  taxCredits: false,
-  vatDiy: false,
-};
+/* The types and rules live in form-648-shared so the wizard and signing page
+   can use them without pulling this module's ~1.5MB form template into the
+   browser bundle. Re-exported here so server code has a single import. */
+export * from "./form-648-shared";
 
 export interface Form648Input {
   firm: FirmConfig;
@@ -140,6 +96,18 @@ function caps(v: string | null | undefined): string {
   return sanitize(v).toUpperCase();
 }
 
+/**
+ * Lift a UK postcode off the end of a free-text address.
+ *
+ * The engagement record keeps the address as one string, but the form has a
+ * separate postcode box. Without this the postcode would consume an address
+ * line and the box HMRC actually reads would be left empty.
+ */
+export function extractPostcode(address: string | null | undefined): string {
+  const m = /([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\s*$/i.exec(sanitize(address));
+  return m ? `${m[1]!.toUpperCase()} ${m[2]!.toUpperCase()}` : "";
+}
+
 /** Split a free-text address into the form's three address lines. */
 function addressLines(address: string | null | undefined, postcode?: string | null): string[] {
   const parts = sanitize(address)
@@ -167,79 +135,6 @@ export function formatSignedDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-/**
- * Whether an engagement includes a 64-8, decided from its stored letterMeta.
- *
- * A MISSING flag means NO — deliberately the opposite of how the other optional
- * sections behave (`includeAnnexA !== false` treats missing as yes).
- *
- * Engagement PDFs are not stored. Every request rebuilds the letter from
- * letterMeta, the signed copy included. So if a missing flag meant "include",
- * then the moment this feature shipped, every engagement already sent — and
- * every one already SIGNED — would start producing a contract with a 64-8
- * appended to it that the client never saw and never authorised. The signed PDF
- * is the record of what was agreed; it must keep saying what it said on the day
- * it was signed.
- *
- * "On by default" is a property of the wizard, which writes an explicit `true`
- * for new engagements. It is not a property of reading old records.
- */
-export function is648Enabled(letterMeta: Record<string, unknown> | null | undefined): boolean {
-  return (letterMeta ?? {}).include648 === true;
-}
-
-/** What the client actually agreed to, written into acceptanceData at signing. */
-export interface Form648Snapshot {
-  included: boolean;
-  taxes: Form648Taxes;
-}
-
-/** Reads a tick set out of stored JSON, defaulting anything absent to unticked. */
-export function read648Taxes(value: unknown): Form648Taxes {
-  const src = (value ?? {}) as Record<string, unknown>;
-  const out = { ...EMPTY_648_TAXES };
-  for (const key of Object.keys(out) as Array<keyof Form648Taxes>) {
-    out[key] = src[key] === true;
-  }
-  return out;
-}
-
-/**
- * Decides what 64-8, if any, belongs on a given rendering of an engagement.
- *
- * Engagement PDFs are rebuilt on every request rather than stored, so "what
- * goes in this document" is recomputed each time. For an unsigned letter that
- * is what we want: staff can still change the engagement. For a SIGNED one it
- * is dangerous, because it means today's settings decide what yesterday's
- * signed contract says.
- *
- * So a signed engagement renders from the snapshot taken when the client
- * signed, and nothing staff change afterwards can alter it. A signed
- * engagement carrying no snapshot was signed before this feature existed and
- * gets no 64-8 — it cannot acquire one retrospectively.
- *
- * For UNSIGNED engagements this reads current settings, but that is a weaker
- * guarantee than the 64-8 actually has: whether an engagement includes one is
- * fixed when the link is created and the PATCH route refuses to change it, so
- * an engagement already sitting in a client's inbox cannot have the 64-8
- * switched on or off underneath them. This is the second line of defence.
- */
-export function resolve648(args: {
-  letterMeta?: Record<string, unknown> | null;
-  acceptanceData?: Record<string, unknown> | null;
-  /** True when rendering the signed copy of an accepted engagement. */
-  signed: boolean;
-}): Form648Snapshot {
-  if (args.signed) {
-    const snap = (args.acceptanceData ?? {}).form648 as Record<string, unknown> | undefined;
-    if (!snap || snap.included !== true) return { included: false, taxes: { ...EMPTY_648_TAXES } };
-    return { included: true, taxes: read648Taxes(snap.taxes) };
-  }
-  const lm = args.letterMeta ?? {};
-  if (lm.include648 !== true) return { included: false, taxes: { ...EMPTY_648_TAXES } };
-  return { included: true, taxes: read648Taxes(lm.taxes648) };
 }
 
 /** True when this firm can issue a 64-8 at all (i.e. we hold its agent codes). */
@@ -311,11 +206,12 @@ export async function buildForm648Doc(input: Form648Input): Promise<PDFDocument>
   // --- Client side. Capitals, as the form asks.
   set("txtName", caps(input.clientName));
   set("txtCompanyName", caps(input.companyName));
-  const lines = addressLines(input.address, input.postcode);
+  const postcode = sanitize(input.postcode) || extractPostcode(input.address);
+  const lines = addressLines(input.address, postcode);
   set("YourAddress1", caps(lines[0] ?? ""));
   set("YourAddress2", caps(lines[1] ?? ""));
   set("YourAddress3", caps(lines[2] ?? ""));
-  set("YourPost code", caps(input.postcode));
+  set("YourPost code", caps(postcode));
   set("YourPhoneNumber", sanitize(input.phone));
   set("CRN", caps(input.companyNumber));
 

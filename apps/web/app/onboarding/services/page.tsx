@@ -4,6 +4,13 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Loader2, ChevronDown, ChevronUp, Plus, Trash2, Check, Search, AlertTriangle, Building2, CheckCircle2 } from 'lucide-react';
 import { DEFAULT_SCOPE_ROWS, type ScopeRow } from '@/lib/letter-html';
 import { saveWizardDraft, loadWizardDraft } from '@/lib/wizard-draft';
+import {
+  FIRMS_WITH_648,
+  FORM_648_TAX_LABELS,
+  EMPTY_648_TAXES,
+  default648Taxes,
+  type Form648Taxes,
+} from '@/lib/form-648-shared';
 import { OnboardingHeader } from '../_onboarding-header';
 
 type Frequency = 'monthly' | 'quarterly' | 'annually';
@@ -359,6 +366,17 @@ function ServicesPageInner() {
 
   // Include Annex A schedule of charges
   const [includeAnnexA, setIncludeAnnexA] = useState(true);
+  /* HMRC form 64-8, appended to the contract and covered by the same signature.
+     ON by default, but only offered for firms whose HMRC agent codes we hold —
+     a 64-8 without them authorises nothing and would have to be re-signed. */
+  const firmCan648 = FIRMS_WITH_648.has(firmSlug);
+  const [include648, setInclude648] = useState(true);
+  /* Which taxes the 64-8 authorises. Seeded from the services being sold, then
+     staff adjust here; the client can still untick any of them before signing. */
+  const [taxes648, setTaxes648] = useState<Form648Taxes>(EMPTY_648_TAXES);
+  /* Staff must not silently overwrite their own edits when the service
+     selection changes, so the seed only applies until they touch the list. */
+  const [taxes648Touched, setTaxes648Touched] = useState(false);
   // Professional clearance: ON unless staff deliberately exclude it (some
   // handovers are arranged by email outside the app).
   const [includeClearance, setIncludeClearance] = useState(true);
@@ -395,6 +413,14 @@ function ServicesPageInner() {
 
   // Client type
   const [clientType, setClientType] = useState(searchParams.get('clientType') || 'limited');
+  /* Keep the 64-8 tick set in step with the services being sold, until staff
+     edit it themselves — after which their choice stands, because a tick here
+     is an authorisation over the client's tax affairs and must not be moved
+     by a later, unrelated change to the fee list. */
+  useEffect(() => {
+    if (taxes648Touched) return;
+    setTaxes648(default648Taxes({ clientType, services: selected }));
+  }, [clientType, selected, taxes648Touched]);
 
   // Contract Scope-of-Services rows — edited inline within each service card
   const [scopeRows, setScopeRows] = useState<ScopeRow[]>(DEFAULT_SCOPE_ROWS.map((r) => ({ ...r })));
@@ -521,6 +547,12 @@ function ServicesPageInner() {
         if (d.paymentMethod) setPaymentMethod(d.paymentMethod as PaymentMethod);
         if (d.includeInLetter) setIncludeInLetter(d.includeInLetter as Record<string, boolean>);
         if (d.includeAnnexA !== undefined) setIncludeAnnexA(d.includeAnnexA as boolean);
+        if (d.include648 !== undefined) setInclude648(d.include648 as boolean);
+        if (d.taxes648 !== undefined) {
+          setTaxes648({ ...EMPTY_648_TAXES, ...(d.taxes648 as Partial<Form648Taxes>) });
+          // A saved tick set is a deliberate choice; do not re-seed over it.
+          setTaxes648Touched(true);
+        }
         if (d.includeClearance !== undefined) setIncludeClearance(d.includeClearance as boolean);
         if (d.clearanceMode) { const m = d.clearanceMode as 'client'|'firm'|'none'; setClearanceMode(m); setIncludeClearance(m === 'client'); }
         if (d.prevFirmName) setPrefillPrevFirm(d.prevFirmName as string);
@@ -569,6 +601,8 @@ function ServicesPageInner() {
         paymentMethod,
         includeInLetter,
         includeAnnexA,
+        include648,
+        taxes648,
         includeClearance,
         clearanceMode,
         prevFirmName: prefillPrevFirm || undefined,
@@ -758,6 +792,12 @@ function ServicesPageInner() {
     if (scopeChanged) q.set('scopeRows', JSON.stringify(scopeRows));
     q.set('paymentMethod', paymentMethod);
     q.set('includeAnnexA', includeAnnexA ? '1' : '0');
+    /* Always sent explicitly, never left to a default on the far side: a
+       missing flag has to keep meaning "no 64-8" so existing engagements are
+       untouched, which only works if new ones always say what they want. */
+    const want648 = firmCan648 && include648;
+    q.set('include648', want648 ? '1' : '0');
+    if (want648) q.set('taxes648', JSON.stringify(taxes648));
     q.set('includeClearance', includeClearance ? '1' : '0');
     if (prefillPrevFirm.trim()) q.set('prevFirmName', prefillPrevFirm.trim());
     if (prefillPrevEmail.trim()) q.set('prevFirmEmail', prefillPrevEmail.trim());
@@ -899,6 +939,63 @@ function ServicesPageInner() {
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
             </label>
           </div>
+
+          {/* HMRC form 64-8. Appended to the contract and covered by the same
+              signature, so the client signs once. Hidden entirely for a firm
+              whose agent codes we do not hold — offering it there would produce
+              an authorisation that authorises nothing. */}
+          {firmCan648 ? (
+            <div className="pt-4 mt-4 border-t border-purple-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Include HMRC form 64-8 (agent authorisation)</p>
+                  <p className="text-xs text-gray-500">Appended to the contract and covered by the client&rsquo;s signature</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={include648} onChange={(e) => setInclude648(e.target.checked)} className="sr-only peer" />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
+                </label>
+              </div>
+
+              {include648 && (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-600 mb-2">
+                    Taxes we will be authorised to act on. Seeded from the services above — adjust before sending.
+                    The client can also untick any of these before they sign.
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                    {FORM_648_TAX_LABELS.map((t) => (
+                      <label key={t.key} className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={taxes648[t.key]}
+                          onChange={(e) => {
+                            setTaxes648Touched(true);
+                            setTaxes648((prev) => ({ ...prev, [t.key]: e.target.checked }));
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-400"
+                        />
+                        <span>
+                          {t.label}
+                          {t.hint ? <span className="block text-[11px] text-gray-400">{t.hint}</span> : null}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {!FORM_648_TAX_LABELS.some((t) => taxes648[t.key]) && (
+                    <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                      Nothing ticked — the 64-8 would authorise nothing. Tick at least one tax, or turn the form off.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="pt-4 mt-4 border-t border-purple-100">
+              <p className="text-sm font-semibold text-gray-400">HMRC form 64-8 — not available for this firm</p>
+              <p className="text-xs text-gray-400">This firm&rsquo;s HMRC agent codes have not been set up, so a 64-8 cannot be issued from here.</p>
+            </div>
+          )}
 
           {/* Professional clearance. Off = the whole chain is skipped, so staff
               can see exactly what they are turning off before they do it.

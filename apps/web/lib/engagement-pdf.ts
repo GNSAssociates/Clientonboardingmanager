@@ -42,6 +42,9 @@ import { ACCA_LOGO_DATA_URI } from "./acca-logo";
 import { ICAEW_LOGO_DATA_URI } from "./icaew-logo";
 import { CIOT_LOGO_DATA_URI } from "./ciot-logo";
 import { fmtGBP as gbp } from "./format";
+/* Types and labels only — the renderer itself is imported lazily at the point
+   of use, so an engagement without a 64-8 never loads the form template. */
+import { FORM_648_TAX_LABELS, type Form648Taxes } from "./form-648-shared";
 
 const PARTNER_SIGNATURES: Record<string, string> = {
   "Lekh Nath Ghimire": GNS_SIGNATURE_DATA_URI,
@@ -218,6 +221,11 @@ export interface EngagementPdfInput extends LetterData {
    *  sign. Ignored once there is a signature, and never applied to the
    *  on-screen letter, so the electronic signing flow is untouched. */
   paperSignatureBlock?: boolean;
+  /** HMRC form 64-8 to append, with the taxes it authorises. Null = none.
+   *
+   *  Resolve this with resolve648() rather than reading letterMeta directly, so
+   *  a signed contract keeps the authorisation the client actually signed. */
+  form648?: { taxes: Form648Taxes } | null;
 }
 
 export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buffer> {
@@ -1158,6 +1166,59 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
     );
   }
 
+  /* HMRC form 64-8.
+     The explanation goes on our own page, in our own layout, immediately
+     before the form — so the client reads what they are authorising before
+     they reach it. The form itself is appended below, AFTER page numbering,
+     because HMRC's three pages are their document and we do not write our
+     furniture onto them. */
+  if (d.form648) {
+    newPage();
+    heading1("HMRC Form 64-8 — Authorising your agent");
+    text(
+      `This engagement means we act as your agent for your taxes. The HMRC form 64-8 on the following pages says the same thing to HMRC, and is what allows them to deal with us on your behalf.`,
+      { gap: 6 },
+    );
+    text(
+      `By signing this contract you authorise ${sanitize(f.legalName)} to act as your tax agent for the taxes ticked on that form.`,
+      { gap: 6 },
+    );
+    text(
+      "If there are any taxes you do not want us to act as an agent for, please untick the relevant boxes on the form as appropriate before you sign.",
+      { gap: 10 },
+    );
+
+    const ticked = FORM_648_TAX_LABELS.filter((t) => d.form648!.taxes[t.key]);
+    heading2("Taxes covered by this authorisation", false);
+    if (ticked.length === 0) {
+      /* Should not happen — the wizard blocks it and the signing page blocks it
+         — but if it ever does, say so plainly rather than print an empty list
+         that reads as though everything is covered. */
+      text("None currently ticked. This form would not authorise us for any tax.", {
+        font: italic,
+        color: GREY,
+        gap: 8,
+      });
+    } else {
+      ticked.forEach((t) => bullet(t.label));
+      y -= 6;
+    }
+
+    const excluded = FORM_648_TAX_LABELS.filter((t) => !d.form648!.taxes[t.key]);
+    if (excluded.length) {
+      text(`Not included: ${excluded.map((t) => t.label).join(", ")}.`, {
+        size: 9.5,
+        color: GREY,
+        gap: 8,
+      });
+    }
+
+    text(
+      "Your signature on this contract is applied to the form 64-8 overleaf, together with the date you signed. You do not need to sign it separately.",
+      { size: 9.5, color: GREY },
+    );
+  }
+
   // Page numbers, once the total is known.
   const pages = pdf.getPages();
   pages.forEach((p, i) => {
@@ -1170,6 +1231,33 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       color: GREY,
     });
   });
+
+  /* The form itself, appended after numbering so nothing of ours is drawn on
+     HMRC's pages. Imported lazily: the template is ~1.5MB and every engagement
+     letter would otherwise carry the cost of loading it, 64-8 or not. */
+  if (d.form648) {
+    const { appendForm648 } = await import("./form-648-pdf");
+    await appendForm648(pdf, {
+      firm: f,
+      clientName: d.clientName || d.directorName || "",
+      companyName: d.companyName,
+      address: d.clientAddress,
+      // The letter carries one address string; the form has a separate postcode
+      // box, so it is lifted off the end of the address.
+      postcode: null,
+      companyNumber: d.companyNumber,
+      utr: d.utr,
+      taxes: d.form648.taxes,
+      /* A paper signature is not drawn here for the same reason it is not drawn
+         on the contract: no signature was made in this system, and this form
+         goes to HMRC. It prints unsigned, to be signed by hand alongside. */
+      signedName: d.signedOnPaper ? null : d.signedName,
+      signedImage: d.signedOnPaper ? null : d.signedImage,
+      signedAt: d.signedAt,
+      auditRef: d.audit?.documentSha256 ? d.audit.documentSha256.slice(0, 12).toUpperCase() : (d.audit?.token ?? null),
+      specimen: d.specimen,
+    });
+  }
 
   const bytes = await pdf.save();
   return Buffer.from(bytes);

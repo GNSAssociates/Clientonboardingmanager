@@ -8,6 +8,7 @@ import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 import { archiveToClientFolder } from "@/lib/storage";
+import { FIRMS_WITH_648, read648Taxes, type Form648Taxes } from "@/lib/form-648-shared";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,6 +39,8 @@ export async function POST(req: NextRequest) {
       // letter and the engage page honour them.
       paymentMethod,   // 'dd' | 'manual'
       includeAnnexA,   // bool — include the SSC annex
+      include648,       // bool — append HMRC form 64-8 to the contract
+      taxes648,         // which taxes that 64-8 authorises
       includeClearance, // bool — run professional clearance (ask for prev accountant, email them)
       prevFirmName,     // outgoing accountant, when staff already know it
       prevFirmEmail,
@@ -58,6 +61,7 @@ export async function POST(req: NextRequest) {
       customFees?: CustomFee[]; scopeRows?: ScopeRow[]; ch?: ChDetails | null;
       draftToken?: string; scheduledSendAt?: string;
       paymentMethod?: string; includeAnnexA?: boolean; includeClearance?: boolean; clientType?: string;
+      include648?: boolean; taxes648?: Record<string, boolean>;
       prevFirmName?: string; prevFirmEmail?: string;
       softwareItems?: Array<{ name: string; price: number }>;
       includeDdClause?: boolean; ddClauseNote?: string;
@@ -112,6 +116,7 @@ export async function POST(req: NextRequest) {
       clientAddress: string; ch: ChDetails | null;
       clientAddressStructured?: { line1?: string; line2?: string; city?: string; region?: string; postcode?: string; country?: string };
       paymentMethod: string; includeAnnexA: boolean; includeClearance: boolean; clientType: string;
+      include648: boolean; taxes648?: Form648Taxes;
       includeDdClause: boolean; ddClauseNote: string;
       clientName?: string; utr?: string; oneoffScopes?: Record<string, string>;
       softwareItems?: Array<{ name: string; price: number }>;
@@ -127,6 +132,18 @@ export async function POST(req: NextRequest) {
       ch: ch ?? null,
       paymentMethod: paymentMethod === "manual" ? "manual" : "dd",
       includeAnnexA: includeAnnexA !== false,
+      /* Opt-IN, and deliberately not `!== false` like the flags around it.
+         Engagement PDFs are rebuilt from letterMeta on every request, so if a
+         missing flag meant "include", every engagement already sent — and
+         every one already signed — would start producing a contract with an
+         HMRC authorisation the client never agreed to. It must be explicit.
+         A 64-8 is also refused for a firm whose agent codes we do not hold,
+         since it would authorise nothing and have to be signed again. */
+      include648: include648 === true && FIRMS_WITH_648.has(firm.slug),
+      taxes648:
+        include648 === true && FIRMS_WITH_648.has(firm.slug)
+          ? read648Taxes(taxes648)
+          : undefined,
       // Default ON: excluding clearance is the deliberate exception, so an older
       // caller that never sends this field keeps the existing behaviour.
       includeClearance: includeClearance !== false,

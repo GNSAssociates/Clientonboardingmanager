@@ -11,6 +11,7 @@ import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 import { verifyDirectDebit } from "@/lib/gocardless";
 import { clientIp, engageCookieName, readEngageSession } from "@/lib/engage-session";
 import { runPostAcceptanceEffects, type PostAcceptanceContext } from "@/lib/post-acceptance";
+import { resolve648, read648Taxes, EMPTY_648_TAXES } from "@/lib/form-648-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function POST(
     signatureImage,
     contactPrefs,
     authorised,
+    taxes648,
   } = body as {
     prevFirmName?: string;
     prevEmail?: string;
@@ -46,6 +48,8 @@ export async function POST(
     signatureName?: string;
     signatureImage?: string | null;
     contactPrefs?: string[];
+    /** The 64-8 tick set as the client left it, with anything they unticked removed. */
+    taxes648?: Record<string, boolean>;
     directDebitConfirmed?: boolean | null;
     authorised?: boolean;
     confirmEmail?: string;
@@ -319,6 +323,24 @@ export async function POST(
           companyDocs: companyDocs ?? [],
           prevPhone: noPrevAccountant ? null : (prevPhone || null),
           prevFirmAddress: noPrevAccountant ? null : (prevAddress || null),
+          /* What the client actually authorised on the 64-8, frozen here.
+             The signed contract is re-rendered from this, not from the
+             engagement's current settings, so nothing changed afterwards can
+             add an authorisation they did not give or remove one they did.
+             The client's own unticking is respected: their submitted set is
+             intersected with what the engagement offered, so they can narrow
+             the authorisation but never widen it beyond what was on the form
+             they were shown. */
+          form648: (() => {
+            const offered = resolve648({ letterMeta: link.letterMeta as Record<string, unknown> | null, signed: false });
+            if (!offered.included) return undefined;
+            const chosen = read648Taxes(taxes648);
+            const agreed = { ...EMPTY_648_TAXES };
+            for (const key of Object.keys(agreed) as Array<keyof typeof agreed>) {
+              agreed[key] = offered.taxes[key] && chosen[key];
+            }
+            return { included: true, taxes: agreed };
+          })(),
           audit: { ipAddress, userAgent, documentSha256 },
         },
       })

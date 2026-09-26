@@ -3,6 +3,8 @@
 // in the URL (?draft=<token>) so a refresh or a dashboard "Resume" click picks
 // up exactly where the staff member left off — including the fee section.
 
+import type { Form648Taxes } from "./form-648-shared";
+
 export interface WizardDraftState {
   token?: string | null;
   firmSlug: string;
@@ -25,6 +27,9 @@ export interface WizardDraftState {
   paymentMethod?: string;
   includeInLetter?: Record<string, boolean>;
   includeAnnexA?: boolean;
+  /** HMRC form 64-8: whether to append it, and which taxes it authorises. */
+  include648?: boolean;
+  taxes648?: Partial<Form648Taxes>;
   /** Run professional clearance for this client (prev-accountant details are
    *  collected, the outgoing firm is emailed, the authority letter is sent). */
   includeClearance?: boolean;

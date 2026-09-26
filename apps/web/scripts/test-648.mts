@@ -10,7 +10,14 @@
  */
 import { PDFDocument } from "pdf-lib";
 import { FIRMS } from "../lib/firms";
-import { buildForm648Doc, is648Enabled, resolve648, EMPTY_648_TAXES, type Form648Input } from "../lib/form-648-pdf";
+import {
+  buildForm648Doc,
+  is648Enabled,
+  resolve648,
+  read648Taxes,
+  EMPTY_648_TAXES,
+  type Form648Input,
+} from "../lib/form-648-pdf";
 
 let pass = 0;
 const failures: string[] = [];
@@ -228,6 +235,38 @@ const base: Form648Input = {
   });
   check("tax the client unticked stays unticked", unticked.taxes.cis, false);
   check("taxes the client kept remain", unticked.taxes.corpTax, true);
+}
+
+// --- 10. What the client submits can narrow the authorisation, never widen it.
+//
+// Mirrors the intersection done in the accept route. The client is shown a
+// form with certain taxes ticked; unticking must be honoured, but a tampered
+// or stale submission must not be able to authorise us for a tax that was
+// never on the form they were shown.
+{
+  const agree = (offeredMeta: Record<string, unknown>, submitted: unknown) => {
+    const offered = resolve648({ letterMeta: offeredMeta, signed: false });
+    if (!offered.included) return null;
+    const chosen = read648Taxes(submitted);
+    const out = { ...EMPTY_648_TAXES };
+    for (const k of Object.keys(out) as Array<keyof typeof out>) out[k] = offered.taxes[k] && chosen[k];
+    return out;
+  };
+
+  const offeredMeta = { include648: true, taxes648: { corpTax: true, vat: true, employerPaye: true } };
+
+  const unticked = agree(offeredMeta, { corpTax: true, vat: true })!;
+  check("client can untick a tax", unticked.employerPaye, false);
+  check("taxes the client kept are authorised", unticked.corpTax, true);
+
+  const widened = agree(offeredMeta, { corpTax: true, vat: true, employerPaye: true, cis: true, trust: true })!;
+  check("client cannot add CIS that was never offered", widened.cis, false);
+  check("client cannot add a trust authorisation", widened.trust, false);
+
+  const nothing = agree(offeredMeta, {})!;
+  check("unticking everything authorises nothing", Object.values(nothing).some(Boolean), false);
+
+  check("no 64-8 offered means no snapshot", agree({ include648: false }, { corpTax: true }), null);
 }
 
 console.log(`\n${pass} passed, ${failures.length} failed`);
