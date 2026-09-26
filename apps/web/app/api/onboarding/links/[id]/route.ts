@@ -75,6 +75,22 @@ export async function PATCH(
     nextMeta = { ...nextMeta, includeClearance: body.includeClearance,
                  clearanceMode: body.includeClearance ? "client" : "none" };
   }
+  /* FORM 64-8 IS FIXED WHEN THE LINK IS CREATED AND CANNOT BE CHANGED HERE.
+     Unlike the Direct Debit clause or the clearance question, this one is not
+     merely wording — it is an HMRC authorisation. A link that has been sent is
+     already in front of a client, who may have read it, part-completed it, or
+     be reading it right now; switching the 64-8 on or off underneath them
+     would change what they are being asked to authorise mid-flow. So it is
+     decided once, in the wizard, and an engagement that went out without a
+     64-8 never acquires one. Rejected loudly rather than ignored, so a caller
+     that thinks it is changing something is told that it is not. */
+  if ("include648" in body || "taxes648" in body) {
+    return NextResponse.json(
+      { error: "Form 64-8 is set when the engagement is created and cannot be changed after sending. Create a new engagement instead." },
+      { status: 400 },
+    );
+  }
+
   const metaChanged = nextMeta !== meta0;
   if (metaChanged) updates.letterMeta = nextMeta;
 

@@ -205,13 +205,21 @@ const base: Form648Input = {
   check("signed tick set keeps VAT", signedOn.taxes.vat, true);
   check("signed tick set keeps SA off", signedOn.taxes.sa, false);
 
-  // (d) Staff edits to a sent-but-unsigned engagement DO apply — that is the
-  //     flexibility asked for, and no client has agreed to anything yet.
-  const unsigned = resolve648({ letterMeta: { include648: true, taxes648: { sa: true } }, acceptanceData: null, signed: false });
-  check("unsigned engagement follows current settings", unsigned.included, true);
-  check("unsigned engagement follows current ticks", unsigned.taxes.sa, true);
+  // (d) An engagement already SENT but not yet signed, created before this
+  //     feature: it has no flag, so it shows no 64-8 while the client reads it.
+  //     Nothing in its inbox copy changes.
+  check(
+    "sent-but-unsigned pre-feature engagement shows no 64-8",
+    resolve648({ letterMeta: { paymentMethod: "dd", includeClearance: true }, acceptanceData: null, signed: false }).included,
+    false,
+  );
 
-  // (e) A client who unticked a tax must not have it reinstated by the
+  // (e) A new engagement created with one does show it.
+  const unsigned = resolve648({ letterMeta: { include648: true, taxes648: { sa: true } }, acceptanceData: null, signed: false });
+  check("new engagement with 64-8 shows it", unsigned.included, true);
+  check("new engagement uses its own ticks", unsigned.taxes.sa, true);
+
+  // (f) A client who unticked a tax must not have it reinstated by the
   //     engagement's own defaults.
   const unticked = resolve648({
     letterMeta: { include648: true, taxes648: { corpTax: true, vat: true, cis: true } },

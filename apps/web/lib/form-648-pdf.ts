@@ -219,6 +219,12 @@ export function read648Taxes(value: unknown): Form648Taxes {
  * signed, and nothing staff change afterwards can alter it. A signed
  * engagement carrying no snapshot was signed before this feature existed and
  * gets no 64-8 — it cannot acquire one retrospectively.
+ *
+ * For UNSIGNED engagements this reads current settings, but that is a weaker
+ * guarantee than the 64-8 actually has: whether an engagement includes one is
+ * fixed when the link is created and the PATCH route refuses to change it, so
+ * an engagement already sitting in a client's inbox cannot have the 64-8
+ * switched on or off underneath them. This is the second line of defence.
  */
 export function resolve648(args: {
   letterMeta?: Record<string, unknown> | null;
