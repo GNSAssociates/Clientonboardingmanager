@@ -190,6 +190,52 @@ export function is648Enabled(letterMeta: Record<string, unknown> | null | undefi
   return (letterMeta ?? {}).include648 === true;
 }
 
+/** What the client actually agreed to, written into acceptanceData at signing. */
+export interface Form648Snapshot {
+  included: boolean;
+  taxes: Form648Taxes;
+}
+
+/** Reads a tick set out of stored JSON, defaulting anything absent to unticked. */
+export function read648Taxes(value: unknown): Form648Taxes {
+  const src = (value ?? {}) as Record<string, unknown>;
+  const out = { ...EMPTY_648_TAXES };
+  for (const key of Object.keys(out) as Array<keyof Form648Taxes>) {
+    out[key] = src[key] === true;
+  }
+  return out;
+}
+
+/**
+ * Decides what 64-8, if any, belongs on a given rendering of an engagement.
+ *
+ * Engagement PDFs are rebuilt on every request rather than stored, so "what
+ * goes in this document" is recomputed each time. For an unsigned letter that
+ * is what we want: staff can still change the engagement. For a SIGNED one it
+ * is dangerous, because it means today's settings decide what yesterday's
+ * signed contract says.
+ *
+ * So a signed engagement renders from the snapshot taken when the client
+ * signed, and nothing staff change afterwards can alter it. A signed
+ * engagement carrying no snapshot was signed before this feature existed and
+ * gets no 64-8 — it cannot acquire one retrospectively.
+ */
+export function resolve648(args: {
+  letterMeta?: Record<string, unknown> | null;
+  acceptanceData?: Record<string, unknown> | null;
+  /** True when rendering the signed copy of an accepted engagement. */
+  signed: boolean;
+}): Form648Snapshot {
+  if (args.signed) {
+    const snap = (args.acceptanceData ?? {}).form648 as Record<string, unknown> | undefined;
+    if (!snap || snap.included !== true) return { included: false, taxes: { ...EMPTY_648_TAXES } };
+    return { included: true, taxes: read648Taxes(snap.taxes) };
+  }
+  const lm = args.letterMeta ?? {};
+  if (lm.include648 !== true) return { included: false, taxes: { ...EMPTY_648_TAXES } };
+  return { included: true, taxes: read648Taxes(lm.taxes648) };
+}
+
 /** True when this firm can issue a 64-8 at all (i.e. we hold its agent codes). */
 export function firmCanIssue648(firm: FirmConfig): boolean {
   return Boolean(firm.agent648);

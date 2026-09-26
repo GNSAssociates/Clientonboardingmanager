@@ -10,7 +10,7 @@
  */
 import { PDFDocument } from "pdf-lib";
 import { FIRMS } from "../lib/firms";
-import { buildForm648Doc, is648Enabled, EMPTY_648_TAXES, type Form648Input } from "../lib/form-648-pdf";
+import { buildForm648Doc, is648Enabled, resolve648, EMPTY_648_TAXES, type Form648Input } from "../lib/form-648-pdf";
 
 let pass = 0;
 const failures: string[] = [];
@@ -172,6 +172,54 @@ const base: Form648Input = {
   check("explicitly on", is648Enabled({ include648: true }), true);
   // Only a real boolean counts; a stray string must not switch it on.
   check("string 'true' does not enable", is648Enabled({ include648: "true" }), false);
+}
+
+// --- 9. Engagements already sent or already signed must not change.
+{
+  // (a) Signed before this feature existed: no snapshot, no letterMeta flag.
+  check(
+    "pre-feature signed engagement gets no 64-8",
+    resolve648({ letterMeta: { includeAnnexA: true }, acceptanceData: { signatureName: "A" }, signed: true }).included,
+    false,
+  );
+
+  // (b) The dangerous case. A client signed WITHOUT a 64-8; staff later switch
+  //     it on for that client. The signed copy is re-rendered from letterMeta
+  //     on every download, so without the snapshot rule it would silently
+  //     acquire an authorisation the client never signed.
+  check(
+    "toggling on after signing cannot alter the signed copy",
+    resolve648({ letterMeta: { include648: true, taxes648: { vat: true } }, acceptanceData: { signatureName: "A" }, signed: true }).included,
+    false,
+  );
+
+  // (c) And the reverse: a client DID sign one, staff later switch it off.
+  //     The signed record must still show what they signed.
+  const signedOn = resolve648({
+    letterMeta: { include648: false },
+    acceptanceData: { form648: { included: true, taxes: { corpTax: true, vat: true } } },
+    signed: true,
+  });
+  check("toggling off after signing cannot erase it", signedOn.included, true);
+  check("signed tick set is the client's, not today's", signedOn.taxes.corpTax, true);
+  check("signed tick set keeps VAT", signedOn.taxes.vat, true);
+  check("signed tick set keeps SA off", signedOn.taxes.sa, false);
+
+  // (d) Staff edits to a sent-but-unsigned engagement DO apply — that is the
+  //     flexibility asked for, and no client has agreed to anything yet.
+  const unsigned = resolve648({ letterMeta: { include648: true, taxes648: { sa: true } }, acceptanceData: null, signed: false });
+  check("unsigned engagement follows current settings", unsigned.included, true);
+  check("unsigned engagement follows current ticks", unsigned.taxes.sa, true);
+
+  // (e) A client who unticked a tax must not have it reinstated by the
+  //     engagement's own defaults.
+  const unticked = resolve648({
+    letterMeta: { include648: true, taxes648: { corpTax: true, vat: true, cis: true } },
+    acceptanceData: { form648: { included: true, taxes: { corpTax: true, vat: true } } },
+    signed: true,
+  });
+  check("tax the client unticked stays unticked", unticked.taxes.cis, false);
+  check("taxes the client kept remain", unticked.taxes.corpTax, true);
 }
 
 console.log(`\n${pass} passed, ${failures.length} failed`);
