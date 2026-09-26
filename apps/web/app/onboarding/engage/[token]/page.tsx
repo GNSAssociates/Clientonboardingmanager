@@ -878,6 +878,20 @@ export default function EngagementPage() {
             </a>
           )}
 
+          {/* Everything we hold for this engagement, in one file — the signed
+              contract, the 64-8 where one applies, and the authority letter
+              that goes to the previous accountant in the client's name. That
+              last one is addressed to a third party, so without this the
+              client would never see a document signed on their behalf. */}
+          {mode === 'engagement' && (
+            <a
+              href={`/api/onboarding/links/${token}/bundle?download=1`}
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold text-purple-700 bg-white border-2 border-purple-300 mb-3 hover:bg-purple-50"
+            >
+              <FileText size={18} /> Download all your signed documents in one file
+            </a>
+          )}
+
           {mode === 'engagement' && (
             <div className="space-y-3">
               {anyReady && result?.uploadUrl && (
