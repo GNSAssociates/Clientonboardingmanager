@@ -10,7 +10,7 @@
  */
 import { PDFDocument } from "pdf-lib";
 import { FIRMS } from "../lib/firms";
-import { buildForm648Doc, EMPTY_648_TAXES, type Form648Input } from "../lib/form-648-pdf";
+import { buildForm648Doc, is648Enabled, EMPTY_648_TAXES, type Form648Input } from "../lib/form-648-pdf";
 
 let pass = 0;
 const failures: string[] = [];
@@ -158,6 +158,20 @@ const base: Form648Input = {
   }
   check("signed copy has no editable fields", count, 0);
   check("signed copy page count", reloaded.getPageCount(), 3);
+}
+
+// --- 8. Engagements that predate this feature must not acquire a 64-8.
+//
+// Their PDFs are rebuilt on every request, so a missing flag defaulting to
+// "include" would retrospectively add an authorisation to contracts that are
+// already signed.
+{
+  check("no letterMeta at all", is648Enabled(undefined), false);
+  check("letterMeta with no flag (pre-existing engagement)", is648Enabled({ includeAnnexA: true }), false);
+  check("explicitly off", is648Enabled({ include648: false }), false);
+  check("explicitly on", is648Enabled({ include648: true }), true);
+  // Only a real boolean counts; a stray string must not switch it on.
+  check("string 'true' does not enable", is648Enabled({ include648: "true" }), false);
 }
 
 console.log(`\n${pass} passed, ${failures.length} failed`);

@@ -60,6 +60,43 @@ const cases = [
   },
 ];
 
+/**
+ * A ruled copy of page 1.
+ *
+ * The signature and date boxes are not in the AcroForm, so their position can
+ * only be confirmed by eye. This draws a labelled scale down the declaration
+ * band so the correct y value can be read straight off the form instead of
+ * guessed at over several rounds.
+ */
+async function writeRuler(dest: string) {
+  const { PDFDocument: Doc, rgb, StandardFonts } = await import("pdf-lib");
+  const { FORM_648_TEMPLATE_BASE64 } = await import("../lib/form-648-template");
+  const pdf = await Doc.load(Buffer.from(FORM_648_TEMPLATE_BASE64, "base64"));
+  pdf.getForm().flatten();
+  const page = pdf.getPages()[0]!;
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  for (let y = 150; y <= 300; y += 5) {
+    const major = y % 25 === 0;
+    page.drawRectangle({
+      x: 36,
+      y,
+      width: major ? 262 : 250,
+      height: 0.4,
+      color: major ? rgb(0.85, 0.1, 0.1) : rgb(0.35, 0.6, 0.95),
+      opacity: major ? 0.85 : 0.5,
+    });
+    page.drawText(String(y), {
+      x: 300,
+      y: y - 2.5,
+      size: major ? 7 : 5.5,
+      font,
+      color: major ? rgb(0.85, 0.1, 0.1) : rgb(0.35, 0.6, 0.95),
+    });
+  }
+  fs.writeFileSync(dest, await pdf.save());
+  console.log(`${"ruler-page1.pdf".padEnd(38)} scale drawn from y=150 to y=300`);
+}
+
 for (const c of cases) {
   const bytes = await buildForm648Bytes(c.input as Parameters<typeof buildForm648Bytes>[0]);
   const dest = path.join(outDir, c.file);
@@ -73,3 +110,5 @@ for (const c of cases) {
   }
   console.log(`${c.file.padEnd(38)} ${bytes.length} bytes, ${doc.getPageCount()} pages, fields left after flatten: ${residualFields}`);
 }
+
+await writeRuler(path.join(outDir, "ruler-page1.pdf"));

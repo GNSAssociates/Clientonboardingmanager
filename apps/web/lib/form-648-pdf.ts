@@ -116,8 +116,17 @@ const INK = rgb(0.1, 0.24, 0.63);
  * are exact: the client phone-number box sits at y=295 and the agent address
  * box at y=158, and the declaration block falls between them.
  */
-const SIG = { x: 46, y: 201, maxW: 230, maxH: 26 };
-const DATE = { x: 78, y: 190 };
+/*
+ * Derived from the left column's row rhythm, which the AcroForm fixes exactly:
+ * every box there is 16pt tall on a 17pt pitch (client address boxes run
+ * 363/346/329/312/295, agent boxes 158/141/124/107/90). The declaration block
+ * sits between the client phone box (bottom 295) and the agent heading above
+ * the agent address box (bottom 158), so its own rows fall out of that pitch:
+ * three lines of declaration text, a tall Signature row, then a Date row of
+ * normal height. A value's baseline sits ~4pt above its row's floor.
+ */
+const SIG = { x: 46, y: 216, maxW: 230, maxH: 26 };
+const DATE = { x: 78, y: 199 };
 /** Right column below the shaded panel (which ends at y=128) is clear. */
 const NOTE = { x: 306, y: 112, width: 250 };
 
@@ -158,6 +167,27 @@ export function formatSignedDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/**
+ * Whether an engagement includes a 64-8, decided from its stored letterMeta.
+ *
+ * A MISSING flag means NO — deliberately the opposite of how the other optional
+ * sections behave (`includeAnnexA !== false` treats missing as yes).
+ *
+ * Engagement PDFs are not stored. Every request rebuilds the letter from
+ * letterMeta, the signed copy included. So if a missing flag meant "include",
+ * then the moment this feature shipped, every engagement already sent — and
+ * every one already SIGNED — would start producing a contract with a 64-8
+ * appended to it that the client never saw and never authorised. The signed PDF
+ * is the record of what was agreed; it must keep saying what it said on the day
+ * it was signed.
+ *
+ * "On by default" is a property of the wizard, which writes an explicit `true`
+ * for new engagements. It is not a property of reading old records.
+ */
+export function is648Enabled(letterMeta: Record<string, unknown> | null | undefined): boolean {
+  return (letterMeta ?? {}).include648 === true;
 }
 
 /** True when this firm can issue a 64-8 at all (i.e. we hold its agent codes). */
