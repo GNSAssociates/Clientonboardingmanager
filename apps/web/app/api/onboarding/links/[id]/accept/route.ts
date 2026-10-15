@@ -126,7 +126,14 @@ export async function POST(
       token,
       clientIp(req),
     );
-    if (!engageSession.valid && normalise(confirmEmail) !== normalise(link.clientEmail)) {
+    /* THE EMAILED CODE IS THE GATE, AND NOW IT IS THE ONLY GATE.
+       This also accepted a matching email address instead — but the public link
+       endpoint returned that very address to anyone holding the token, so the
+       two cancelled out and the code protected nothing: a forwarded link was
+       enough to sign an engagement, a 64-8 and an authority letter in the
+       client's name. A client whose proof has expired requests a new code,
+       which is what the message below already told them to do. */
+    if (!engageSession.valid) {
       return NextResponse.json(
         {
           error: engageSession.reason === "expired"

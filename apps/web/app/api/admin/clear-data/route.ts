@@ -14,9 +14,28 @@ export async function POST(req: NextRequest) {
   const session = getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  /* ADMIN ONLY. "Logged in" was the whole check, so the most junior account —
+     or anyone holding any session at all — could delete every engagement,
+     clearance request and document record in the live database. The confirm
+     word stops an accident; it does nothing about who is asking. */
+  if (!session.isAdmin) {
+    return NextResponse.json({ error: "Administrators only" }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => ({}));
   if (body?.confirm !== "DELETE ALL") {
     return NextResponse.json({ error: 'Send { "confirm": "DELETE ALL" } to proceed' }, { status: 400 });
+  }
+
+  /* AND NOT AGAINST THE LIVE DATABASE BY ACCIDENT. A staging copy pointed at
+     the production database would delete production rows from a screen marked
+     "test". Set ALLOW_CLEAR_DATA=yes deliberately, on the machine where it is
+     meant to be possible. */
+  if (process.env.ALLOW_CLEAR_DATA !== "yes") {
+    return NextResponse.json(
+      { error: "Disabled here. Set ALLOW_CLEAR_DATA=yes on the machine where this is intended." },
+      { status: 403 },
+    );
   }
 
   try {

@@ -41,17 +41,14 @@ async function uploadToSupabase(
   // These are KYC/ID documents, so the bucket must stay PRIVATE. Return a signed
   // URL (valid 1 year) instead of a public URL so staff can view the file
   // without the object being world-readable.
-  const signRes = await fetch(`${supabaseUrl}/storage/v1/object/sign/${bucket}/${path}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ expiresIn: 60 * 60 * 24 * 365 }),
-  });
-  const signJson = (await signRes.json().catch(() => ({}))) as { signedURL?: string };
-  if (signRes.ok && signJson.signedURL) {
-    return `${supabaseUrl}/storage/v1${signJson.signedURL.replace(/^\/storage\/v1/, "")}`;
-  }
-  // Fall back to the object path if signing is unavailable (still not public).
-  return `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
+  /* WE RECORD WHERE IT IS, NOT A KEY TO IT.
+     This minted a signed URL valid for a YEAR and stored that in the database,
+     and the client-facing endpoint handed it to any holder of the document
+     token. A passport link that works for twelve months, for anyone who ever
+     sees it, does not belong in a row. The path is stored instead, and a link
+     good for a few minutes is signed when someone actually asks to view it
+     (see signDocumentUrl in the GET route). */
+  return `supabase:${bucket}/${path}`;
 }
 
 export async function POST(

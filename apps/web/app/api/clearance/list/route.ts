@@ -1,17 +1,30 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { getDb } from "@gns/db";
+import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
+/* STAFF ONLY.
+ *
+ * This answered anyone on the internet with up to 200 rows of client name,
+ * company number, previous accountant — and link_token, which IS the credential
+ * that protects the signing page, the document portal and the Direct Debit
+ * flow. Anyone who called it could sign engagements as those clients.
+ *
+ * The token is not returned at all now: the screens never used it (it is only
+ * read server-side, in the chase route), so there is no reason for it to leave
+ * the server. */
 export async function GET() {
+  const session = getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const db = getDb();
     const rows = await db.execute(sql.raw(`
       SELECT
         pcr.id,
         pcr.case_id         AS "caseId",
-        pcr.link_token      AS "linkToken",
         pcr.prev_firm_name  AS "prevFirmName",
         pcr.prev_firm_email AS "prevFirmEmail",
         pcr.status,
@@ -35,7 +48,6 @@ export async function GET() {
     `)) as unknown as Array<{
       id: string;
       caseId: string | null;
-      linkToken: string | null;
       prevFirmName: string;
       prevFirmEmail: string | null;
       status: string;
@@ -58,7 +70,6 @@ export async function GET() {
       return {
         id: r.id,
         caseId: r.caseId,
-        linkToken: r.linkToken,
         prevFirmName: r.prevFirmName,
         prevFirmEmail: r.prevFirmEmail,
         status: r.status,

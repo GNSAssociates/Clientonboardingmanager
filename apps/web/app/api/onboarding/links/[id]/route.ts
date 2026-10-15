@@ -163,6 +163,19 @@ export async function PATCH(
   return NextResponse.json({ success: true, ...rest, letterRebuilt: letterHtml !== undefined });
 }
 
+/** "jane.smith@example.co.uk" -> "j•••@e•••.co.uk" — enough to recognise. */
+function maskEmail(email: string | null | undefined): string | null {
+  const raw = (email ?? "").trim();
+  const at = raw.indexOf("@");
+  if (at < 1) return null;
+  const user = raw.slice(0, at);
+  const host = raw.slice(at + 1);
+  const dot = host.indexOf(".");
+  const hostHead = dot > 0 ? host.slice(0, dot) : host;
+  const hostTail = dot > 0 ? host.slice(dot) : "";
+  return user[0] + "•••@" + hostHead[0] + "•••" + hostTail;
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -215,7 +228,15 @@ export async function GET(
       token: link.token,
       companyName: link.companyName,
       companyNumber: link.companyNumber,
-      clientEmail: link.clientEmail,
+      /* NOT the address itself. This endpoint needs no credential beyond the
+         token, and the token travels by email, sits in browser history and can
+         be forwarded. Returning the address let anyone holding the link read it
+         here and post it straight back as "confirmEmail" to sign in the
+         client's name — which made the emailed code decorative. A masked hint
+         is all the page needs to say where the code went; the real address is
+         returned by verify-otp and /session, to someone who has proved they
+         hold the mailbox. */
+      clientEmailHint: maskEmail(link.clientEmail),
       directorName: link.directorName,
       firmSlug: link.firmSlug,
       services: link.services,

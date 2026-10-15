@@ -32,7 +32,9 @@ interface OnboardingLinkData {
   id: string;
   companyName: string;
   companyNumber: string;
-  clientEmail: string;
+  /** Masked ("j•••@e•••.co.uk"). The real address is only returned once the
+   *  client has proved they hold the mailbox, by verify-otp or /session. */
+  clientEmailHint: string | null;
   directorName: string;
   firmSlug: string;
   services: Array<{ id: string; name: string; price: number; oneoff?: boolean }>;
@@ -562,12 +564,15 @@ export default function EngagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: otpCode.trim() }),
       });
-      const data = await res.json() as { verified?: boolean; error?: string; expiresInMinutes?: number };
+      const data = await res.json() as { verified?: boolean; error?: string; expiresInMinutes?: number; email?: string };
       if (!res.ok) throw new Error(data.error || 'Verification failed');
       setVerified(true);
       setSessionExpired(false);
-      setVerifyEmail(link.clientEmail || '');
-      restoredEmailRef.current = link.clientEmail || '';
+      // The real address comes back WITH the verification. The public link
+      // endpoint now returns only a masked hint, so that anyone holding a
+      // forwarded link cannot read the address and sign as the client.
+      setVerifyEmail(data.email || '');
+      restoredEmailRef.current = data.email || '';
       // The server has just set the 30-minute proof; mirror its clock so the
       // page knows when to ask again without another round trip.
       setSessionExpiresAt(Date.now() + (data.expiresInMinutes ?? 30) * 60_000);
@@ -858,7 +863,7 @@ export default function EngagementPage() {
               : ` Your contract with ${firm.legalName} has been signed and confirmed.`}
           </p>
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 text-left space-y-2 mb-6">
-            <p className="text-sm text-gray-700">✅ Confirmation sent to <strong>{link.clientEmail}</strong></p>
+            <p className="text-sm text-gray-700">✅ Confirmation sent to <strong>{verifyEmail || link.clientEmailHint}</strong></p>
             {!noPrevAccountant && prevEmail && (
               <p className="text-sm text-gray-700">✅ Professional clearance request sent to <strong>{prevEmail}</strong></p>
             )}
