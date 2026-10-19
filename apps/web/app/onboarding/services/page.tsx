@@ -330,6 +330,14 @@ function ServicesPageInner() {
   // Draft autosave/resume: token lives in the URL (?draft=) so a refresh or a
   // dashboard "Resume" click restores exactly where the staff member left off.
   const [draftToken, setDraftToken] = useState<string | null>(searchParams.get('draft'));
+  /* Reopening a SENT engagement to re-price it, rather than building a new
+     one. The wizard is otherwise identical; what changes is that there is
+     already a client holding this link, so it saves back to that engagement
+     instead of creating another. */
+  const editToken = searchParams.get('edit');
+  const editMode = Boolean(editToken);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const hydrated = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -532,9 +540,25 @@ function ServicesPageInner() {
   // ── Resume a saved draft on mount ──────────────────────────────────────────
   useEffect(() => {
     const t = searchParams.get('draft');
-    if (!t) { hydrated.current = true; return; }
+    const e = searchParams.get('edit');
+    if (!t && !e) { hydrated.current = true; return; }
     (async () => {
-      const d = await loadWizardDraft(t);
+      /* Edit mode reads the engagement itself. The wizard draft blob does not
+         survive sending, so the state is rebuilt from the engagement; the
+         endpoint returns the same shape, so the hydration below is shared. */
+      let d: Awaited<ReturnType<typeof loadWizardDraft>> = null;
+      if (e) {
+        const res = await fetch(`/api/onboarding/links/${e}/edit`);
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setEditError(j.error || 'This engagement cannot be edited.');
+          hydrated.current = true;
+          return;
+        }
+        d = (await res.json()) as Awaited<ReturnType<typeof loadWizardDraft>>;
+      } else {
+        d = await loadWizardDraft(t!);
+      }
       if (d) {
         if (d.firmSlug) setFirmSlug(d.firmSlug);
         setCompanyNumber(d.companyNumber || '');
@@ -583,6 +607,11 @@ function ServicesPageInner() {
   // ── Debounced autosave whenever the wizard state changes ────────────────────
   useEffect(() => {
     if (!hydrated.current) return;
+    /* No draft autosave when re-pricing a sent engagement: the draft blob
+       would be written into a live engagement letterMeta, and the changes are
+       saved deliberately instead, so a half-typed fee never reaches a client
+       who is holding the link right now. */
+    if (editMode) return;
     const hasContent = selected.length || selectedOneoff.length || customFees.length || companyNumber || directorEmail;
     if (!hasContent) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -758,9 +787,46 @@ function ServicesPageInner() {
       oneoff: true,
     }));
     const selectedServices = [...monthlyServices, ...oneoffServices];
-    const cleanCustomFees = customFees.filter((c) => c.description.trim());
     // Only pass scope rows that were actually changed from the defaults
-    const scopeChanged = JSON.stringify(scopeRows) !== JSON.stringify(DEFAULT_SCOPE_ROWS);
+    const scopeChangedForSave = JSON.stringify(scopeRows) !== JSON.stringify(DEFAULT_SCOPE_ROWS);
+    const scopeChanged = scopeChangedForSave;
+    const cleanCustomFees = customFees.filter((c) => c.description.trim());
+
+    /* EDIT MODE: save back to the engagement the client already holds.
+       No new link, no new token, nothing re-emailed — the stored letter is
+       rebuilt so the client opens the corrected fees on the same URL. The
+       server re-checks that the client has still committed to nothing, so a
+       Direct Debit set up while this page was open cannot be overtaken. */
+    if (editMode && editToken) {
+      setSavingEdit(true);
+      setEditError(null);
+      try {
+        const res = await fetch(`/api/onboarding/links/${editToken}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            services: selectedServices,
+            customFees: cleanCustomFees,
+            scopeRows: scopeChangedForSave ? scopeRows : undefined,
+            softwareItems,
+            paymentMethod,
+            includeClearance,
+            specialTerms,
+          }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setEditError(j.error || 'Could not save the changes.');
+          return;
+        }
+        router.push(`/staff/clients/${editToken}?updated=1`);
+      } finally {
+        setSavingEdit(false);
+      }
+      return;
+    }
+
+
 
     const token = await saveWizardDraft({
       token: draftToken,
@@ -826,6 +892,28 @@ function ServicesPageInner() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <OnboardingHeader />
+
+      {/* Re-pricing a live engagement is not the same as building a new one,
+          and the page otherwise looks identical — so it says so. */}
+      {editMode && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              editError ? 'bg-red-50 border-red-300 text-red-800' : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}
+          >
+            {editError ? (
+              <><strong>This engagement cannot be edited.</strong> {editError}</>
+            ) : (
+              <>
+                <strong>Editing a contract that has already been sent.</strong> Saving rewrites the fees the client
+                sees on their existing link — same link, nothing re-emailed. If they have already read it, tell them
+                what changed.
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <div className="w-full max-w-3xl">
         {/* Progress indicator */}
         <div className="mb-8">
@@ -1756,16 +1844,16 @@ function ServicesPageInner() {
 
           <button
             onClick={handleContinue}
-            disabled={!canContinue || loading}
+            disabled={!canContinue || loading || savingEdit}
             className={`flex items-center gap-2 px-8 py-3 rounded-lg font-semibold transition-all ${
               !canContinue
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:shadow-lg hover:scale-105'
             }`}
           >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : null}
-            Continue
-            <ChevronRight size={20} />
+            {loading || savingEdit ? <Loader2 size={18} className="animate-spin" /> : null}
+            {editMode ? 'Save changes' : 'Continue'}
+            {editMode ? null : <ChevronRight size={20} />}
           </button>
         </div>
       </div>

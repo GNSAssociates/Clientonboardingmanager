@@ -235,6 +235,12 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
           {details.editState.editable ? (
             <>
               <strong>Fees and services can still be changed.</strong> The client has not committed to anything yet.
+              <a
+                href={`/onboarding/services?edit=${token}`}
+                className="ml-2 inline-flex items-center gap-1 font-semibold underline underline-offset-2"
+              >
+                Edit fees &amp; services
+              </a>
               {details.editState.warnings.length > 0 && (
                 <span className="block mt-1 text-amber-800">
                   {details.editState.warnings.join(' ')} Let them know if you change anything.
