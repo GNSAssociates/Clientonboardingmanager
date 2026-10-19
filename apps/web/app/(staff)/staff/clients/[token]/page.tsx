@@ -32,6 +32,7 @@ interface Details {
   paymentMethod?: string;
   includeClearance?: boolean;
   specialTerms?: string;
+  editState?: { editable: boolean; blockers: string[]; warnings: string[] };
   gocardless?: { mandateId?: string; ddConfirmed?: boolean; success?: boolean; configured?: boolean; error?: string } | null;
   engagement: {
     status: string; sentAt: string | null; acceptedAt: string | null; expiresAt: string;
@@ -221,6 +222,33 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
             ? 'The letter collects their previous accountant, and we request clearance when they sign.'
             : 'Switched off — the client is not asked, and no clearance or authority letter is sent.'} />
       </div>
+
+      {/* Whether the commercial terms are still open, stated plainly. Staff
+          should not have to guess, or discover it only when a save is
+          refused. */}
+      {details.editState && (
+        <div className={`mt-1 mb-1 rounded-lg px-3 py-2 text-xs border ${
+          details.editState.editable
+            ? 'bg-green-50 border-green-200 text-green-900'
+            : 'bg-gray-100 border-gray-300 text-gray-700'
+        }`}>
+          {details.editState.editable ? (
+            <>
+              <strong>Fees and services can still be changed.</strong> The client has not committed to anything yet.
+              {details.editState.warnings.length > 0 && (
+                <span className="block mt-1 text-amber-800">
+                  {details.editState.warnings.join(' ')} Let them know if you change anything.
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <strong>Fees and services are locked.</strong> {details.editState.blockers.join(' ')}{' '}
+              Issue a new engagement, or record the change as agreed terms below.
+            </>
+          )}
+        </div>
+      )}
 
       {/* Where a negotiated change goes. Editing it rebuilds the letter the
           client opens, on the same link — nothing is re-sent, so if they have

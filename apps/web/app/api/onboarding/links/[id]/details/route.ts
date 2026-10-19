@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, getDocumentSubmissions, listClearanceRequestsByLinkToken } from "@gns/db";
 import { DOCUMENT_TYPES, REQUIRED_DOC_IDS } from "@/lib/document-types";
 import { getSession } from "@/lib/auth/session";
+import { engagementEditState } from "@/lib/engagement-edit-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,10 @@ export async function GET(
     includeClearance: (lm.includeClearance as boolean | undefined) !== false,
     // Shown and edited on the client screen, so it has to come back.
     specialTerms: (lm.specialTerms as string) ?? null,
+    /* Whether fees and services can still be changed, and if not, why.
+       Decided from what the CLIENT has done, so the screen can say so rather
+       than offering an edit that the API would then refuse. */
+    editState: engagementEditState(link),
     engagement: {
       status: link.status,
       sentAt: link.sentAt,

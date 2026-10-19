@@ -8,6 +8,7 @@ import { tidyName } from "@/lib/format";
 import { buildLetterHtml, type LetterService, type CustomFee, type ScopeRow, type ChDetails } from "@/lib/letter-html";
 import { loadEngagementLetterOverrides } from "@/lib/template-overrides.server";
 import { resolve648 } from "@/lib/form-648-shared";
+import { engagementEditState, editRefusalMessage } from "@/lib/engagement-edit-gate";
 
 // Staff edits: pause/resume the client document chase, move a client to another
 // firm, or correct core details (name / director / email).
@@ -32,6 +33,10 @@ export async function PATCH(
     paymentMethod?: "dd" | "manual";
     includeClearance?: boolean;
     specialTerms?: string;
+    services?: LetterService[];
+    customFees?: CustomFee[];
+    scopeRows?: ScopeRow[];
+    softwareItems?: Array<{ name: string; price: number }>;
   };
   const db = getDb();
   const link = await db.transaction((tx) => getOnboardingLinkByToken(tx, params.id));
@@ -102,8 +107,29 @@ export async function PATCH(
     );
   }
 
+  /* FEES, SERVICES AND SCOPE — EDITABLE ONLY WHILE THE CLIENT HAS COMMITTED
+     TO NOTHING.
+     Unlike the wording changes above, these change what the client is being
+     asked to pay. A status check alone is not enough: a client can authorise a
+     Direct Debit BEFORE they sign, and moving the fees under an authorised
+     mandate surfaces later as a disputed collection. The gate therefore looks
+     at what the client has actually done — signed, signed on paper, or handed
+     over bank details — and refuses with the reason. */
+  const wantsPricingEdit =
+    "services" in body || "customFees" in body || "scopeRows" in body || "softwareItems" in body;
+  if (wantsPricingEdit) {
+    const gate = engagementEditState(link);
+    if (!gate.editable) {
+      return NextResponse.json({ error: editRefusalMessage(gate), blockers: gate.blockers }, { status: 409 });
+    }
+    if (Array.isArray(body.services)) updates.services = body.services;
+    if (Array.isArray(body.customFees)) nextMeta = { ...nextMeta, customFees: body.customFees };
+    if (Array.isArray(body.scopeRows)) nextMeta = { ...nextMeta, scopeRows: body.scopeRows };
+    if (Array.isArray(body.softwareItems)) nextMeta = { ...nextMeta, softwareItems: body.softwareItems };
+  }
+
   const metaChanged = nextMeta !== meta0;
-  if (metaChanged) updates.letterMeta = nextMeta;
+  if (metaChanged || updates.services !== undefined) updates.letterMeta = nextMeta;
 
   const identityChanged =
     updates.companyName !== undefined ||
@@ -145,7 +171,10 @@ export async function PATCH(
         clientAddress: meta.clientAddress,
         directorName: nextDirectorName,
         partnerName: meta.partnerName,
-        services: (link.services ?? []) as LetterService[],
+        /* The edited services, not the stored ones — `updates` has not been
+           written to the database yet at this point, so reading link.services
+           here would rebuild the letter with the fees we are replacing. */
+        services: ((updates.services ?? link.services) ?? []) as LetterService[],
         customFees: meta.customFees ?? [],
         scopeRows: meta.scopeRows,
         ch: meta.ch ?? null,
