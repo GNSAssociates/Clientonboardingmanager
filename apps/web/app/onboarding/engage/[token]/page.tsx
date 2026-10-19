@@ -45,6 +45,7 @@ interface OnboardingLinkData {
     paymentMethod?: string;
     includeClearance?: boolean;
     include648?: boolean;
+    specialTerms?: string | null;
     taxes648?: Form648Taxes | null;
   } | null;
   prevAccountant?: { firmName: string | null; email: string | null; phone: string | null; address: string | null } | null;
@@ -534,6 +535,9 @@ export default function EngagementPage() {
      Opt-in: a letter issued before this existed reports false and shows
      nothing, so nothing changes for anyone mid-flow. */
   const include648 = link.letterMeta?.include648 === true && mode === 'engagement';
+  /* Flagged in the coverage list so a negotiated variation is something the
+     client is told about, not something they have to find in the letter. */
+  const hasSpecialTerms = Boolean((link.letterMeta?.specialTerms ?? '').trim());
   const firmForGate = getFirm(link.firmSlug || 'gns');
 
   // ── OTP identity gate: send a verification code to the client's email ──
@@ -1402,6 +1406,19 @@ export default function EngagementPage() {
                             agent with HMRC.
                           </p>
                         )}
+                      </div>
+                    </li>
+                  )}
+
+                  {hasSpecialTerms && (
+                    <li className="flex items-start gap-3 py-3">
+                      <CheckCircle2 size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Specific terms agreed with you</p>
+                        <p className="text-xs text-gray-500">
+                          Terms agreed with you individually, set out in their own section just above the signature.
+                          They take precedence over the rest of the letter, so please read them before signing.
+                        </p>
                       </div>
                     </li>
                   )}

@@ -31,6 +31,7 @@ interface Details {
   sendMode?: string;
   paymentMethod?: string;
   includeClearance?: boolean;
+  specialTerms?: string;
   gocardless?: { mandateId?: string; ddConfirmed?: boolean; success?: boolean; configured?: boolean; error?: string } | null;
   engagement: {
     status: string; sentAt: string | null; acceptedAt: string | null; expiresAt: string;
@@ -164,10 +165,12 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
   const currentClearance = details.includeClearance !== false;
   const [dd, setDd] = useState(currentDd);
   const [clearance, setClearance] = useState(currentClearance);
+  const currentTerms = details.specialTerms ?? '';
+  const [terms, setTerms] = useState(currentTerms);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const changed = dd !== currentDd || clearance !== currentClearance;
+  const changed = dd !== currentDd || clearance !== currentClearance || terms.trim() !== currentTerms.trim();
   const ddAlreadySetUp = Boolean(details.gocardless?.ddConfirmed);
 
   const save = async () => {
@@ -175,7 +178,7 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
     try {
       const res = await fetch(`/api/onboarding/links/${token}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethod: dd ? 'dd' : 'manual', includeClearance: clearance }),
+        body: JSON.stringify({ paymentMethod: dd ? 'dd' : 'manual', includeClearance: clearance, specialTerms: terms }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || 'Could not save');
@@ -217,6 +220,30 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
           desc={clearance
             ? 'The letter collects their previous accountant, and we request clearance when they sign.'
             : 'Switched off — the client is not asked, and no clearance or authority letter is sent.'} />
+      </div>
+
+      {/* Where a negotiated change goes. Editing it rebuilds the letter the
+          client opens, on the same link — nothing is re-sent, so if they have
+          already read it, tell them it has changed. */}
+      <div className="pt-3 mt-1 border-t border-gray-200">
+        <p className="text-sm font-semibold text-gray-800">Specific terms agreed with this client</p>
+        <p className="text-xs text-gray-500 mb-2">
+          Anything agreed that the standard letter does not cover. Prints as its own clause just above the
+          signature and takes precedence over the rest of the letter.
+        </p>
+        <textarea
+          value={terms}
+          onChange={(e) => setTerms(e.target.value)}
+          rows={4}
+          placeholder="e.g. The first quarter's bookkeeping fee is waived."
+          className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+        />
+        {terms.trim() !== currentTerms.trim() && (
+          <p className="mt-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Saving rewrites the contract this client opens. They keep the same link and nothing is re-sent, so
+            let them know if they have already read it.
+          </p>
+        )}
       </div>
 
       {dd !== currentDd && !dd && ddAlreadySetUp && (

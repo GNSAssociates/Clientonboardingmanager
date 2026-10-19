@@ -30,6 +30,8 @@ export interface WizardDraftState {
   /** HMRC form 64-8: whether to append it, and which taxes it authorises. */
   include648?: boolean;
   taxes648?: Partial<Form648Taxes>;
+  /** Terms agreed with this client that the standard letter does not cover. */
+  specialTerms?: string;
   /** Run professional clearance for this client (prev-accountant details are
    *  collected, the outgoing firm is emailed, the authority letter is sent). */
   includeClearance?: boolean;

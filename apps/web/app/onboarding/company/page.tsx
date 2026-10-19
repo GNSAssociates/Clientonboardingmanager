@@ -330,6 +330,7 @@ function CompanyPageInner() {
       paymentMethod: paymentMethodParam,
       includeAnnexA: includeAnnexAParam,
       include648: include648Param,
+      specialTerms: searchParams.get('specialTerms') || undefined,
       taxes648: taxes648Param,
       includeClearance: includeClearanceParam,
       prevFirmName: searchParams.get('prevFirmName') || undefined,

@@ -81,6 +81,7 @@ export async function GET(
         ch: meta.ch ?? null,
         paymentMethod: m.paymentMethod as string | undefined,
         includeAnnexA: m.includeAnnexA as boolean | undefined,
+        specialTerms: m.specialTerms as string | undefined,
         // Specimen preview of an unsigned engagement: current settings.
         form648: (() => { const r = resolve648({ letterMeta: m, signed: false }); return r.included ? { taxes: r.taxes } : null; })(),
         clientType: m.clientType as string | undefined,
@@ -173,6 +174,7 @@ export async function GET(
         ch: meta.ch ?? null,
         paymentMethod: m.paymentMethod as string | undefined,
         includeAnnexA: m.includeAnnexA as boolean | undefined,
+        specialTerms: m.specialTerms as string | undefined,
         /* No 64-8 in the Word export: HMRC's form is a PDF and cannot be
            carried by a .docx. This is an unsigned staff working copy (the
            route refuses .docx for signed letters), so nothing is lost — the
@@ -262,6 +264,7 @@ export async function GET(
         ch: meta.ch ?? null,
         paymentMethod: m.paymentMethod as string | undefined,
         includeAnnexA: m.includeAnnexA as boolean | undefined,
+        specialTerms: m.specialTerms as string | undefined,
         /* Signed copies render from the snapshot taken when the client signed,
            so nothing changed since can alter what they authorised. */
         form648: (() => { const r = resolve648({ letterMeta: m, acceptanceData: acc, signed: wantSigned }); return r.included ? { taxes: r.taxes } : null; })(),

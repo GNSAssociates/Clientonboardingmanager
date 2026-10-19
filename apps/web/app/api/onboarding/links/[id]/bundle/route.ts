@@ -63,6 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     ch: (meta.ch as ChDetails) ?? null,
     paymentMethod: meta.paymentMethod as string | undefined,
     includeAnnexA: meta.includeAnnexA as boolean | undefined,
+    specialTerms: meta.specialTerms as string | undefined,
     clientType: meta.clientType as string | undefined,
     clientName: meta.clientName as string | undefined,
     utr: meta.utr as string | undefined,

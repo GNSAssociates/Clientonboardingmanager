@@ -31,6 +31,7 @@ export async function PATCH(
        previous accountant — and the alternative was reissuing the engagement. */
     paymentMethod?: "dd" | "manual";
     includeClearance?: boolean;
+    specialTerms?: string;
   };
   const db = getDb();
   const link = await db.transaction((tx) => getOnboardingLinkByToken(tx, params.id));
@@ -72,6 +73,15 @@ export async function PATCH(
   if (body.paymentMethod === "dd" || body.paymentMethod === "manual") {
     nextMeta = { ...nextMeta, paymentMethod: body.paymentMethod };
   }
+  /* Terms agreed with this client, editable after sending because a client
+     negotiating is exactly when they get written. Safe to change here: the
+     letter is rebuilt in place below, and the signed-contract guard further
+     down refuses this outright once there is a signature. Empty clears the
+     clause rather than leaving an empty heading in the contract. */
+  if (typeof body.specialTerms === "string") {
+    const next = body.specialTerms.trim();
+    nextMeta = { ...nextMeta, specialTerms: next || undefined };
+  }
   if (typeof body.includeClearance === "boolean") {
     nextMeta = { ...nextMeta, includeClearance: body.includeClearance,
                  clearanceMode: body.includeClearance ? "client" : "none" };
@@ -102,7 +112,7 @@ export async function PATCH(
     metaChanged;
   if (identityChanged && link.status === "accepted") {
     return NextResponse.json(
-      { error: "This engagement has been signed. The signatory, email, payment method and clearance setting cannot be changed on an executed contract." },
+      { error: "This engagement has been signed. The signatory, email, payment method, clearance setting and agreed terms cannot be changed on an executed contract. Issue a new engagement, or record the variation separately." },
       { status: 409 },
     );
   }
@@ -123,6 +133,7 @@ export async function PATCH(
         clientAddress?: string; ch?: ChDetails | null; regBody?: string;
         paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
         clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
+        specialTerms?: string;
       };
       const overrides = await loadEngagementLetterOverrides(firm.slug);
       updates.letterHtml = buildLetterHtml({
@@ -142,6 +153,7 @@ export async function PATCH(
         appUrl: process.env.NEXT_PUBLIC_APP_URL,
         paymentMethod: meta.paymentMethod,
         includeAnnexA: meta.includeAnnexA,
+        specialTerms: meta.specialTerms,
         clientType: meta.clientType,
         clientName: meta.clientName,
         utr: meta.utr,
@@ -264,6 +276,9 @@ export async function GET(
         // Defaults to true so every letter issued before this flag existed
         // keeps asking, exactly as it does today.
         includeClearance: (link.letterMeta as Record<string, unknown> | null)?.includeClearance !== false,
+        // Only whether terms exist and what they say — the client is about to
+        // sign them, so this is their own contract text, not internal data.
+        specialTerms: ((link.letterMeta as Record<string, unknown> | null)?.specialTerms as string) ?? null,
         /* The 64-8, and the taxes it would authorise, so the signing page can
            show the client what they are about to authorise and let them untick
            any of it. Resolved rather than read raw, so an engagement issued

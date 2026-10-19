@@ -72,6 +72,8 @@ export interface PostAcceptanceLink {
 }
 
 export interface PostAcceptanceMeta {
+  /** Terms agreed with this client that the standard letter does not cover. */
+  specialTerms?: string;
   partnerName?: string;
   /** Products behind the software subscription line, shown as sub-rows. */
   softwareItems?: Array<{ name: string; price: number }>;
@@ -178,6 +180,7 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         customFees: meta.customFees ?? [], scopeRows: meta.scopeRows ?? undefined,
         ch: meta.ch ?? null,
         paymentMethod: meta.paymentMethod, includeAnnexA: meta.includeAnnexA,
+        specialTerms: meta.specialTerms,
         clientType: meta.clientType, clientName: meta.clientName, utr: meta.utr, softwareItems: meta.softwareItems,
         dateStr: new Date(link.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
         // Signed-copy fields: the client's executed signature, timestamp and IP.

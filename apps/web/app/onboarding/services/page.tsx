@@ -378,6 +378,10 @@ function ServicesPageInner() {
      selection changes, so the seed only applies until they touch the list. */
   const [taxes648Touched, setTaxes648Touched] = useState(false);
   const [preview648Busy, setPreview648Busy] = useState(false);
+  /* Anything agreed with this client that the standard letter does not say.
+     Per client — the /staff/templates intro and closing apply to every client
+     of a firm, so they are the wrong place for one client's negotiation. */
+  const [specialTerms, setSpecialTerms] = useState('');
   // Professional clearance: ON unless staff deliberately exclude it (some
   // handovers are arranged by email outside the app).
   const [includeClearance, setIncludeClearance] = useState(true);
@@ -549,6 +553,7 @@ function ServicesPageInner() {
         if (d.includeInLetter) setIncludeInLetter(d.includeInLetter as Record<string, boolean>);
         if (d.includeAnnexA !== undefined) setIncludeAnnexA(d.includeAnnexA as boolean);
         if (d.include648 !== undefined) setInclude648(d.include648 as boolean);
+        if (d.specialTerms !== undefined) setSpecialTerms((d.specialTerms as string) ?? '');
         if (d.taxes648 !== undefined) {
           setTaxes648({ ...EMPTY_648_TAXES, ...(d.taxes648 as Partial<Form648Taxes>) });
           // A saved tick set is a deliberate choice; do not re-seed over it.
@@ -604,6 +609,7 @@ function ServicesPageInner() {
         includeAnnexA,
         include648,
         taxes648,
+        specialTerms,
         includeClearance,
         clearanceMode,
         prevFirmName: prefillPrevFirm || undefined,
@@ -793,6 +799,7 @@ function ServicesPageInner() {
     if (scopeChanged) q.set('scopeRows', JSON.stringify(scopeRows));
     q.set('paymentMethod', paymentMethod);
     q.set('includeAnnexA', includeAnnexA ? '1' : '0');
+    if (specialTerms.trim()) q.set('specialTerms', specialTerms.trim());
     /* Always sent explicitly, never left to a default on the far side: a
        missing flag has to keep meaning "no 64-8" so existing engagements are
        untouched, which only works if new ones always say what they want. */
@@ -939,6 +946,29 @@ function ServicesPageInner() {
               <input type="checkbox" checked={includeAnnexA} onChange={(e) => setIncludeAnnexA(e.target.checked)} className="sr-only peer" />
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
             </label>
+          </div>
+
+          {/* Anything this client negotiated. Kept here beside the other
+              per-client choices rather than in /staff/templates, which would
+              change the wording for every client of the firm. */}
+          <div className="pt-4 mt-4 border-t border-purple-100">
+            <p className="text-sm font-semibold text-gray-700">Specific terms agreed with this client</p>
+            <p className="text-xs text-gray-500 mb-2">
+              Anything agreed that the standard letter does not cover. Prints as its own clause just above the
+              signature, and takes precedence over anything else in the letter. Leave blank if there is nothing.
+            </p>
+            <textarea
+              value={specialTerms}
+              onChange={(e) => setSpecialTerms(e.target.value)}
+              rows={4}
+              placeholder={'e.g. The first quarter’s bookkeeping fee is waived.\n\nLeave a blank line between points to start a new paragraph.'}
+              className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+            {specialTerms.trim().length > 0 && (
+              <p className="mt-1 text-xs text-gray-500">
+                This will appear in the contract and can still be changed later, up until the client signs.
+              </p>
+            )}
           </div>
 
           {/* HMRC form 64-8. Appended to the contract and covered by the same

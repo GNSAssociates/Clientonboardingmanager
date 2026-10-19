@@ -69,6 +69,16 @@ export interface LetterData {
   // letter, so the clause appears only when the fee-earner asks for it.
   includeDdClause?: boolean;
   ddClauseNote?: string;
+  /**
+   * Terms agreed with THIS client specifically — whatever they asked for that
+   * the standard letter does not say.
+   *
+   * Per engagement, unlike the intro/closing overrides in /staff/templates
+   * which apply to every client of a firm. It prints as its own clause rather
+   * than being folded into an existing paragraph, because a bespoke variation
+   * that a reader has to hunt for is a variation waiting to be disputed.
+   */
+  specialTerms?: string;
   includeAnnexA?: boolean; // default true; when false the SSC annex is omitted
   clientType?: string; // 'limited' | 'llp' | 'sole_trader' | 'btl' | 'partnership' | 'individual'
   clientName?: string; // client / business / trading name (for non-company types)
@@ -257,6 +267,20 @@ export function buildLetterHtml(d: LetterData): string {
   const docVars = { actFor: terms.actFor, companyName: d.companyName, firmName: f.name };
   const introHtml = renderVars(d.introOverrideHtml || templateDef('doc_engagement_intro')!.defaultBody, docVars);
   const closingHtml = renderVars(d.closingOverrideHtml || templateDef('doc_engagement_closing')!.defaultBody, docVars);
+  /* Terms agreed with this client specifically. Placed immediately before the
+     agreement clause so it is the last thing read before signing, and given
+     its own heading so a negotiated variation is never buried mid-paragraph.
+     Escaped and split on blank lines — staff type plain text, so no markup
+     from a free-text box can reach the contract. */
+  const specialTermsText = (d.specialTerms ?? '').trim();
+  const specialTermsHtml = specialTermsText
+    ? `<h2>Specific terms agreed with you</h2>
+  <p>The following has been agreed with you and forms part of this engagement. Where it differs from anything stated elsewhere in this letter, the following applies.</p>
+  ${specialTermsText
+    .split(/\n\s*\n/)
+    .map((para) => `<p>${esc(para.trim()).replace(/\n/g, '<br>')}</p>`)
+    .join('\n  ')}`
+    : '';
   const payModeLabel = isManual ? 'Monthly Invoice' : 'Monthly DD';
   const monthly = d.services.filter((s) => !s.oneoff);
   const oneoff = d.services.filter((s) => s.oneoff);
@@ -733,6 +757,7 @@ export function buildLetterHtml(d: LetterData): string {
   <h3>(c) Other services — contact preferences</h3>
   <p>From time to time we would like to contact you with details of other services we provide. Your chosen contact preferences are recorded in the acceptance section of this contract.</p>
 
+  ${specialTermsHtml}
   <h2>Agreement of terms</h2>
   ${closingHtml}
 

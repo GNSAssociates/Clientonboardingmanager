@@ -827,6 +827,23 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   heading3("(c) Other services — contact preferences");
   text("From time to time we would like to contact you with details of other services we provide. Your chosen contact preferences are recorded in the acceptance section of this contract.", { gap: 8 });
 
+  /* Terms agreed with this client specifically, immediately before the
+     agreement clause — the same position as in the HTML letter, so the two
+     renderings of the same contract say the same things in the same order. */
+  const specialTerms = (d.specialTerms ?? "").trim();
+  if (specialTerms) {
+    heading2("Specific terms agreed with you");
+    text(
+      "The following has been agreed with you and forms part of this engagement. Where it differs from anything stated elsewhere in this letter, the following applies.",
+      { gap: 6 },
+    );
+    specialTerms
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .forEach((para) => text(sanitize(para.replace(/\n/g, " ")), { gap: 6 }));
+  }
+
   heading2("Agreement of terms");
   for (const p of closingText.split(/<\/p>\s*<p>|<p>|<\/p>/i).map((s) => s.trim()).filter(Boolean)) {
     text(decodeEntities(p.replace(/<[^>]+>/g, "")), { gap: 8 });

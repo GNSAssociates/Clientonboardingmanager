@@ -54,6 +54,8 @@ export async function GET(
     paymentMethod,
     // Needed by the client screen so the clearance toggle shows its real state.
     includeClearance: (lm.includeClearance as boolean | undefined) !== false,
+    // Shown and edited on the client screen, so it has to come back.
+    specialTerms: (lm.specialTerms as string) ?? null,
     engagement: {
       status: link.status,
       sentAt: link.sentAt,

@@ -68,6 +68,7 @@ export async function POST(
     paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
     clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
     includeClearance?: boolean;
+    specialTerms?: string;
   };
   const firm = getFirm(link.firmSlug || "gns");
   const isManualPayment = meta.paymentMethod === "manual";
@@ -121,6 +122,7 @@ export async function POST(
       appUrl: process.env.NEXT_PUBLIC_APP_URL,
       paymentMethod: meta.paymentMethod,
       includeAnnexA: meta.includeAnnexA,
+      specialTerms: meta.specialTerms,
       clientType: meta.clientType,
       clientName: meta.clientName,
       utr: meta.utr,
