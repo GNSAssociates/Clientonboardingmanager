@@ -237,8 +237,13 @@ export async function buildClearancePdf(input: ClearancePdfInput): Promise<Buffe
       color: accent,
     });
     // Practising registration, when the firm has one on file.
+    /* regNumberLabel names the body that ISSUED the number, which is not
+       always the firm's primary regBody — so this must match the engagement
+       letter and the Word export, which both label it that way. Reading
+       regBody here meant the same firm could state two different bodies
+       against the same registration number on two documents in one file. */
     const reg = firm.regNumber
-      ? `${firm.regBody} Registration No. ${firm.regNumber}`
+      ? `${firm.regNumberLabel ?? firm.regBody} Registration No. ${firm.regNumber}`
       : `Registered in England and Wales No. ${firm.companyNumber}`;
     p.drawText(sanitize(reg), {
       x: PAGE_W - MARGIN_X - font.widthOfTextAtSize(sanitize(reg), 7.5),

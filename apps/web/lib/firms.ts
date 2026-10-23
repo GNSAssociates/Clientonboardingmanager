@@ -80,8 +80,11 @@ export const FIRMS: Record<string, FirmConfig> = {
     signatureImg: '/logos/gns-signature.png',
     regBody: 'ICAEW',
     regBodies: ['ICAEW', 'ACCA', 'CIOT'],
-    regNumber: '2522384',
-    regNumberLabel: 'ACCA',
+    /* The practice's ICAEW firm registration. It used to carry an ACCA number
+       and an ACCA label here, which put the wrong body and the wrong number on
+       every letterhead the number appears on. */
+    regNumber: 'C008861286',
+    regNumberLabel: 'ICAEW',
     footerShowFax: true,
     regStatement: 'GNS Associates Limited, Chartered Accountants (ICAEW, ACCA, CIOT). Registered in England and Wales, Company Registration No: 08086819.',
     partnerName: 'Lekh Nath Ghimire',
