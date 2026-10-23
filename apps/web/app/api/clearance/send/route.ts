@@ -91,19 +91,6 @@ export async function POST(req: NextRequest) {
     actingPartner = undefined;
   }
 
-  // Client email (for CC on the clearance request) — first contact on the case.
-  let clientEmail: string | undefined;
-  try {
-    const rows = await db.execute(sql`
-      SELECT email FROM client_contacts
-      WHERE client_id = ${clientId} AND email IS NOT NULL
-      ORDER BY created_at LIMIT 1
-    `) as unknown as Array<{ email: string }>;
-    clientEmail = rows[0]?.email ?? undefined;
-  } catch {
-    clientEmail = undefined;
-  }
-
   // Send email with the formal clearance letter attached as a Word document.
   // No portal link — the previous accountant just replies with the records.
   if (firm) {
@@ -139,9 +126,9 @@ export async function POST(req: NextRequest) {
         to: prevFirmEmail,
         toName: prevFirmName,
         replyTo: firm.email,
-        // Firm policy: CC the client and info@ (info@ added centrally by the
-        // template CC map). No other shared inbox.
-        cc: clientEmail,
+        /* The client is not copied — see post-acceptance.ts for why. This is a
+           professional-to-professional request; info@ is still copied centrally
+           by the template CC map. */
         noGlobalCc: true,
         attachments,
         vars: {

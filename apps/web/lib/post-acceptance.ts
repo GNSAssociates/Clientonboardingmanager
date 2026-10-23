@@ -340,9 +340,15 @@ export async function runPostAcceptanceEffects(ctx: PostAcceptanceContext): Prom
         toName: prevFirmName || "Previous Accountant",
         replyTo: firm.email,
         attachments: clearanceAttachments,
-        // Firm policy: CC the client and info@ (info@ added centrally by the
-        // template CC map) on the clearance request. No other shared inbox.
-        cc: link.clientEmail || undefined,
+        /* The client is NOT copied on this.
+           It is a professional-to-professional request to the outgoing
+           accountant, and copying the client in puts them in the middle of a
+           handover they have already authorised — it reads as pressure on the
+           outgoing firm and exposes the client's address to them. The client
+           is told separately that clearance has gone out, in their own
+           confirmation email and on the completion screen, so nothing goes
+           silent by removing this. info@ is still copied, centrally, by the
+           template CC map. */
         noGlobalCc: true,
         vars: {
           companyName: link.companyName ?? "",

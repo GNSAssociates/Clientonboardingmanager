@@ -530,7 +530,6 @@ function ClearanceRequestForm({ token, details, onSent }: { token: string; detai
   const [firmName, setFirmName] = useState(details.previousAccountant?.firmName ?? '');
   const [email, setEmail] = useState(details.previousAccountant?.email ?? '');
   const [address, setAddress] = useState(details.previousAccountant?.address ?? '');
-  const [ccClient, setCcClient] = useState(false);
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -545,7 +544,6 @@ function ClearanceRequestForm({ token, details, onSent }: { token: string; detai
           prevFirmName: firmName.trim(),
           prevFirmEmail: email.trim(),
           prevFirmAddress: address.trim() || undefined,
-          ccClient,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -596,17 +594,17 @@ function ClearanceRequestForm({ token, details, onSent }: { token: string; detai
         </div>
       </div>
 
-      <label className="flex items-center gap-2 mt-3 text-xs text-gray-700 cursor-pointer">
-        <input type="checkbox" checked={ccClient} onChange={(e) => setCcClient(e.target.checked)}
-          className="w-4 h-4 rounded text-amber-600" />
-        Copy {details.director.name || 'the client'} in on this email
-      </label>
+      {/* The option to copy the client in has been removed, not just defaulted
+          off: a clearance request is a professional-to-professional approach to
+          the outgoing accountant, and putting the client on it reads as
+          pressure and hands their address to the other firm. */}
 
       {/* Say plainly what is and is not going, so nobody has to infer it. */}
       <p className="mt-3 text-xs text-gray-700 bg-white border border-amber-200 rounded-lg px-3 py-2">
         <strong>Only our clearance letter is sent.</strong> The client authority letter is not included — it carries the
         client&apos;s signature, and they have not signed one yet. It goes automatically if they sign later, and the
         outgoing firm will not be emailed a second time.
+        {' '}The client is <strong>not</strong> copied on this email — only our own inbox is.
       </p>
 
       {msg && (

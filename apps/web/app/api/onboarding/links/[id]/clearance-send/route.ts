@@ -148,7 +148,10 @@ export async function POST(
       // Default OFF here, unlike the post-signature path: the client has not
       // signed, so copying them into a letter announcing their handover should
       // be a deliberate choice rather than something staff discover afterwards.
-      cc: body.ccClient ? (link.clientEmail || undefined) : undefined,
+      /* The client is never copied on a clearance request — see
+         post-acceptance.ts. `ccClient` is still accepted so an older client
+         screen posting it gets a clean send rather than an error, but it no
+         longer does anything. */
       noGlobalCc: true,
       vars: {
         companyName: link.companyName ?? "",
