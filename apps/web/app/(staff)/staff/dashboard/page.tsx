@@ -158,10 +158,12 @@ export default function MasterDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">Good morning</h1>
             <p className="text-sm text-gray-400 mt-1">{today}</p>
           </div>
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-medium text-green-700">All systems operational</span>
-          </div>
+          {/* A green "All systems operational" light used to sit here. It was
+              written into the page: it checked nothing, pinged nothing, and
+              would have pulsed reassuringly through the two weeks the control
+              panel was down and the subdomain had been deleted. A health light
+              that cannot report ill health is worse than no light, because
+              people believe it. Removed until something actually watches. */}
         </div>
 
         {/* KPI cards */}
