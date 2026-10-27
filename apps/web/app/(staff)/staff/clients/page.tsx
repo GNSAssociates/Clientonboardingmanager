@@ -460,6 +460,18 @@ export default function ClientsPage() {
                   <p className="text-sm text-gray-500">{r.directorName ? `${r.directorName} · ` : ''}{r.clientEmail || 'no email yet'}</p>
                 </Link>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* The handover checklist. Without a way in from here it is
+                      reachable only by typing a URL, which means it does not
+                      exist as far as the person doing the work is concerned. */}
+                  {r.token && (
+                    <Link
+                      href={`/staff/handover/${r.token}`}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 border border-gray-200 hover:bg-gray-50"
+                      title="What we still need from the previous accountant, the client and HMRC"
+                    >
+                      Handover
+                    </Link>
+                  )}
                   {isDraft && (
                     <Link
                       href={resumeHref}

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import OutstandingHandovers from './OutstandingHandovers';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -185,6 +186,14 @@ export default function MasterDashboard() {
             );
           })}
         </div>
+
+        {/* WHAT IS WAITING ON A PERSON.
+            The dashboard reported how much work had been done and never what
+            was outstanding, so the handover items that only a human can settle
+            sat unseen and a partner ended up relaying between staff. This is
+            the work list: one line per client, who is holding it, one click
+            through to the checklist. */}
+        <OutstandingHandovers />
 
         {/* Revenue bar */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
