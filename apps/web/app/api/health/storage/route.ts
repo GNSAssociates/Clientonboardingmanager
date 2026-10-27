@@ -7,14 +7,14 @@ export const runtime = "nodejs";
 /**
  * Document-storage diagnostics (operator-only).
  *
- * Client ID uploads need somewhere to go: Supabase Storage, or the client's
- * OneDrive folder. The cPanel environment box silently drops variables, so a
- * missing key is invisible from outside — and when Supabase was unset the
- * director's upload simply failed with no way to see why.
+ * Client ID uploads need somewhere to go: this server's own disk, and the
+ * client's OneDrive folder. A missing directory or a read-only mount is
+ * invisible from outside, and an upload that fails for that reason looks to
+ * the director like the portal is broken.
  *
- * Reports which destinations the RUNNING process can see (booleans only, never
- * values) and, with &probe=1, actually calls each service so a wrong key shows
- * up as a real error rather than "configured".
+ * Reports what the RUNNING process can see (booleans and paths, never secrets)
+ * and, with &probe=1, actually writes and deletes a file so a permissions
+ * problem shows up as a real error rather than "configured".
  *
  * Locked with AUTH_SHIM_SECRET, passed as ?key= — same pattern as
  * /api/health/mail. Returns 404 when unset or wrong, so it is invisible to
@@ -34,9 +34,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const supabaseUrl = (process.env.SUPABASE_URL ?? "").replace(/\/rest\/v1\/?$/, "");
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-  const supabaseConfigured = Boolean(supabaseUrl && serviceKey);
+  const { DOC_ROOT } = await import("@/lib/doc-store");
+  const canSign = Boolean(process.env.AUTH_SHIM_SECRET);
 
   const graphConfigured = Boolean(
     (process.env.ENTRA_TENANT_ID?.trim() || process.env.MS_GRAPH_TENANT_ID?.trim()) &&
@@ -45,28 +44,36 @@ export async function GET(req: NextRequest) {
   );
 
   const result: Record<string, unknown> = {
-    supabase: { configured: supabaseConfigured, hasUrl: Boolean(supabaseUrl), hasServiceKey: Boolean(serviceKey) },
+    localDisk: { root: DOC_ROOT, canSignLinks: canSign },
     onedrive: { configured: graphConfigured },
-    canAcceptUploads: supabaseConfigured || graphConfigured,
+    canAcceptUploads: canSign,
   };
 
   if (req.nextUrl.searchParams.get("probe") === "1") {
-    // Supabase: list the bucket. Proves the URL AND the key actually work.
-    if (supabaseConfigured) {
+    // The disk: write a file, read it back, remove it. Nothing short of that
+    // distinguishes "the directory is configured" from "uploads will work".
+    try {
+      const { mkdir, writeFile, readFile, unlink, statfs } = await import("node:fs/promises");
+      const { join } = await import("node:path");
+      await mkdir(DOC_ROOT, { recursive: true });
+      const probeFile = join(DOC_ROOT, `.healthcheck-${Date.now()}`);
+      await writeFile(probeFile, "ok");
+      const readBack = (await readFile(probeFile, "utf8")) === "ok";
+      await unlink(probeFile);
+      let freeMb: number | null = null;
       try {
-        const r = await fetch(`${supabaseUrl}/storage/v1/bucket`, {
-          headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
-        });
-        const body = await r.text();
-        (result.supabase as Record<string, unknown>).probe = r.ok
-          ? { ok: true, buckets: (JSON.parse(body) as Array<{ name: string }>).map((b) => b.name) }
-          : { ok: false, status: r.status, error: body.slice(0, 200) };
-      } catch (e) {
-        (result.supabase as Record<string, unknown>).probe = {
-          ok: false,
-          error: e instanceof Error ? e.message : String(e),
-        };
+        const fs = await statfs(DOC_ROOT);
+        freeMb = Math.round((Number(fs.bavail) * Number(fs.bsize)) / 1048576);
+      } catch {
+        /* older kernels have no statfs here; the write test is the part that matters */
       }
+      (result.localDisk as Record<string, unknown>).probe = { ok: readBack, writable: true, freeMb };
+    } catch (e) {
+      (result.localDisk as Record<string, unknown>).probe = {
+        ok: false,
+        writable: false,
+        error: e instanceof Error ? e.message : String(e),
+      };
     }
 
     // OneDrive: fetch a Graph token and check the drive responds.

@@ -6,42 +6,29 @@ import {
   initDocumentSubmissions,
 } from "@gns/db";
 import { DOCUMENT_TYPES } from "@/lib/document-types";
-
-/** How long a link to someone's passport should live. Minutes, not months. */
-const VIEW_MINUTES = Number(process.env.DOCUMENT_LINK_MINUTES || 15);
+import { signLocalUrl } from "@/lib/doc-store";
 
 /**
  * Turn a stored reference into a link that works for a few minutes.
  *
- * Rows written before this change hold a full https URL signed for a year;
- * those are returned as they are, because the link already exists and cannot be
- * un-issued — but nothing new is created that way. Anything stored as
- * "supabase:bucket/path" is signed here, on request, and expires shortly after.
+ * Documents kept on this server are stored as "local:path" and signed here, on
+ * request. Rows written before any of this hold a full https URL that was
+ * signed for a year; those are returned as they are, because the link already
+ * exists and cannot be un-issued — but nothing new is ever created that way.
+ *
+ * "supabase:..." refs are deliberately not handled. Every one of them was
+ * rewritten when the files moved onto this server, so a row still holding one
+ * means something went wrong in that migration and the right answer is to show
+ * nothing rather than a broken link.
  */
-async function signDocumentUrl(ref: string | null | undefined): Promise<string | null> {
+function signDocumentUrl(ref: string | null | undefined): string | null {
   if (!ref) return null;
-  if (!ref.startsWith("supabase:")) return ref;          // legacy URL, or onedrive:
-
-  const supabaseUrl = (process.env.SUPABASE_URL ?? "").replace(/\/rest\/v1\/?$/, "");
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-  if (!supabaseUrl || !serviceKey) return null;
-
-  const [bucket, ...rest] = ref.slice("supabase:".length).split("/");
-  const path = rest.join("/");
-  try {
-    const res = await fetch(`${supabaseUrl}/storage/v1/object/sign/${bucket}/${path}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ expiresIn: VIEW_MINUTES * 60 }),
-    });
-    const json = (await res.json().catch(() => ({}))) as { signedURL?: string };
-    if (res.ok && json.signedURL) {
-      return `${supabaseUrl}/storage/v1${json.signedURL.replace(/^\/storage\/v1/, "")}`;
-    }
-  } catch {
-    /* a document that cannot be signed is simply not shown */
+  if (ref.startsWith("local:")) return signLocalUrl(ref);
+  if (ref.startsWith("supabase:")) {
+    console.error("document row still points at Supabase storage:", ref);
+    return null;
   }
-  return null;
+  return ref; // legacy signed URL, or onedrive:
 }
 
 export async function GET(
@@ -73,18 +60,18 @@ export async function GET(
       companyNumber: link.companyNumber,
       directorName: link.directorName,
       firmSlug: link.firmSlug,
-      docs: await Promise.all(DOCUMENT_TYPES.map(async (dt) => {
+      docs: DOCUMENT_TYPES.map((dt) => {
         const row = rows.find((r) => r.docType === dt.id);
         return {
           ...dt,
           status: row?.status ?? "pending",
           fileName: row?.fileName ?? null,
           // Signed now, for minutes — not a year-old link read out of a row.
-          fileUrl: await signDocumentUrl(row?.fileUrl),
+          fileUrl: signDocumentUrl(row?.fileUrl),
           fileSizeBytes: row?.fileSizeBytes ?? null,
           uploadedAt: row?.uploadedAt ?? null,
         };
-      })),
+      }),
       summary: {
         total: DOCUMENT_TYPES.length,
         required: requiredIds.length,

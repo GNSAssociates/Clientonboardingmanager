@@ -98,7 +98,9 @@ export async function GET(req: NextRequest) {
   const gocardlessVarsSeen = Object.keys(process.env)
     .filter((k) => k.toUpperCase().startsWith("GOCARDLESS"))
     .sort();
-  const supabaseVarsSeen = Object.keys(process.env)
+  // Should be empty now that nothing uses Supabase. A name here means a
+  // leftover variable that could still send a document somewhere we left.
+  const supabaseVarsStillSet = Object.keys(process.env)
     .filter((k) => k.toUpperCase().includes("SUPABASE"))
     .sort();
 
@@ -120,10 +122,11 @@ export async function GET(req: NextRequest) {
     // asked for a fresh code on every single refresh.
     authSecret: Boolean(process.env.AUTH_SHIM_SECRET?.trim()),
     anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
-    // Document uploads use these server-side names (NOT NEXT_PUBLIC_*), so the
-    // health flag must check the same ones the upload route reads.
-    supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
-    supabaseVarsSeen,
+    // Documents are kept on this server's disk and served through links signed
+    // with AUTH_SHIM_SECRET, so that one secret is what uploads depend on.
+    // /api/health/storage?probe=1 actually writes a file and is the real test.
+    documentStore: process.env.DOCUMENT_STORE_DIR || "/opt/gns-onboarding-data/documents",
+    supabaseVarsStillSet,
     gocardlessEnvironment: process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "sandbox" : "live",
     gocardless,
     gocardlessVarsSeen,

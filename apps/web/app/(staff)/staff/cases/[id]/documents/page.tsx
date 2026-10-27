@@ -203,13 +203,15 @@ export default async function DocumentCenterPage({
         )}
       </section>
 
-      {/* Upload form (dev mode: records metadata directly; real: use signed URL flow) */}
+      {/* Records details of a document; the file itself arrives via the client's
+          own upload link, which writes it to this server and to OneDrive. */}
       {canUpload && (
         <section className="rounded-lg border p-5">
           <h2 className="font-medium">Record document upload</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            In production the browser uploads to Supabase Storage directly via signed URL.
-            This form records metadata for a document you&apos;ve already uploaded.
+            This records the details of a document you already have. The file itself comes
+            in through the client&apos;s upload link, which stores it on this server and
+            files a copy in their OneDrive folder.
           </p>
           <form action={recordUploadAction} className="mt-4 space-y-3">
             <input type="hidden" name="caseId" value={c.id} />

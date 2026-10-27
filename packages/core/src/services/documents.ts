@@ -82,24 +82,27 @@ export const overrideClassificationSchema = z.object({
 /* ── service functions ───────────────────────────────────────────────────── */
 
 /**
- * Generate a signed Supabase Storage URL for direct browser upload.
- * Returns a placeholder path in dev mode (no live Supabase).
+ * Used to hand back a Supabase Storage URL the browser could upload straight
+ * to. Documents now live on this server's own disk, so there is no such URL,
+ * and nothing in the application calls this.
+ *
+ * It refuses rather than returning a path, because the failure it would
+ * otherwise cause is the worst kind: a caller uploads a passport to a URL that
+ * no longer answers, the upload appears to succeed, and the document is simply
+ * absent. Uploads go through POST /api/documents/[token]/upload, which writes
+ * to disk and archives to OneDrive.
  */
 export async function getUploadUrl(
   session: AuthSession,
   rawInput: GetUploadUrlInput,
 ): Promise<{ uploadUrl: string; storagePath: string }> {
   authorize(session, "upload_documents");
-  const input = getUploadUrlSchema.parse(rawInput);
+  getUploadUrlSchema.parse(rawInput);
 
-  const ext = input.filename.split(".").pop() ?? "bin";
-  const storagePath = `entities/${input.entityId}/cases/${input.caseId}/docs/${Date.now()}.${ext}`;
-
-  const uploadUrl = process.env["SUPABASE_URL"]
-    ? `${process.env["SUPABASE_URL"]}/storage/v1/object/${storagePath}`
-    : `/dev/storage/${storagePath}`;
-
-  return { uploadUrl, storagePath };
+  throw new Error(
+    "Direct-to-storage uploads were removed when documents moved onto this server. " +
+      "Upload through POST /api/documents/{token}/upload instead.",
+  );
 }
 
 /**

@@ -7,8 +7,8 @@ import * as schema from "./schema/index";
  * Database client (A2 §5 — the service layer is the only writer to Postgres).
  *
  * A single pooled postgres-js connection per server instance, lazily created.
- * Connection string comes from DATABASE_URL (Supabase EU). For Supabase use the
- * pooled (Supavisor) port in serverless to avoid connection exhaustion.
+ * Connection string comes from DATABASE_URL — since October 2026 that is
+ * Postgres on the same machine, on loopback, rather than a hosted service.
  */
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
 

@@ -3,53 +3,7 @@ import { getDb, getOnboardingLinkByToken, upsertDocumentSubmission, getDocumentC
 import { getDocType, REQUIRED_DOC_IDS } from "@/lib/document-types";
 import { archiveToClientFolder } from "@/lib/storage";
 import { moveClientFolderToStage } from "@/lib/onedrive";
-
-// Supabase Storage REST upload (no SDK needed)
-async function uploadToSupabase(
-  path: string,
-  fileBuffer: ArrayBuffer,
-  mimeType: string,
-): Promise<string> {
-  const supabaseUrl = (process.env.SUPABASE_URL ?? "").replace("/rest/v1/", "").replace("/rest/v1", "");
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-  const bucket = "client-documents";
-
-  if (!supabaseUrl || !serviceKey) {
-    // Not an error any more: this deployment may archive to OneDrive instead.
-    // The caller decides what to do when no Supabase bucket is configured.
-    return "";
-  }
-
-  const url = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": mimeType,
-      "x-upsert": "true",
-    },
-    body: fileBuffer,
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.error("Supabase Storage upload failed:", res.status, err);
-    // Surface the real reason instead of silently saving an unusable placeholder.
-    throw new Error(`Storage upload failed (${res.status}). ${err.slice(0, 160)}`);
-  }
-
-  // These are KYC/ID documents, so the bucket must stay PRIVATE. Return a signed
-  // URL (valid 1 year) instead of a public URL so staff can view the file
-  // without the object being world-readable.
-  /* WE RECORD WHERE IT IS, NOT A KEY TO IT.
-     This minted a signed URL valid for a YEAR and stored that in the database,
-     and the client-facing endpoint handed it to any holder of the document
-     token. A passport link that works for twelve months, for anyone who ever
-     sees it, does not belong in a row. The path is stored instead, and a link
-     good for a few minutes is signed when someone actually asks to view it
-     (see signDocumentUrl in the GET route). */
-  return `supabase:${bucket}/${path}`;
-}
+import { putDocument } from "@/lib/doc-store";
 
 export async function POST(
   req: NextRequest,
@@ -98,21 +52,21 @@ export async function POST(
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${params.token}/${docType}_${Date.now()}_${safeName}`;
 
-    // Two possible destinations. Supabase Storage is used when configured;
-    // otherwise the client's OneDrive folder IS the store, not just a mirror.
-    // Previously an unconfigured Supabase threw before OneDrive was even
-    // attempted, so on this deployment the director could never upload their ID
-    // at all — the file went nowhere and the portal just failed.
+    // Two destinations, and the upload survives either one failing. The file is
+    // kept on this server's own disk, and archived into the client's OneDrive
+    // folder because that is where the practice expects every client document
+    // to be. Neither is allowed to abort the other: a drive that could not be
+    // reached used to mean the director's ID went nowhere at all.
     let fileUrl = "";
     let storageConfigured = false;
     let lastError = "";
 
     try {
-      fileUrl = await uploadToSupabase(path, arrayBuffer, file.type);
-      if (fileUrl) storageConfigured = true;
+      fileUrl = await putDocument(path, arrayBuffer);
+      storageConfigured = true;
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
-      console.error("Supabase upload failed, will try OneDrive:", lastError);
+      console.error("Writing the document to this server failed, trying OneDrive:", lastError);
     }
 
     // Always archive to the client's OneDrive folder when it is configured —
@@ -126,8 +80,8 @@ export async function POST(
       });
       if (archived) {
         storageConfigured = true;
-        // With no Supabase bucket, record the OneDrive location so staff can
-        // still find the document from the client's record.
+        // If the disk write failed, the drive is where the document actually
+        // is, so that is what the row has to point at.
         if (!fileUrl) fileUrl = `onedrive:${archived.path}`;
       }
     } catch (e) {
