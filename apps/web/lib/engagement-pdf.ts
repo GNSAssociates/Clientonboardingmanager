@@ -92,6 +92,52 @@ const BODY_BOTTOM = FOOTER_RULE_Y + 16;
 const CREAM_BG = rgb(1, 1, 1);
 
 const BODY_SIZE = 11;
+
+/** The faces a letter can be set in. */
+export type LetterFont = "times" | "helvetica" | "bookman";
+
+export const LETTER_FONT_LABELS: Record<LetterFont, string> = {
+  times: "Times New Roman",
+  helvetica: "Helvetica (sans serif)",
+  bookman: "Bookman Old Style",
+};
+
+/**
+ * Bookman, if a licensed font file has been provided.
+ *
+ * Bookman Old Style is not one of the fourteen faces built into every PDF
+ * reader, so unlike Times it has to be embedded — which means shipping the
+ * font file, which means having the right to. Drop a TTF at
+ * `apps/web/lib/fonts/bookman.ttf` (regular, and optionally -bold / -italic
+ * beside it) and it is used; with no file the letter is set in Times and says
+ * nothing, because a contract quietly rendering in an unexpected face is worse
+ * than one rendering in the default.
+ */
+async function embedBookman(pdf: PDFDocument): Promise<
+  { regular: PDFFont; bold: PDFFont; italic: PDFFont } | null
+> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const dir = join(process.cwd(), "apps", "web", "lib", "fonts");
+    const read = async (name: string) => {
+      try { return await readFile(join(dir, name)); } catch { return null; }
+    };
+    const regularBytes = await read("bookman.ttf");
+    if (!regularBytes) return null;
+    const regular = await pdf.embedFont(regularBytes, { subset: true });
+    const boldBytes = await read("bookman-bold.ttf");
+    const italicBytes = await read("bookman-italic.ttf");
+    return {
+      regular,
+      bold: boldBytes ? await pdf.embedFont(boldBytes, { subset: true }) : regular,
+      italic: italicBytes ? await pdf.embedFont(italicBytes, { subset: true }) : regular,
+    };
+  } catch (e) {
+    console.warn("Bookman could not be embedded; the letter falls back to Times.", e);
+    return null;
+  }
+}
 const LINE = 14.5;
 const SMALL_LINE = 12.5;
 const GREY = rgb(0.42, 0.45, 0.5);
@@ -201,6 +247,17 @@ export interface EngagementPdfInput extends LetterData {
    *  "Certificate of Completion" page is appended (agreement history, signature
    *  details, document fingerprint, legal basis). */
   audit?: AuditData | null;
+  /** Which face the letter is set in.
+   *
+   *  "times" is the default: a contract reads as a contract in a serif, and
+   *  Times is one of the fourteen faces every PDF reader has built in, so the
+   *  letter looks the same on the client's screen as on ours without carrying
+   *  a font file around inside every document.
+   *
+   *  "bookman" needs a licensed font file embedded (see BOOKMAN_FONT below);
+   *  until one is present it falls back to Times rather than silently
+   *  rendering in something else. */
+  letterFont?: LetterFont;
   /** Staff preview of how the contract will look once signed, rendered before
    *  any client has signed it. Stamps every page as a specimen: it carries a
    *  signature the client has not actually given, so it must never be capable
@@ -302,14 +359,37 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   pdf.setProducer(f.legalName);
   pdf.setCreationDate(new Date());
 
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const italic = await pdf.embedFont(StandardFonts.HelveticaOblique);
-  // Serif family for titles/headings — a more classic, professional letterhead
-  // feel than all-Helvetica. Body copy stays Helvetica for on-screen legibility.
-  const serif = await pdf.embedFont(StandardFonts.TimesRoman);
-  const serifBold = await pdf.embedFont(StandardFonts.TimesRomanBold);
-  const serifItalic = await pdf.embedFont(StandardFonts.TimesRomanItalic);
+  /* THE BODY FACE IS A CHOICE.
+   *
+   * Headings were always serif while the body stayed Helvetica. That reads as
+   * a web page rather than a contract, so the body now follows the same choice
+   * and Times is the default. Helvetica remains available for anyone who
+   * prefers it; Bookman needs a licensed file (see BOOKMAN_FONT). */
+  /* The per-letter choice wins; otherwise the practice's default, which is
+     LETTER_FONT in the environment so it can be changed without a release.
+     Read here rather than at each of the six call sites: a draft and its
+     signed copy rendering in different faces, because one caller was missed,
+     is the kind of difference a client notices and nobody can explain. */
+  const envDefault = (process.env.LETTER_FONT ?? "").trim().toLowerCase();
+  const chosen: LetterFont =
+    d.letterFont
+    ?? (envDefault === "helvetica" || envDefault === "bookman" || envDefault === "times"
+          ? (envDefault as LetterFont)
+          : "times");
+  const bookman = chosen === "bookman" ? await embedBookman(pdf) : null;
+
+  const font = bookman?.regular ?? await pdf.embedFont(
+    chosen === "helvetica" ? StandardFonts.Helvetica : StandardFonts.TimesRoman);
+  const bold = bookman?.bold ?? await pdf.embedFont(
+    chosen === "helvetica" ? StandardFonts.HelveticaBold : StandardFonts.TimesRomanBold);
+  const italic = bookman?.italic ?? await pdf.embedFont(
+    chosen === "helvetica" ? StandardFonts.HelveticaOblique : StandardFonts.TimesRomanItalic);
+
+  // Titles and headings. Kept as their own variables because a few places want
+  // a serif heading even when the body is set in Helvetica.
+  const serif = bookman?.regular ?? await pdf.embedFont(StandardFonts.TimesRoman);
+  const serifBold = bookman?.bold ?? await pdf.embedFont(StandardFonts.TimesRomanBold);
+  const serifItalic = bookman?.italic ?? await pdf.embedFont(StandardFonts.TimesRomanItalic);
   const script = await pdf.embedFont(Buffer.from(DANCING_SCRIPT_DATA_URI.split(",")[1]!, "base64"));
   const logo = await embedDataUri(pdf, GNS_LOGO_DATA_URI);
   const signature = await embedDataUri(pdf, PARTNER_SIGNATURES[partner] ?? GNS_SIGNATURE_DATA_URI);
@@ -500,7 +580,12 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   interface Cell { text: string; bold?: boolean; color?: RGB; align?: "left" | "right" }
   interface Col { header: string; width: number; align?: "left" | "right" }
   const drawTable = (cols: Col[], rows: Cell[][], opts: { rowBg?: (i: number) => RGB | null; fontSize?: number } = {}) => {
-    const size = opts.fontSize ?? 9.5;
+    /* A shade smaller than the body copy. The fee and service tables carry
+       long service names and scope wording, and at the old 9.5 they wrapped to
+       three lines a row and pushed the schedule onto another page. Times also
+       sets a little wider than Helvetica for the same point size, so moving
+       the body to a serif made this worse rather than better. */
+    const size = opts.fontSize ?? 8.6;
     const pad = 6;
     // Header
     need(20);
