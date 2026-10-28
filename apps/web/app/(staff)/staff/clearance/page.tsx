@@ -21,6 +21,9 @@ interface ClearanceRow {
   pendingItems: number;
   receivedItems: number;
   firmSlug: string | null;
+  /** The individual documents, so the pivot can count by type rather than
+   *  showing one firm total against every row. */
+  items?: Array<{ id: string; label: string; status: string }>;
 }
 
 const STATUS_META: Record<string, { bg: string; text: string; label: string; dot: string }> = {
@@ -38,18 +41,6 @@ const FIRM_LABELS: Record<string, { label: string; color: string }> = {
   galaxy: { label: 'Galaxy Accountants',     color: '#7c3aed' },
 };
 
-const DOC_PIVOT_LABELS = [
-  'Bookkeeping Files',
-  'P&L / Balance Sheet',
-  'YTD Trial Balance',
-  'Director Tax Returns',
-  'Online Access',
-  'Tax References',
-  'Payroll RTI',
-  'VAT Returns',
-  'HMRC Correspondence',
-];
-
 function clearanceHref(r: ClearanceRow) {
   if (r.caseId) return `/staff/cases/${r.caseId}/clearance`;
   return `/staff/clearance/${r.id}`;
@@ -61,6 +52,10 @@ export default function ClearanceOverviewPage() {
   const [tab, setTab] = useState<'all' | 'awaiting' | 'overdue' | 'complete'>('all');
   const [firmFilter, setFirmFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'list' | 'pivot'>('list');
+  /* Set by clicking a number in one of the pivot tables. A count nobody can
+     open is a number you have to go and reproduce by hand, which is how these
+     screens end up unused. */
+  const [drill, setDrill] = useState<{ itemId: string | null; label: string; status?: string } | null>(null);
 
   // Reusable, so a newly raised request shows up without reloading the page.
   const load = useCallback(() => {
@@ -77,6 +72,10 @@ export default function ClearanceOverviewPage() {
 
   const filtered = rows.filter(r => {
     if (firmFilter !== 'all' && r.firmSlug !== firmFilter) return false;
+    // Set by clicking a number in the pivot: show only the clients who still
+    // owe that one document, or who are at that one status.
+    if (drill?.itemId && !(r.items ?? []).some(i => i.id === drill.itemId && i.status === 'pending')) return false;
+    if (drill?.status && r.status !== drill.status) return false;
     if (tab === 'awaiting') return r.status === 'sent' || r.status === 'chased';
     if (tab === 'overdue') {
       const isActive = r.status === 'sent' || r.status === 'chased';
@@ -205,12 +204,46 @@ export default function ClearanceOverviewPage() {
         </div>
       </div>
 
+      {/* What a drill-down narrowed the list to, and the way back out. A list
+          that is quietly filtered reads as "there are only three" rather than
+          "you are looking at three of forty". */}
+      {drill && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+          <p className="text-sm text-amber-900">
+            Showing <b>{filtered.length}</b> {filtered.length === 1 ? 'request' : 'requests'}
+            {drill.itemId ? <> still owing <b>{drill.label}</b></> : <> at <b>{drill.label}</b></>}
+            {firmFilter !== 'all' && <> — {FIRM_LABELS[firmFilter]?.label ?? firmFilter}</>}
+          </p>
+          <button
+            type="button"
+            onClick={() => { setDrill(null); setFirmFilter('all'); }}
+            className="shrink-0 text-xs font-semibold text-amber-800 hover:text-amber-950 underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <RefreshCw size={24} className="animate-spin text-purple-500" />
         </div>
       ) : viewMode === 'pivot' ? (
-        <PivotView rows={filtered} />
+        <PivotView
+          rows={filtered}
+          onDrill={(slug, itemId, status) => {
+            setFirmFilter(slug);
+            setTab('all');
+            const label =
+              itemId
+                ? (rows.flatMap(r => r.items ?? []).find(i => i.id === itemId)?.label ?? 'that document')
+                : status
+                  ? (STATUS_META[status]?.label ?? status)
+                  : 'all requests';
+            setDrill({ itemId: itemId ?? null, label, status });
+            setViewMode('list');
+          }}
+        />
       ) : (
         <ListView rows={filtered} now={now} />
       )}
@@ -309,8 +342,28 @@ function ClearanceCard({ r, now }: { r: ClearanceRow; now: Date }) {
   );
 }
 
-function PivotView({ rows }: { rows: ClearanceRow[] }) {
+function PivotView({
+  rows, onDrill,
+}: {
+  rows: ClearanceRow[];
+  onDrill: (firmSlug: string | 'all', itemId: string | null, status?: string) => void;
+}) {
   const firms = Object.entries(FIRM_LABELS);
+
+  /* The document types actually outstanding, taken from the requests
+     themselves. This used to be a hard-coded list of nine labels counted with
+     a function that ignored which label it was on, so every row showed the
+     same number — the firm's total pending items, repeated nine times. A
+     clearance manager reading "Bookkeeping Files: 6, VAT Returns: 6" would
+     chase six things that were never outstanding. */
+  const docTypes = (() => {
+    const seen = new Map<string, string>();
+    for (const r of rows) for (const it of r.items ?? []) if (!seen.has(it.id)) seen.set(it.id, it.label);
+    return [...seen.entries()].map(([id, label]) => ({ id, label }));
+  })();
+
+  const pendingCount = (rs: ClearanceRow[], itemId: string) =>
+    rs.reduce((n, r) => n + (r.items ?? []).filter(i => i.id === itemId && i.status === 'pending').length, 0);
 
   return (
     <div className="space-y-6">
@@ -318,7 +371,9 @@ function PivotView({ rows }: { rows: ClearanceRow[] }) {
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Outstanding Documents by Firm</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Pending items across all active clearance requests</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Pending items across all active clearance requests — click any number to see whose
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -334,22 +389,27 @@ function PivotView({ rows }: { rows: ClearanceRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {DOC_PIVOT_LABELS.map((label, i) => {
-                const getCount = (slug: string) =>
-                  rows
-                    .filter(r => r.firmSlug === slug)
-                    .reduce((sum, r) => sum + r.pendingItems, 0);
-                const totalCount = rows.reduce((sum, r) => sum + r.pendingItems, 0);
-
+              {docTypes.length === 0 && (
+                <tr><td colSpan={firms.length + 2} className="px-5 py-6 text-center text-sm text-gray-400">
+                  Nothing outstanding.
+                </td></tr>
+              )}
+              {docTypes.map(({ id, label }, i) => {
+                const totalCount = pendingCount(rows, id);
                 return (
-                  <tr key={label} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="px-5 py-3 text-gray-700 font-medium">{label}</td>
                     {firms.map(([slug]) => {
-                      const n = getCount(slug);
+                      const n = pendingCount(rows.filter(r => r.firmSlug === slug), id);
                       return (
                         <td key={slug} className="px-4 py-3 text-center">
                           {n > 0 ? (
-                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{n}</span>
+                            <button
+                              type="button"
+                              onClick={() => onDrill(slug, id)}
+                              title={`Show the ${n} client${n === 1 ? '' : 's'} still owing this`}
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-700 text-xs font-bold hover:bg-amber-200 hover:ring-2 hover:ring-amber-300 transition"
+                            >{n}</button>
                           ) : (
                             <span className="text-gray-300 text-xs">—</span>
                           )}
@@ -358,7 +418,12 @@ function PivotView({ rows }: { rows: ClearanceRow[] }) {
                     })}
                     <td className="px-4 py-3 text-center">
                       {totalCount > 0 ? (
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-bold">{totalCount}</span>
+                        <button
+                          type="button"
+                          onClick={() => onDrill('all', id)}
+                          title={`Show every client still owing this`}
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-bold hover:bg-gray-700 transition"
+                        >{totalCount}</button>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
                       )}
@@ -399,13 +464,25 @@ function PivotView({ rows }: { rows: ClearanceRow[] }) {
                       return (
                         <td key={st} className="px-4 py-3 text-center">
                           {n > 0 ? (
-                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${meta.bg} ${meta.text}`}>{n}</span>
+                            <button
+                              type="button"
+                              onClick={() => onDrill(slug, null, st)}
+                              title={`Show these ${n}`}
+                              className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition hover:ring-2 hover:ring-gray-300 ${meta.bg} ${meta.text}`}
+                            >{n}</button>
                           ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
                       );
                     })}
                     <td className="px-4 py-3 text-center">
-                      <span className="text-sm font-bold text-gray-700">{firmRows.length}</span>
+                      {firmRows.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => onDrill(slug, null)}
+                          title={`Show all ${firmRows.length} for this firm`}
+                          className="text-sm font-bold text-gray-700 hover:text-blue-600 hover:underline"
+                        >{firmRows.length}</button>
+                      ) : <span className="text-sm font-bold text-gray-300">0</span>}
                     </td>
                   </tr>
                 );

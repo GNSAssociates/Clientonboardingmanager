@@ -61,7 +61,7 @@ export async function GET() {
 
     const result = rows.map(r => {
       const rd = (r.responseData ?? {}) as {
-        docItems?: Array<{ status: string }>;
+        docItems?: Array<{ id?: string; label?: string; type?: string; status: string }>;
         firmSlug?: string;
         companyName?: string;
         companyNumber?: string;
@@ -81,6 +81,12 @@ export async function GET() {
         pendingItems: items.filter(i => i.status === 'pending').length,
         receivedItems: items.filter(i => i.status === 'received').length,
         firmSlug: rd.firmSlug ?? null,
+        /* The individual documents, not just how many. Without these the
+           "outstanding by document type" table had nothing to count per type
+           and showed the same total against every row. */
+        items: items
+          .filter(i => i.id && i.label)
+          .map(i => ({ id: String(i.id), label: String(i.label), status: i.status })),
       };
     });
 
