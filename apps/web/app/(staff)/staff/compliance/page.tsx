@@ -9,18 +9,41 @@ interface LinkRow {
   acceptedAt: string | null; hasSignedLetter: boolean; prevAccountantEmail: string | null;
 }
 
+/** Only what this screen needs from a clearance request. */
+interface ClearanceRow {
+  id: string;
+  clientName: string | null;
+  companyNumber: string | null;
+  status: string;
+  pendingItems: number;
+  receivedItems: number;
+}
+
 const FIRMS: Record<string, { label: string; color: string }> = {
   gns: { label: 'GNS Ltd', color: '#cc2229' }, llp: { label: 'GNS LLP', color: '#1e3a8a' }, galaxy: { label: 'Galaxy', color: '#7c3aed' },
 };
 
+/** Loose match: company number when both have one, otherwise the name. */
+const sameClient = (l: LinkRow, c: ClearanceRow) =>
+  l.companyNumber && c.companyNumber
+    ? l.companyNumber === c.companyNumber
+    : Boolean(l.companyName && c.clientName &&
+        l.companyName.trim().toLowerCase() === c.clientName.trim().toLowerCase());
+
 export default function CompliancePage() {
   const [rows, setRows] = useState<LinkRow[]>([]);
+  const [clearance, setClearance] = useState<ClearanceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [firmFilter, setFirmFilter] = useState('all');
 
   useEffect(() => {
+    // Both halves of a client's compliance position: who they are, and what
+    // their old accountant still owes. Clearance failing to load must not
+    // blank the identity side, so they settle independently.
     fetch('/api/onboarding/links/list').then((r) => r.json())
       .then((d: LinkRow[]) => setRows(Array.isArray(d) ? d : [])).catch(() => setRows([])).finally(() => setLoading(false));
+    fetch('/api/clearance/list').then((r) => r.json())
+      .then((d: ClearanceRow[]) => setClearance(Array.isArray(d) ? d : [])).catch(() => setClearance([]));
   }, []);
 
   const clients = rows.filter((r) => r.status === 'accepted');
@@ -75,20 +98,52 @@ export default function CompliancePage() {
         <div className="gns-reveal bg-white border border-gray-200 rounded-2xl overflow-hidden divide-y divide-gray-50">
           {filtered.map((r) => {
             const firm = r.firmSlug ? FIRMS[r.firmSlug] : null;
+            const cl = clearance.find((c) => sameClient(r, c));
+            const total = cl ? cl.pendingItems + cl.receivedItems : 0;
             return (
-              <Link key={r.id} href={`/staff/clients/${r.token}`} className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-gray-50 group">
-                <div className="min-w-0">
+              <div key={r.id} className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-gray-50 group">
+                <Link href={`/staff/clients/${r.token}`} className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-900 group-hover:text-blue-700">{r.companyName}</p>
                     {firm && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${firm.color}18`, color: firm.color }}>{firm.label}</span>}
                   </div>
                   <p className="text-sm text-gray-500">{r.directorName} · {r.clientEmail}</p>
-                </div>
-                <div className="flex items-center gap-4 flex-shrink-0">
+                </Link>
+
+                <div className="flex items-center gap-3 flex-shrink-0">
                   <span className="flex items-center gap-1 text-xs text-amber-600"><AlertTriangle size={12} /> KYC pending</span>
+
+                  {/* The clearance side of the same client's compliance, in the
+                      same boxes used on the clearance and handover screens. It
+                      was only reachable from a different menu before, so the
+                      two halves of one obligation never appeared together. */}
+                  {cl ? (
+                    <Link
+                      href={`/staff/clearance/${cl.id}`}
+                      title={`${cl.receivedItems} of ${total} received — open the clearance request`}
+                      className={`px-2 py-0.5 rounded-md border text-[11px] font-semibold transition-colors ${
+                        cl.pendingItems === 0
+                          ? 'bg-green-100 border-green-300 text-green-900 hover:bg-green-200'
+                          : 'bg-amber-100 border-amber-300 text-amber-900 hover:bg-amber-200'
+                      }`}
+                    >
+                      Clearance {cl.receivedItems}/{total}
+                    </Link>
+                  ) : r.prevAccountantEmail ? (
+                    <span className="px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] font-semibold text-gray-400"
+                          title="A previous accountant is on file but no clearance request has been raised">
+                      Clearance not raised
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] font-semibold text-gray-400"
+                          title="No previous accountant — nothing to request">
+                      No clearance needed
+                    </span>
+                  )}
+
                   <ArrowRight size={16} className="text-gray-300 group-hover:text-gray-500" />
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>

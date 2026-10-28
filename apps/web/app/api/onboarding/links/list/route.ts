@@ -47,6 +47,10 @@ export async function GET() {
       prevAccountantEmail: l.prevAccountantEmail,
       prevAccountantPhone: (acc.prevPhone as string) ?? null,
       services: l.services ?? [],
+      /* Closure, so a disengaged client is not offered for disengagement
+         again and still appears on the list rather than vanishing. */
+      disengagedAt: (acc.disengagedAt as string) ?? null,
+      disengagedCeasedOn: (acc.disengagedCeasedOn as string) ?? null,
     };
   }));
 }

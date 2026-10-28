@@ -94,6 +94,18 @@ export const EMAIL_TEMPLATES: TemplateDef[] = [
        <p>To complete your onboarding, please upload your identity documents using the button below. A member of our team will be in touch within 2 business days.</p>`,
   },
   {
+    key: 'client_disengagement',
+    name: 'Disengagement — to client',
+    audience: 'Client',
+    description: 'Sent when we cease to act, with the disengagement letter attached.',
+    defaultSubject: 'Disengagement — {companyName}',
+    defaultBody:
+      `<p>Dear {directorName},</p>
+       <p>Please find attached our disengagement letter confirming that {firmLegalName} ceased to act for {companyName} with effect from {ceasedOn}.</p>
+       <p>The letter sets out what we completed before that date and what now falls to you or to any adviser you appoint in our place. Please read it and keep it with your records.</p>
+       <p>If you appoint another firm, ask them to write to us and we will respond to their professional clearance enquiry promptly.</p>`,
+  },
+  {
     key: 'prev_clearance_request',
     name: 'Professional clearance request — to previous accountant',
     audience: 'Previous Accountant',

@@ -1,7 +1,7 @@
 'use client';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Handshake, UserSearch, FileText, LayoutTemplate } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Handshake, UserSearch, FileText, LayoutTemplate, DoorOpen } from "lucide-react";
 
 const NAV = [
   { href: "/staff/dashboard",   label: "Dashboard",   Icon: LayoutDashboard },
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/staff/accountants", label: "Accountants", Icon: UserSearch },
   { href: "/staff/reviews",     label: "Reviews",     Icon: ClipboardList },
   { href: "/staff/compliance",  label: "Compliance",  Icon: ShieldCheck },
+  { href: "/staff/disengagement", label: "Disengagement", Icon: DoorOpen },
   { href: "/staff/templates",   label: "Templates",   Icon: LayoutTemplate },
 ];
 

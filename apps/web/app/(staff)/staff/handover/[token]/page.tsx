@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { StatusPicker, HANDOVER_STATUS_OPTIONS } from '@/components/status-picker';
 
 type Status = 'pending' | 'received' | 'verified' | 'na';
 
@@ -37,53 +38,8 @@ interface Payload {
 const STATUS_LABEL: Record<Status, string> = {
   pending: 'Pending', received: 'Received', verified: 'Verified', na: 'Not applicable',
 };
-/** Short enough to sit four-across on a phone; the full word is the title. */
-const STATUS_SHORT: Record<Status, string> = {
-  pending: 'Pending', received: 'Received', verified: 'Verified', na: 'N/A',
-};
-/** How the chosen one looks. The others stay plain, so the state is obvious. */
-const STATUS_ON: Record<Status, string> = {
-  pending: 'bg-amber-100 text-amber-900',
-  received: 'bg-emerald-100 text-emerald-900',
-  verified: 'bg-emerald-600 text-white',
-  na: 'bg-gray-200 text-gray-700',
-};
-const STATUS_ORDER: Status[] = ['pending', 'received', 'verified', 'na'];
-
-/**
- * Status as four buttons rather than a dropdown.
- *
- * A dropdown hides three of the four options and costs two clicks to change
- * one line. On a list of twenty-four items that is the difference between
- * keeping the tracker up to date and not bothering — and a tracker nobody
- * updates is worse than none, because it is believed.
- */
-function StatusPicker({
-  value, onPick, busy,
-}: { value: Status; onPick: (s: Status) => void; busy?: boolean }) {
-  return (
-    <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden divide-x divide-gray-200" role="group" aria-label="Status">
-      {STATUS_ORDER.map((s) => {
-        const on = value === s;
-        return (
-          <button
-            key={s}
-            type="button"
-            title={STATUS_LABEL[s]}
-            aria-pressed={on}
-            disabled={busy}
-            onClick={() => { if (!on) onPick(s); }}
-            className={`px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60 ${
-              on ? STATUS_ON[s] : 'bg-white text-gray-500 hover:bg-gray-50'
-            }`}
-          >
-            {STATUS_SHORT[s]}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// The boxes themselves live in components/status-picker, so the handover and
+// clearance screens cannot drift into looking like two different products.
 
 const ukDate = (iso: string | null) =>
   iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
@@ -177,6 +133,7 @@ export default function HandoverPage({ params }: { params: { token: string } }) 
                   <div className="flex items-center gap-2 shrink-0">
                     <StatusPicker
                       value={item.status}
+                      options={HANDOVER_STATUS_OPTIONS}
                       busy={saving[item.id] === 'saving…'}
                       onPick={(s) => save(item, { status: s })}
                     />

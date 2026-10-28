@@ -6,6 +6,7 @@ import {
   RefreshCw, ChevronLeft, Send, CheckCircle2, Clock, Mail,
   Pencil, Save, AlertTriangle, Pause, Play,
 } from 'lucide-react';
+import { StatusPicker, CLEARANCE_STATUS_OPTIONS } from '@/components/status-picker';
 
 interface DocItem {
   id: string;
@@ -48,11 +49,8 @@ const FIRM_LABELS: Record<string, { label: string; color: string }> = {
   galaxy: { label: 'Galaxy Accountants',     color: '#7c3aed' },
 };
 
-const ITEM_STATUS: Array<{ value: DocItem['status']; label: string; cls: string }> = [
-  { value: 'pending',  label: 'Requested',      cls: 'bg-amber-50 text-amber-700 border-amber-300' },
-  { value: 'received', label: 'Received',       cls: 'bg-green-50 text-green-700 border-green-300' },
-  { value: 'na',       label: 'Not applicable', cls: 'bg-gray-50 text-gray-500 border-gray-300' },
-];
+// The status boxes come from components/status-picker, shared with the
+// handover checklist so the two screens stay the same shape.
 
 export default function ClearanceDetailPage() {
   const params = useParams();
@@ -287,19 +285,13 @@ export default function ClearanceDetailPage() {
                     )}
                   </p>
                 </div>
-                <div className="flex gap-1.5 flex-shrink-0">
-                  {ITEM_STATUS.map((s) => (
-                    <button
-                      key={s.value}
-                      onClick={() => setItemStatus(item, s.value)}
-                      disabled={saving === item.id}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                        item.status === s.value ? s.cls : 'border-gray-200 text-gray-400 hover:border-gray-400 bg-white'
-                      }`}
-                    >
-                      {saving === item.id ? '…' : s.label}
-                    </button>
-                  ))}
+                <div className="flex-shrink-0">
+                  <StatusPicker
+                    value={item.status}
+                    options={CLEARANCE_STATUS_OPTIONS}
+                    busy={saving === item.id}
+                    onPick={(s) => setItemStatus(item, s)}
+                  />
                 </div>
               </div>
             ))}
