@@ -98,7 +98,7 @@ export default function ClearanceOverviewPage() {
   ] as const;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-5 space-y-4">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
@@ -366,10 +366,10 @@ function PivotView({
     rs.reduce((n, r) => n + (r.items ?? []).filter(i => i.id === itemId && i.status === 'pending').length, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Outstanding docs by firm */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-4 py-2.5 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Outstanding Documents by Firm</h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Pending items across all active clearance requests — click any number to see whose
@@ -379,13 +379,13 @@ function PivotView({
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Document Type</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Document Type</th>
                 {firms.map(([slug, { label, color }]) => (
-                  <th key={slug} className="px-4 py-3 text-center text-xs font-semibold" style={{ color }}>
+                  <th key={slug} className="px-3 py-2 text-center text-xs font-semibold" style={{ color }}>
                     {label.replace('GNS Associates ', '')}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">All Firms</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">All Firms</th>
               </tr>
             </thead>
             <tbody>
@@ -398,11 +398,11 @@ function PivotView({
                 const totalCount = pendingCount(rows, id);
                 return (
                   <tr key={id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-5 py-3 text-gray-700 font-medium">{label}</td>
+                    <td className="px-4 py-1.5 text-gray-700 font-medium">{label}</td>
                     {firms.map(([slug]) => {
                       const n = pendingCount(rows.filter(r => r.firmSlug === slug), id);
                       return (
-                        <td key={slug} className="px-4 py-3 text-center">
+                        <td key={slug} className="px-3 py-1.5 text-center">
                           {n > 0 ? (
                             <button
                               type="button"
@@ -416,7 +416,7 @@ function PivotView({
                         </td>
                       );
                     })}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-1.5 text-center">
                       {totalCount > 0 ? (
                         <button
                           type="button"
@@ -438,18 +438,18 @@ function PivotView({
 
       {/* Status summary by firm */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-4 py-2.5 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Status Summary by Firm</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Firm</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Firm</th>
                 {(['sent', 'chased', 'received', 'declined'] as const).map(st => (
-                  <th key={st} className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide capitalize">{STATUS_META[st]?.label}</th>
+                  <th key={st} className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide capitalize">{STATUS_META[st]?.label}</th>
                 ))}
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -457,12 +457,12 @@ function PivotView({
                 const firmRows = rows.filter(r => r.firmSlug === slug);
                 return (
                   <tr key={slug} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-5 py-3 font-semibold" style={{ color }}>{label}</td>
+                    <td className="px-4 py-1.5 font-semibold" style={{ color }}>{label}</td>
                     {(['sent', 'chased', 'received', 'declined'] as const).map(st => {
                       const n = firmRows.filter(r => r.status === st).length;
                       const meta = STATUS_META[st]!;
                       return (
-                        <td key={st} className="px-4 py-3 text-center">
+                        <td key={st} className="px-3 py-1.5 text-center">
                           {n > 0 ? (
                             <button
                               type="button"
@@ -474,7 +474,7 @@ function PivotView({
                         </td>
                       );
                     })}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-1.5 text-center">
                       {firmRows.length > 0 ? (
                         <button
                           type="button"

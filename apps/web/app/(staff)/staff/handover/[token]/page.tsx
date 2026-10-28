@@ -80,7 +80,7 @@ export default function HandoverPage({ params }: { params: { token: string } }) 
   const byCategory = Object.keys(data.categories).filter((c) => data.items.some((i) => i.category === c));
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-5 py-5 space-y-4">
       <header>
         <h1 className="text-2xl font-bold text-gray-900">{data.companyName ?? 'Handover'}</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -104,55 +104,97 @@ export default function HandoverPage({ params }: { params: { token: string } }) 
 
       {byCategory.map((cat) => (
         <section key={cat} className="border border-gray-200 rounded-xl overflow-hidden">
-          <h2 className="text-sm font-semibold bg-gray-50 px-4 py-2 border-b border-gray-200">
+          <h2 className="text-sm font-semibold bg-gray-50 px-4 py-1.5 border-b border-gray-200">
             {data.categories[cat]}
           </h2>
-          <div className="divide-y divide-gray-100">
+          {/* Two columns on a wide screen. Twenty-four items in one column is
+              four screens of scrolling to answer "what are we waiting for". */}
+          <div className="grid xl:grid-cols-2 xl:divide-x divide-gray-100">
             {data.items.filter((i) => i.category === cat).map((item) => (
-              <div key={item.id} className={`px-4 py-3 ${item.status === 'na' ? 'bg-gray-50/60' : ''}`}>
-                <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div key={item.id} className={`px-3 py-1.5 border-b border-gray-100 ${item.status === 'na' ? 'bg-gray-50/60' : ''}`}>
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-gray-900">{item.label}</div>
+                    <div className="text-sm font-medium text-gray-900 leading-snug">{item.label}</div>
 
-                    <div className="text-xs text-gray-500 mt-0.5 space-x-2">
-                      {item.source && <span>from: <b className="font-medium">{data.sources[item.source] ?? item.source}</b></span>}
+                    {/* Everything about the item on one line instead of four. */}
+                    <div className="text-[11px] text-gray-500 leading-snug">
+                      {item.source && <>from <b className="font-medium">{data.sources[item.source] ?? item.source}</b></>}
                       {item.periodTo && (
-                        <span>
-                          · covering {item.periodFrom ? `${ukDate(item.periodFrom)} to ` : 'to '}{ukDate(item.periodTo)}
-                        </span>
+                        <> · {item.periodFrom ? `${ukDate(item.periodFrom)}–` : 'to '}{ukDate(item.periodTo)}</>
+                      )}
+                      {item.status === 'na' && item.naReason && <> · N/A — {item.naReason}</>}
+                      {(item.hint || item.periodWhy) && (
+                        <span title={[item.periodWhy, item.hint].filter(Boolean).join(' — ')}
+                              className="ml-1 cursor-help text-gray-400">ⓘ</span>
                       )}
                     </div>
-
-                    {item.periodWhy && <div className="text-xs text-gray-400 mt-0.5">{item.periodWhy}</div>}
-                    {item.hint && <div className="text-xs text-gray-500 mt-1 italic">{item.hint}</div>}
-                    {item.status === 'na' && item.naReason && (
-                      <div className="text-xs text-gray-500 mt-1">Not applicable — {item.naReason}</div>
-                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <StatusPicker
                       value={item.status}
                       options={HANDOVER_STATUS_OPTIONS}
                       busy={saving[item.id] === 'saving…'}
                       onPick={(s) => save(item, { status: s })}
                     />
-                    <span className="text-[11px] text-gray-400 w-16">{saving[item.id] ?? ''}</span>
                   </div>
                 </div>
 
-                {/* The note: why it is part-pending, what is missing, who said what. */}
-                <input
-                  defaultValue={item.note ?? ''}
-                  placeholder="Note — e.g. part pending, NI figures missing for two employees"
-                  onBlur={(e) => { if (e.target.value !== (item.note ?? '')) save(item, { note: e.target.value || null }); }}
-                  className="mt-2 w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                {/* The note stays out of the way until it is wanted. A text box
+                    on every row doubled the height of the page to show two
+                    dozen mostly-empty inputs. */}
+                <NoteField
+                  value={item.note}
+                  saving={saving[item.id]}
+                  onSave={(v) => save(item, { note: v })}
                 />
               </div>
             ))}
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+/**
+ * A note, hidden until there is one or somebody wants to write one.
+ *
+ * Every row used to carry an always-visible text box. Across two dozen items
+ * that is two dozen empty inputs and roughly double the page height, to show
+ * something that is filled in perhaps three times in a handover.
+ */
+function NoteField({
+  value, saving, onSave,
+}: { value: string | null; saving?: string; onSave: (v: string | null) => void }) {
+  const [open, setOpen] = useState(Boolean(value));
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-0.5 text-[11px] text-gray-400 hover:text-gray-700"
+      >
+        + note
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <input
+        autoFocus={!value}
+        defaultValue={value ?? ''}
+        placeholder="e.g. part pending, NI figures missing for two employees"
+        onBlur={(e) => {
+          const next = e.target.value.trim();
+          if (next !== (value ?? '')) onSave(next || null);
+          if (!next) setOpen(false);
+        }}
+        className="flex-1 text-[11px] border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-300"
+      />
+      <span className="text-[10px] text-gray-400 w-12 shrink-0">{saving ?? ''}</span>
     </div>
   );
 }

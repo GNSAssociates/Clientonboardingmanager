@@ -511,3 +511,48 @@ export function verifyGoCardlessWebhookSignature(rawBody: string, signatureHeade
     return expected.length === sigBuf.length && timingSafeEqual(expected, sigBuf);
   });
 }
+
+/**
+ * Cancel a Direct Debit mandate.
+ *
+ * Used when we disengage: the client is leaving, so the authority to collect
+ * from their account goes with the engagement. GoCardless notifies the payer,
+ * which is the behaviour we want — the client should hear that it stopped.
+ *
+ * A mandate that is already cancelled comes back from the API as an error, and
+ * that is reported as success here: the desired state is "not collecting", and
+ * it already holds. Anything else is returned as a failure for the caller to
+ * show, because quietly reporting a cancellation that did not happen is how a
+ * former client gets charged.
+ */
+export async function cancelMandate(
+  firmSlug: string,
+  mandateId: string,
+): Promise<{ ok: boolean; alreadyCancelled?: boolean; error?: string }> {
+  const token = tokenForFirm(firmSlug);
+  if (!token) return { ok: false, error: 'No GoCardless access token for this firm.' };
+  if (!mandateId) return { ok: false, error: 'No mandate id.' };
+
+  try {
+    const res = await fetch(`${apiBase(firmSlug)}/mandates/${encodeURIComponent(mandateId)}/actions/cancel`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'GoCardless-Version': '2015-07-06',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: {} }),
+    });
+
+    if (res.ok) return { ok: true };
+
+    const text = await res.text();
+    // GoCardless returns 422 with this reason when it is already cancelled.
+    if (/cancelled|already/i.test(text) && res.status === 422) {
+      return { ok: true, alreadyCancelled: true };
+    }
+    return { ok: false, error: `GoCardless ${res.status}: ${text.slice(0, 180)}` };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}

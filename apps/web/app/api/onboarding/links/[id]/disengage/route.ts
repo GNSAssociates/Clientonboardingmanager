@@ -1,14 +1,16 @@
 /**
- * Disengagement: produce the letter, send it, close the file.
+ * Disengagement: preview the letter, then send it and close the file.
  *
- * Deliberately narrow. It does not answer an incoming accountant's clearance
- * enquiry and does not cancel anything at GoCardless — those are decisions a
- * person should make, not side effects of pressing a button. It writes the
- * letter that ends the engagement and records that we ceased to act.
+ * Two modes, because the engagement side works the same way and staff should
+ * not have to learn a second shape for the same job:
+ *   mode "preview" — builds the letter and returns it. Changes nothing.
+ *   mode "send"    — builds it, cancels the Direct Debit, emails the client,
+ *                    files a copy in their OneDrive folder, closes the file.
  *
- * The closure is stored on the link rather than deleting anything: a client
- * who left is still a client we acted for, and the file has to stand up years
- * later. Nothing is ever removed here.
+ * The order in "send" is deliberate. The letter is built first, so nothing is
+ * cancelled or closed on the strength of a letter that could not be produced.
+ * The closure is written last, carrying what actually happened to the mandate
+ * and the email, so the record never claims more than was done.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
@@ -16,13 +18,16 @@ import { getSession } from "@/lib/auth/session";
 import { getFirm } from "@/lib/firms";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { buildDisengagementPdf, disengagementPdfFilename } from "@/lib/disengagement-pdf";
+import { cancelMandate } from "@/lib/gocardless";
+import { archiveToClientFolder } from "@/lib/storage";
+import { getOneDriveFolderLink } from "@/lib/onedrive";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const ukDate = (iso: string) =>
-  new Date(iso + (iso.length === 10 ? "T00:00:00Z" : "")).toLocaleDateString("en-GB", {
+  new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso).toLocaleDateString("en-GB", {
     day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
   });
 
@@ -36,6 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = (await req.json().catch(() => ({}))) as {
+    mode?: "preview" | "send";
     ceasedOn?: string;
     reason?: string;
     services?: string[];
@@ -43,20 +49,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     clientMustNowDo?: string[];
     outstandingFees?: string;
     extraNotes?: string;
-    /** False to produce the letter without emailing it — some partners post it. */
     sendEmail?: boolean;
+    cancelDirectDebit?: boolean;
   };
+  const mode = body.mode === "send" ? "send" : "preview";
 
   const acc = (link.acceptanceData ?? {}) as Record<string, unknown>;
-  if (acc.disengagedAt) {
+  if (mode === "send" && acc.disengagedAt) {
     return NextResponse.json(
       { error: `This client was already disengaged on ${ukDate(String(acc.disengagedAt).slice(0, 10))}.` },
       { status: 409 },
     );
   }
 
-  /* The date we ceased to act is the one fact this letter exists to record, so
-     it is not defaulted to today behind the user's back. */
+  /* The date we ceased to act is the one fact this letter exists to record,
+     so it is never defaulted to today on someone's behalf. */
   const ceasedOn = (body.ceasedOn ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ceasedOn)) {
     return NextResponse.json(
@@ -94,13 +101,45 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch (e) {
     console.error("disengagement letter failed to build:", e);
     return NextResponse.json(
-      { error: "The disengagement letter could not be produced, so nothing was sent or closed." },
+      { error: "The disengagement letter could not be produced, so nothing was sent, cancelled or closed." },
       { status: 500 },
     );
   }
 
-  // Send before closing. A file marked closed with no letter sent is the one
-  // state that leaves nobody knowing the engagement ended.
+  const filename = disengagementPdfFilename(clientName);
+
+  /* Preview stops here — the letter, and a way into the client's folder, with
+     nothing changed. */
+  if (mode === "preview") {
+    const folderUrl = await getOneDriveFolderLink(clientName).catch(() => null);
+    const gc = (acc.gocardless ?? {}) as Record<string, unknown>;
+    return NextResponse.json({
+      ok: true,
+      mode: "preview",
+      filename,
+      pdfBase64: pdf.toString("base64"),
+      oneDriveFolderUrl: folderUrl,
+      clientEmail: link.clientEmail,
+      hasMandate: Boolean(gc.mandateId),
+      mandateId: gc.mandateId ? String(gc.mandateId) : null,
+    });
+  }
+
+  /* ── send ─────────────────────────────────────────────────────────────── */
+
+  // 1. The mandate. Done before the email so the client is not told the
+  //    engagement has ended while we can still collect from them.
+  let mandateCancelled: boolean | null = null;
+  let mandateError: string | null = null;
+  const gc = (acc.gocardless ?? {}) as Record<string, unknown>;
+  const mandateId = gc.mandateId ? String(gc.mandateId) : "";
+  if (body.cancelDirectDebit !== false && mandateId) {
+    const r = await cancelMandate(link.firmSlug ?? "gns", mandateId);
+    mandateCancelled = r.ok;
+    if (!r.ok) mandateError = r.error ?? "cancel failed";
+  }
+
+  // 2. The letter to the client.
   let emailed = false;
   let emailError: string | null = null;
   if (body.sendEmail !== false && link.clientEmail) {
@@ -118,11 +157,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           firmLegalName: firm.legalName,
           ceasedOn: ukDate(ceasedOn),
         },
-        attachments: [{
-          filename: disengagementPdfFilename(clientName),
-          content: pdf,
-          contentType: "application/pdf",
-        }],
+        attachments: [{ filename, content: pdf, contentType: "application/pdf" }],
       });
       emailed = r.ok;
       if (!r.ok) emailError = r.error ?? "send failed";
@@ -132,6 +167,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
+  // 3. A copy where the client's records live. Best effort: an unreachable
+  //    drive must not stop the engagement being recorded as ended.
+  let archivedTo: string | null = null;
+  try {
+    const archived = await archiveToClientFolder({
+      companyName: clientName,
+      fileName: filename,
+      content: pdf,
+      mimeType: "application/pdf",
+    });
+    if (archived) archivedTo = archived.path;
+  } catch (e) {
+    console.error("disengagement letter could not be filed in OneDrive:", e);
+  }
+
+  // 4. Close the file, recording what actually happened rather than what was
+  //    intended.
   await db.transaction((tx) =>
     updateOnboardingLink(tx, link.id, {
       acceptanceData: {
@@ -141,16 +193,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         disengagedBy: session.userId,
         disengagementReason: body.reason ?? null,
         disengagementEmailed: emailed,
+        disengagementMandateCancelled: mandateCancelled,
+        disengagementArchivedTo: archivedTo,
       },
     }),
   );
 
   return NextResponse.json({
     ok: true,
-    emailed,
-    emailError,
+    mode: "send",
+    emailed, emailError,
+    mandateCancelled, mandateError,
+    archivedTo,
     ceasedOn,
-    filename: disengagementPdfFilename(clientName),
+    filename,
     pdfBase64: pdf.toString("base64"),
   });
 }

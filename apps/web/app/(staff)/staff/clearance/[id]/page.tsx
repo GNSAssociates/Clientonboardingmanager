@@ -52,6 +52,20 @@ const FIRM_LABELS: Record<string, { label: string; color: string }> = {
 // The status boxes come from components/status-picker, shared with the
 // handover checklist so the two screens stay the same shape.
 
+/**
+ * The areas of work a clearance request covers, in the order a handover is
+ * actually worked through. `type` on each item comes from buildClearanceItems
+ * in post-acceptance.ts; anything without one is a reference.
+ */
+const ITEM_GROUPS = [
+  { key: 'AA',      label: 'Accounts & bookkeeping' },
+  { key: 'CT',      label: 'Corporation tax' },
+  { key: 'VAT',     label: 'VAT' },
+  { key: 'PAYROLL', label: 'Payroll & pensions' },
+  { key: 'SA',      label: 'Personal tax' },
+  { key: 'REFS',    label: 'References & access' },
+] as const;
+
 export default function ClearanceDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -179,7 +193,7 @@ export default function ClearanceDetailPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 py-5 space-y-4">
       <button onClick={() => router.push('/staff/clearance')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
         <ChevronLeft size={16} /> All clearance requests
       </button>
@@ -262,23 +276,38 @@ export default function ClearanceDetailPage() {
         {msg && <p className="text-sm mt-4 text-gray-700">{msg}</p>}
       </div>
 
-      {/* Requested vs received — tick items off as they arrive */}
+      {/* Requested vs received — tick items off as they arrive.
+          Grouped by the area of work, with each group's own count, so the
+          question "what is still missing, and from where" is answered by
+          looking rather than by reading every line. */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Requested Documents & Information</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Everything requested in the clearance letter — click a status to update it manually as records arrive
-          </p>
+        <div className="px-4 py-2.5 border-b border-gray-100 flex items-baseline justify-between gap-3 flex-wrap">
+          <h2 className="font-semibold text-gray-900 text-sm">Requested Documents &amp; Information</h2>
+          <p className="text-[11px] text-gray-500">Click a status as records arrive</p>
         </div>
         {items.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-gray-500 text-center">No tracked items on this request.</p>
+          <p className="px-5 py-6 text-sm text-gray-500 text-center">No tracked items on this request.</p>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {items.map((item) => (
-              <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-4 flex-wrap">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                  <p className="text-xs text-gray-400">
+          <div>
+            {ITEM_GROUPS.filter((g) => items.some((i) => (i.type ?? 'REFS') === g.key)).map((g) => {
+              const groupItems = items.filter((i) => (i.type ?? 'REFS') === g.key);
+              const outstanding = groupItems.filter((i) => i.status === 'pending').length;
+              return (
+                <div key={g.key}>
+                  <div className="flex items-center gap-2 px-4 py-1 bg-gray-50 border-y border-gray-100">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600">{g.label}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      outstanding === 0 ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {groupItems.length - outstanding}/{groupItems.length}
+                    </span>
+                  </div>
+                  <div className="xl:grid xl:grid-cols-2 xl:divide-x divide-gray-100">
+                    {groupItems.map((item) => (
+              <div key={item.id} className="px-4 py-1.5 border-b border-gray-50 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 leading-snug">{item.label}</p>
+                  <p className="text-[11px] text-gray-400 leading-snug">
                     {item.year && <span>{item.year}</span>}
                     {item.status === 'received' && item.receivedDate && (
                       <span className="text-green-600 ml-2">Received {new Date(item.receivedDate).toLocaleDateString('en-GB')}</span>
@@ -294,7 +323,11 @@ export default function ClearanceDetailPage() {
                   />
                 </div>
               </div>
-            ))}
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
