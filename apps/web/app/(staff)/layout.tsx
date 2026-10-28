@@ -33,7 +33,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
         <div className="px-3 py-4 border-t border-gray-100 space-y-1">
           <Link
-            href="/onboarding"
+            href="/staff/intake"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
             style={{ background: "linear-gradient(135deg, #cc2229, #1e3a8a)" }}
           >

@@ -142,7 +142,7 @@ export default function MasterDashboard() {
             <button onClick={load} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <RefreshCw size={16} />
             </button>
-            <Link href="/onboarding"
+            <Link href="/staff/intake"
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white rounded-lg transition-all hover:shadow-md"
               style={{ background: 'linear-gradient(135deg, #cc2229, #1e3a8a)' }}>
               <Plus size={14} /> New Onboarding
@@ -316,7 +316,7 @@ export default function MasterDashboard() {
           <h2 className="text-sm font-bold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: 'New Onboarding', icon: Plus, href: '/onboarding', color: '#cc2229' },
+              { label: 'New Onboarding', icon: Plus, href: '/staff/intake', color: '#cc2229' },
               { label: 'GNS Ltd Dashboard', icon: Building2, href: '/staff/firms/gns', color: '#cc2229' },
               { label: 'LLP Dashboard', icon: Building2, href: '/staff/firms/llp', color: '#1e3a8a' },
               { label: 'Galaxy Dashboard', icon: Building2, href: '/staff/firms/galaxy', color: '#7c3aed' },

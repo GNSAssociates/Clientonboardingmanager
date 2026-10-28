@@ -307,7 +307,7 @@ export default function ClientsPage() {
             {busy === 'all' ? <RefreshCw size={15} className="animate-spin" /> : <Eraser size={15} />} Clear all data
           </button>
           <Link
-            href="/onboarding"
+            href="/staff/intake"
             className="flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl text-sm"
             style={{ background: 'linear-gradient(135deg, #cc2229, #1e3a8a)' }}
           >
