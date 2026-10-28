@@ -47,6 +47,11 @@ export async function GET(
       prevFirmEmail: draft.prevFirmEmail ?? link.prevAccountantEmail ?? null,
       softwareItems: draft.softwareItems ?? [],
       clientType: draft.clientType ?? "limited",
+      /* Terms agreed with this client only — on the intake form this is
+         "anything sensitive we must know". It is saved with the draft and was
+         not being handed back, so reopening a draft silently dropped it and
+         the letter went out without a term somebody had agreed. */
+      specialTerms: draft.specialTerms ?? null,
       clientName: draft.clientName ?? null,
       businessAddress: draft.businessAddress ?? null,
       oneoffScopes: draft.oneoffScopes ?? {},

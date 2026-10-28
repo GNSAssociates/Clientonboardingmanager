@@ -141,6 +141,47 @@ export function intakeWarnings(f: IntakeForm): string[] {
 }
 
 /**
+ * The intake, as the WIZARD reads a saved draft.
+ *
+ * The wizard resumes from `letterMeta.wizardDraft`, not from the intake blob,
+ * so writing only the intake left "Price it in the wizard" opening with the
+ * partner, the fee basis, the catch-up charge and the clearance choice all
+ * blank — the exact retyping this form exists to remove. Both are written, and
+ * this is the half the wizard looks at.
+ */
+export function intakeToWizardDraft(f: IntakeForm): Record<string, unknown> {
+  const catchupFee = Number(String(f.catchupFee).replace(/[^0-9.]/g, "")) || 0;
+  const hasPrevFirm = Boolean(f.previousAccountant.firmName.trim());
+  return {
+    step: "services",
+    firmSlug: f.firmSlug,
+    companyNumber: f.companyNumber.trim(),
+    companyName: f.clientName.trim(),
+    clientName: f.clientName.trim(),
+    directorName: f.contact.name.trim(),
+    directorEmail: f.contact.email.trim(),
+    partnerName: f.partnerName.trim() || f.filledByName.trim() || null,
+    paymentMethod: f.feeBasis === "monthly_dd" ? "dd" : "manual",
+    customFees: catchupFee
+      ? [{
+          title: "Catch-up work",
+          description: f.catchupWork.trim() || "Bringing the records up to date before our engagement begins.",
+          price: catchupFee,
+          frequency: "one-off",
+        }]
+      : [],
+    includeClearance: hasPrevFirm,
+    // "client" asks them to confirm the outgoing firm at signing; with nobody
+    // to ask there is nothing to run, which is what "none" means here.
+    clearanceMode: hasPrevFirm ? "client" : "none",
+    prevFirmName: f.previousAccountant.firmName.trim(),
+    prevFirmEmail: f.previousAccountant.email.trim(),
+    specialTerms: f.sensitiveNotes.trim(),
+    savedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * The intake, as the engagement-letter route wants it.
  *
  * Only the fields that route actually reads. The rest of the intake is stored

@@ -15,7 +15,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { getDb, upsertDraftLink, getOnboardingLinkByToken, updateOnboardingLink } from "@gns/db";
 import { getSession } from "@/lib/auth/session";
 import { getFirm } from "@/lib/firms";
-import { intakeBlockers, type IntakeForm } from "@/lib/intake";
+import { intakeBlockers, intakeToWizardDraft, type IntakeForm } from "@/lib/intake";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
           companyName: clientName,
           companyNumber: String(intake.companyNumber ?? "").trim() || null,
           directorName: String(intake.contact?.name ?? "").trim() || null,
+          // Two columns, and the wizard reads directorEmail. Writing only
+          // clientEmail left the address blank when the wizard opened.
+          directorEmail: String(intake.contact?.email ?? "").trim() || null,
           clientEmail: String(intake.contact?.email ?? "").trim() || existing.clientEmail,
           firmSlug,
           prevAccountantFirmName: String(intake.previousAccountant?.firmName ?? "").trim() || null,
@@ -64,6 +67,8 @@ export async function POST(req: NextRequest) {
             intakeSavedBy: session.userId,
             intakeSavedAt: new Date().toISOString(),
             partnerName: String(intake.partnerName ?? "").trim() || undefined,
+            // The half the wizard resumes from, so it opens filled in.
+            wizardDraft: { ...((meta.wizardDraft ?? {}) as Record<string, unknown>), ...intakeToWizardDraft(intake) },
           },
         }),
       );
@@ -81,6 +86,7 @@ export async function POST(req: NextRequest) {
         companyName: clientName,
         companyNumber: String(intake.companyNumber ?? "").trim() || null,
         directorName: String(intake.contact?.name ?? "").trim() || null,
+        directorEmail: String(intake.contact?.email ?? "").trim() || null,
         clientEmail: String(intake.contact?.email ?? "").trim() || "",
         firmSlug,
         services: [],
@@ -94,6 +100,7 @@ export async function POST(req: NextRequest) {
           intakeSavedBy: session.userId,
           intakeSavedAt: new Date().toISOString(),
           partnerName: String(intake.partnerName ?? "").trim() || undefined,
+          wizardDraft: intakeToWizardDraft(intake),
         },
       }),
     );
