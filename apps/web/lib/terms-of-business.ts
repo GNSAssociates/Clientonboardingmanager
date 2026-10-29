@@ -133,6 +133,30 @@ export function buildTermsOfBusinessHtml(opts: {
 /**
  * Privacy Notice section — ICAEW Part 5 compliant, tailored for GNS.
  */
+/**
+ * The overseas operation that processes client records on the firms' behalf.
+ *
+ * Named in the Privacy Notice because the previous wording — "we will not
+ * transfer the personal data we collect about you outside of the UK" — was
+ * untrue, and was printed on every signed engagement letter.
+ *
+ * Deliberately does NOT name a transfer mechanism. The IDTA / Standard
+ * Contractual Clauses for this arrangement have not been executed yet, and
+ * replacing a false statement with a different false statement would be worse
+ * than leaving the original. Once those are signed, add a sentence here naming
+ * the instrument the client can enforce. Until then this says only what is
+ * true: who processes the data, on whose instructions, under what security,
+ * and who remains answerable for it.
+ *
+ * It also does not describe the Nepal company as regulated by the ICO or as a
+ * group company. It is neither: the ICO fee applies to controllers, and this
+ * entity is a processor owned by neither UK firm.
+ */
+export const OVERSEAS_PROCESSOR = {
+  name: 'GNS Associates Private Limited',
+  location: 'Kathmandu, Nepal',
+} as const;
+
 export function buildPrivacyNoticeHtml(opts: {
   firmName: string;
   firmLegalName: string;
@@ -191,7 +215,9 @@ export function buildPrivacyNoticeHtml(opts: {
   <p>"Third parties" includes third-party service providers and other entities. The following activities are carried out by third-party service providers: IT and cloud services, professional advisory services, administration services, payment processing and banking services. We only permit our third-party service providers to process your personal data for specified purposes and in accordance with our instructions.</p>
 
   <h3>Transferring personal data outside the United Kingdom (UK)</h3>
-  <p>We will not transfer the personal data we collect about you outside of the UK unless required to do so by law, in which case we will ensure appropriate safeguards are in place.</p>
+  <p>Some of the work we carry out for you is performed outside the UK. Our operations team at ${esc(OVERSEAS_PROCESSOR.name)} in ${esc(OVERSEAS_PROCESSOR.location)} — a separate company that works solely on our instructions and for no other purpose — accesses our systems remotely in order to process client records.</p>
+  <p>${esc(firmLegalName)} remains the data controller and remains responsible to you, and to the Information Commissioner's Office, for all processing carried out on our behalf. Personnel there work under written confidentiality and data protection obligations, access our systems only over an encrypted connection secured by multi-factor authentication, and may process your personal data only in accordance with our instructions.</p>
+  <p>We may also use service providers located outside the UK, for example for cloud hosting and software services. Where we transfer personal data outside the UK we take steps to ensure it continues to be protected to UK standards. You may ask us at any time for details of the countries concerned and the safeguards that apply, by contacting us at ${esc(firmEmail)}.</p>
 
   <h3>Data security</h3>
   <p>We have put in place commercially reasonable and appropriate security measures to prevent your personal data from being accidentally lost, used or accessed in an unauthorised way, altered or disclosed. In addition, we limit access to your personal data to those employees, agents, contractors and other third parties who have a business need to know. They will only process your personal data on our instructions, and they are subject to a duty of confidentiality.</p>
