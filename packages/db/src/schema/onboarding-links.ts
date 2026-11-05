@@ -19,6 +19,20 @@ export const onboardingLinks = pgTable(
     directorName: text("director_name"),
     directorEmail: text("director_email"),
     firmSlug: text("firm_slug"),
+    /**
+     * The client's id in the practice CRM, which becomes the master record for
+     * who is a client.
+     *
+     * Exists so the first CRM pull can MATCH an existing client here and write
+     * only this one field, rather than skipping them (which leaves two
+     * unlinked records and lets a later sync create a duplicate) or updating
+     * them (which would rewrite engagements that have already been signed).
+     *
+     * Nullable on purpose: a client created here before CRM, or one CRM does
+     * not know about, simply has none — and that gap is worth reporting rather
+     * than hiding.
+     */
+    externalRef: text("external_ref"),
     services: json("services").$type<Array<{ id: string; name: string; price: number }>>(),
     resendCount: text("resend_count").notNull().default("0"),
     lastResentAt: timestamp("last_resent_at", { withTimezone: true }),
@@ -43,5 +57,11 @@ export const onboardingLinks = pgTable(
     tokenIdx: index("onboarding_links_token_idx").on(t.token),
     statusIdx: index("onboarding_links_status_idx").on(t.status),
     clientEmailIdx: index("onboarding_links_email_idx").on(t.clientEmail),
+    /* The sync looks clients up by this on every run, and matching is the
+       whole point of the column. */
+    externalRefIdx: index("onboarding_links_external_ref_idx").on(t.externalRef),
+    /* Company number is how a CRM client is matched to a record here on the
+       first pull, before any external_ref exists. */
+    companyNumberIdx: index("onboarding_links_company_number_idx").on(t.companyNumber),
   }),
 );

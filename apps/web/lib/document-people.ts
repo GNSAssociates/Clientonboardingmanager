@@ -51,6 +51,34 @@ export function ensureDocumentPeople(): Promise<void> {
         )
       `),
       );
+      /* Identity in the practice CRM, so directors and PSCs it supplies match
+         the people already recorded here instead of being added again under a
+         slightly different spelling. Nullable: people seeded from Companies
+         House, or added by hand, have none. */
+      await db.execute(
+        sql.raw(`ALTER TABLE document_people ADD COLUMN IF NOT EXISTS external_ref text`),
+      );
+      await db.execute(
+        sql.raw(
+          `CREATE INDEX IF NOT EXISTS document_people_external_ref_idx ON document_people (external_ref)`,
+        ),
+      );
+      /* Matching a CRM client to a record here needs these two, and migrations
+         are not run as part of deployment, so they are applied here as well as
+         in 0031. Both statements are idempotent. */
+      await db.execute(
+        sql.raw(`ALTER TABLE onboarding_links ADD COLUMN IF NOT EXISTS external_ref text`),
+      );
+      await db.execute(
+        sql.raw(
+          `CREATE INDEX IF NOT EXISTS onboarding_links_external_ref_idx ON onboarding_links (external_ref)`,
+        ),
+      );
+      await db.execute(
+        sql.raw(
+          `CREATE INDEX IF NOT EXISTS onboarding_links_company_number_idx ON onboarding_links (company_number)`,
+        ),
+      );
       await db.execute(
         sql.raw(`CREATE INDEX IF NOT EXISTS document_people_link_idx ON document_people (link_token)`),
       );
