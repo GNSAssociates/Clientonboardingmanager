@@ -4,11 +4,16 @@ import { getDb, incrementDocFollowUp } from "@gns/db";
 import { sendTemplatedMail } from "@/lib/send-templated-mail";
 import { dispatchDueScheduledSends } from "@/lib/scheduled-send";
 import { getFirm } from "@/lib/firms";
+import { REQUIRED_DOC_IDS } from "@/lib/document-types";
+import { ensureDocumentPeople } from "@/lib/document-people";
 
 export const dynamic = "force-dynamic";
 
 // Director ID (KYC) documents chased from the CLIENT every 2 days after signing.
-const IDENTITY_DOC_TYPES = ["passport_photo_page", "passport_back_or_licence", "proof_of_address"];
+/* Derived, not retyped: this list used to be a second copy of the document
+   set and would have gone on chasing the withdrawn passport-back item after
+   it was dropped from the required set. */
+const IDENTITY_DOC_TYPES = REQUIRED_DOC_IDS;
 const CHASE_INTERVAL_DAYS = 2;
 const MAX_CHASES = 8;
 
@@ -25,6 +30,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  /* The query below reads request_state, which is added by this call. Without
+     it the chaser would throw on a database that has not seen the people
+     feature yet — and a nightly job that errors stops every document chase in
+     the practice without anyone noticing. */
+  await ensureDocumentPeople();
+
   const db = getDb();
   const now = new Date();
   const cutoff = new Date(now.getTime() - CHASE_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
@@ -39,7 +50,14 @@ export async function GET(req: NextRequest) {
     FROM document_submissions ds
     JOIN onboarding_links ol ON ol.token = ds.onboarding_token
     WHERE ds.status = 'pending'
-      AND ds.doc_type IN ('passport_photo_page', 'passport_back_or_licence', 'proof_of_address')
+      AND ds.doc_type IN ('passport_photo_page', 'proof_of_address')
+      /* A person is chased only once someone has deliberately asked them.
+         Adding the second and third director to an already-signed client
+         creates their rows, and without this the next nightly run would email
+         several hundred existing clients about documents nobody had requested
+         from them. Rows start 'not_requested' and the bulk request moves them
+         to 'pending'. */
+      AND COALESCE(ds.request_state, 'requested') = 'requested'
       AND ol.status = 'accepted'
       AND (ol.acceptance_data->>'stopClientChase') IS DISTINCT FROM 'true'
     GROUP BY ds.onboarding_token, ol.client_email, ol.director_name, ol.company_name, ol.firm_slug, ol.accepted_at

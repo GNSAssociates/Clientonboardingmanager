@@ -14,6 +14,8 @@ export interface DocType {
   description: string;
   hint: string;
   required: boolean;
+  /** Withdrawn from the required set; retained so existing uploads keep a label. */
+  legacy?: boolean;
   category: 'identity';
   acceptedFormats: string[];
   maxSizeMb: number;
@@ -22,7 +24,7 @@ export interface DocType {
 export const DOCUMENT_TYPES: DocType[] = [
   {
     id: 'passport_photo_page',
-    label: 'Passport — Photo Page',
+    label: 'Passport',
     description: 'The page showing your photograph and personal details',
     hint: 'Must be valid (not expired). Photograph and all details must be clearly visible.',
     required: true,
@@ -35,14 +37,20 @@ export const DOCUMENT_TYPES: DocType[] = [
     label: 'Passport (Back) or Driving Licence',
     description: 'Back page of passport OR both sides of UK driving licence',
     hint: 'If using driving licence: upload as a single image showing both front and back.',
-    required: true,
+    /* Withdrawn: CDD is satisfied by photo ID plus proof of address, and a
+       third item was stalling clients halfway. Kept in the list, not deleted,
+       so the documents already supplied under it keep their label and remain
+       visible on the record instead of becoming an unnamed orphan row. It is
+       never requested and never chased. */
+    required: false,
+    legacy: true,
     category: 'identity',
     acceptedFormats: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
     maxSizeMb: 10,
   },
   {
     id: 'proof_of_address',
-    label: 'Proof of Address',
+    label: 'Utility Bill or Bank Statement',
     description: 'Utility bill, bank statement, or council tax letter — less than 3 months old',
     hint: 'Must show your full name and current address. Mobile phone bills are not accepted.',
     required: true,
