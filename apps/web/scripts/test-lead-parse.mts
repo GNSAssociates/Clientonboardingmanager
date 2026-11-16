@@ -143,6 +143,26 @@ test("security: an email that would inject mailto headers is not accepted", () =
   assert.equal(parseLead({ email: "a@b.co?bcc=x@evil.com" }).email, null);
 });
 
+test("backfill: the original submission date is kept; a future or junk date is not", () => {
+  assert.equal(parseLead({ email: "a@b.co", submitted_at: "2026-10-01T09:30:00+01:00" }).submittedAt, "2026-10-01T08:30:00.000Z");
+  assert.equal(parseLead({ email: "a@b.co", submitted_at: "2099-01-01T00:00:00Z" }).submittedAt, null);
+  assert.equal(parseLead({ email: "a@b.co", submitted_at: "yesterday-ish" }).submittedAt, null);
+  assert.equal(parseLead({ email: "a@b.co" }).submittedAt, null);
+});
+
+test("Contact Form 7 field names (your-name, tel-802) are recognised", () => {
+  const p = parseLead({
+    form_id: "13594", form_name: "Quick Contact", entry_id: "cf7db-12",
+    "your-name": "Tom Hale", "your-email": "tom@hale.co.uk", "tel-802": "07700 900 456",
+    "your-message": "Need a bookkeeper", cfdb7_status: "read",
+  });
+  assert.equal(p.name, "Tom Hale");
+  assert.equal(p.email, "tom@hale.co.uk");
+  assert.equal(p.phone, "07700900456");
+  assert.equal(p.message, "Need a bookkeeper");
+  assert.deepEqual(p.extra, [], "cfdb7_status is housekeeping, not shown");
+});
+
 test("garbage in does not throw", () => {
   for (const x of [null, undefined, 42, "text", [], { fields: "nope" }, { fields: [null, 1, "x"] }]) {
     const p = parseLead(x);

@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseLead } from "@/lib/lead-parse";
 import { insertLead } from "@/lib/lead-store";
+import { logLeadEvent } from "@/lib/lead-history";
 import { checkLeadsSecret, leadsSecretConfigured } from "@/lib/leads-auth";
 import { FIRMS } from "@/lib/firms";
 
@@ -64,6 +65,12 @@ export async function POST(req: NextRequest) {
   try {
     const parsed = parseLead(body);
     const { id, created } = await insertLead(parsed, { source: "website", firmSlug, raw: body });
+    if (created) {
+      await logLeadEvent({
+        leadId: id, kind: "created", at: parsed.submittedAt ?? undefined,
+        text: `Enquiry received from the website${parsed.formName ? ` (${parsed.formName})` : ""}${parsed.looksLikeSpam ? `; filed as spam: ${parsed.spamReason}` : ""}.`,
+      }).catch((e) => console.error("lead created event failed:", e));
+    }
     return NextResponse.json(
       { ok: true, id, duplicate: !created, filedAsSpam: parsed.looksLikeSpam },
       { status: created ? 201 : 200 },
