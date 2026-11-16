@@ -69,6 +69,16 @@ export const HANDOVER_STATUS_OPTIONS = [
   { value: 'na',       label: 'N/A',      on: 'bg-gray-200 border-gray-300 text-gray-700' },
 ] as const satisfies ReadonlyArray<StatusOption<'pending' | 'received' | 'verified' | 'na'>>;
 
+/** Where an enquiry has got to. Spam is set from its own button, not here. */
+export const LEAD_STATUS_OPTIONS = [
+  { value: 'new',       label: 'New',        on: 'bg-blue-600 border-blue-600 text-white' },
+  { value: 'contacted', label: 'Contacted',  on: 'bg-amber-100 border-amber-300 text-amber-900' },
+  { value: 'meeting',   label: 'Meeting',    on: 'bg-amber-100 border-amber-300 text-amber-900' },
+  { value: 'proposal',  label: 'Quote sent', on: 'bg-violet-100 border-violet-300 text-violet-900' },
+  { value: 'won',       label: 'Won',        on: 'bg-green-600 border-green-600 text-white' },
+  { value: 'lost',      label: 'Lost',       on: 'bg-gray-200 border-gray-300 text-gray-700' },
+] as const satisfies ReadonlyArray<StatusOption<'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost'>>;
+
 /** What a clearance item can be. "Requested" because we asked for it. */
 export const CLEARANCE_STATUS_OPTIONS = [
   { value: 'pending',  label: 'Requested', on: 'bg-amber-100 border-amber-300 text-amber-900' },
