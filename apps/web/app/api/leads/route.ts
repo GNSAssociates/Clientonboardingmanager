@@ -7,7 +7,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { parseLead, LEAD_STATUSES, type LeadSource } from "@/lib/lead-parse";
+import { parseLead, LEAD_STATUSES, LEAD_SOURCE_LABELS, type LeadSource } from "@/lib/lead-parse";
+import { logLeadEvent } from "@/lib/lead-history";
 import { insertLead, listLeads, leadCounts, type LeadView } from "@/lib/lead-store";
 import { leadsSession, leadsSecretConfigured } from "@/lib/leads-auth";
 import { FIRMS } from "@/lib/firms";
@@ -76,6 +77,10 @@ export async function POST(req: NextRequest) {
       createdBy: session.userId,
       notes: b.notes ?? null,
     });
+    await logLeadEvent({
+      leadId: id, kind: "created", actorId: session.userId, actorName: session.displayName ?? null,
+      text: `Lead added by hand (${LEAD_SOURCE_LABELS[b.source as LeadSource]}).`,
+    }).catch((e) => console.error("lead created event failed:", e));
     return NextResponse.json({ ok: true, id }, { status: 201 });
   } catch (e) {
     console.error("add lead failed:", e);

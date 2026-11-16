@@ -153,10 +153,11 @@ export async function insertLead(
 
   const rows = (await db.execute(sql`
     INSERT INTO leads
-      (source, status, name, email, phone, company_name, company_number, services, message,
+      (received_at, source, status, name, email, phone, company_name, company_number, services, message,
        extra, form_id, form_name, entry_id, page_url, firm_slug, spam_reason, notes, raw,
        dedupe_key, created_by, updated_by)
     VALUES (
+      COALESCE(${p.submittedAt}::timestamptz, now()),
       ${opts.source}, ${status}, ${p.name}, ${p.email}, ${p.phone}, ${p.companyName}, ${p.companyNumber},
       ${p.services}, ${p.message}, ${JSON.stringify(p.extra)}::jsonb, ${p.formId}, ${p.formName}, ${p.entryId},
       ${p.pageUrl}, ${opts.firmSlug ?? null}, ${p.spamReason}, ${opts.notes ?? null},

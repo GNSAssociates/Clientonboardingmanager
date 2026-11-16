@@ -33,6 +33,11 @@ export interface ParsedLead {
   formName: string | null;
   entryId: string | null;
   pageUrl: string | null;
+  /**
+   * When the visitor actually submitted the form, for enquiries sent across
+   * later from the WordPress database. Null means "now". Never in the future.
+   */
+  submittedAt: string | null;
   /** True when the submission looks like spam. It is still stored, just filed as spam. */
   looksLikeSpam: boolean;
   spamReason: string | null;
@@ -68,7 +73,7 @@ const TYPE_RULES: Record<string, Role> = {
 };
 
 /** WPForms' internal / housekeeping keys that are never something a visitor typed. */
-const IGNORED_KEYS = /^(form_?id|form_?name|entry_?id|page_?url|referer|referrer|_.*|nonce|token|g-recaptcha.*|h-captcha.*|cf-turnstile.*|hp|honeypot|submit|action)$/i;
+const IGNORED_KEYS = /^(form_?id|form_?name|form_?title|entry_?id|page_?url|referer|referrer|site|submitted_?at|form_?date|cfdb7_status|_.*|nonce|token|g-recaptcha.*|h-captcha.*|cf-turnstile.*|hp|honeypot|submit|action)$/i;
 
 function clean(v: unknown, max = 5000): string {
   if (v === null || v === undefined) return "";
@@ -97,6 +102,20 @@ function roleFor(f: Field): Role | null {
   if (t === "phone") return "phone";
   for (const [re, role] of LABEL_RULES) if (re.test(f.label)) return role;
   return TYPE_RULES[t] ?? null;
+}
+
+/**
+ * A submission date from WordPress ("2026-11-13 16:17:02", site time, or ISO).
+ * Accepted only if it is a real date within the last five years and not in
+ * the future, so a bad clock cannot put a lead at the top of the list forever.
+ */
+function pastDate(v: string): string | null {
+  if (!v) return null;
+  const t = Date.parse(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(v) ? v.replace(" ", "T") : v);
+  if (isNaN(t)) return null;
+  const now = Date.now();
+  if (t > now + 5 * 60_000 || t < now - 5 * 365 * 86_400_000) return null;
+  return new Date(t).toISOString();
 }
 
 function safeWebUrl(v: string): string | null {
@@ -228,6 +247,7 @@ export function parseLead(input: unknown): ParsedLead {
     // Shown to staff as a link, and it comes from a public form: only a plain
     // web address is kept, so a "javascript:" URL can never become clickable.
     pageUrl: safeWebUrl(clean(body.page_url ?? body.pageUrl ?? body.referer, 500)),
+    submittedAt: pastDate(clean(body.submitted_at ?? body.submittedAt ?? body.form_date, 40)),
     looksLikeSpam: false,
     spamReason: null,
   };
