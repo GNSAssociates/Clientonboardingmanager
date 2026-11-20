@@ -208,3 +208,26 @@ export function peopleOf(datasets: Partial<Record<CrmDataset, Json[]>>): CrmPers
   }
   return out;
 }
+
+/**
+ * A Companies House style name ("SMITH, Jane Mary") as people write it
+ * ("Jane Mary Smith"). A name without the comma is returned as it is.
+ */
+export function displayName(v: unknown): string | null {
+  const s = str(v);
+  if (!s) return null;
+  const m = s.match(/^([^,]+),\s*(.+)$/);
+  if (!m) return s;
+  const title = (w: string) => w.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, p: string, c: string) => p + c.toUpperCase());
+  const last = m[1]!.trim() === m[1]!.trim().toUpperCase() ? title(m[1]!.trim()) : m[1]!.trim();
+  return `${m[2]!.trim()} ${last}`;
+}
+
+/**
+ * The engagement wizard's client type for a company number: LLPs are
+ * registered with OC (England & Wales), SO (Scotland) or NC (Northern
+ * Ireland); everything else on the register is treated as a limited company.
+ */
+export function clientTypeFor(companyNumber: string | null): "limited" | "llp" {
+  return /^(OC|SO|NC)/i.test(companyNumber ?? "") ? "llp" : "limited";
+}

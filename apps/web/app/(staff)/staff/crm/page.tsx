@@ -9,12 +9,17 @@
  * matched to a client here, whose director ID verification is due in the next
  * 30 days, what failed to load, and what the CRM no longer lists. Choosing a
  * company shows its full CRM record: profile, people and all 13 datasets.
+ * A company with no client here can be started as one ("Create client from
+ * CRM"); companies new in the CRM after the first sync are started
+ * automatically (see lib/crm-sync.ts).
  */
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Database, RefreshCw, Search, AlertTriangle, CheckCircle2, X, ExternalLink } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Database, RefreshCw, Search, AlertTriangle, CheckCircle2, X, ExternalLink, UserPlus } from 'lucide-react';
 import { CRM_DATASETS, CRM_DATASET_LABELS } from '@/lib/crm-shape';
+import { FIRMS } from '@/lib/firms';
 import type { SyncRun, CrmCompanyRow, CrmView } from '@/lib/crm-sync';
 
 type Counts = Record<CrmView, number>;
@@ -148,7 +153,7 @@ function RunStatus({ run, syncing }: { run: SyncRun | null; syncing: boolean }) 
            run.status === 'listing' ? `Reading the company list (page ${run.listPage}${run.listLast ? ` of ${run.listLast}` : ''})` :
            `Loading companies: ${run.detailed + run.failed} of ${run.total ?? run.listed}${pct !== null ? ` (${pct}%)` : ''}`}
         </span>
-        <span className="text-gray-500">{run.listed} listed · {run.detailed} loaded · {run.matched} matched to clients · {run.peopleLinked} people linked{run.failed ? ` · ${run.failed} could not load` : ''}</span>
+        <span className="text-gray-500">{run.listed} listed · {run.detailed} loaded · {run.matched} matched to clients · {run.peopleLinked} people linked{run.clientsCreated ? ` · ${run.clientsCreated} new clients started` : ''}{run.failed ? ` · ${run.failed} could not load` : ''}</span>
         <span className="text-gray-400 text-xs">started {ukTime(run.startedAt)} {run.trigger === 'cron' ? '(nightly)' : run.startedBy ? `by ${run.startedBy}` : ''}</span>
       </div>
       {running && pct !== null && <div className="mt-2 h-1.5 bg-blue-100 rounded-full overflow-hidden"><div className="h-full bg-blue-600 transition-all" style={{ width: `${pct}%` }} /></div>}
@@ -187,6 +192,48 @@ function CompanyList({ rows, selected, onSelect, view }: { rows: CrmCompanyRow[]
   );
 }
 
+/**
+ * Start a client here from a CRM company that has none. It opens the partner
+ * intake form already filled with what the CRM knows; nothing is sent.
+ */
+function CreateClient({ crmId }: { crmId: string }) {
+  const router = useRouter();
+  const [firm, setFirm] = useState('gns');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const create = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch('/api/crm/companies', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_client', crmId, firmSlug: firm }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.token) throw new Error(j.error || 'Could not create the client.');
+      router.push(`/staff/intake?token=${j.token}`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not create the client.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <select value={firm} onChange={(e) => setFirm(e.target.value)} disabled={busy}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+        {Object.values(FIRMS).map((f) => <option key={f.slug} value={f.slug}>{f.name}</option>)}
+      </select>
+      <button onClick={create} disabled={busy}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#cc2229] hover:bg-[#a81c22] disabled:opacity-60 rounded-lg px-3 py-1.5">
+        <UserPlus size={13} /> {busy ? 'Creating…' : 'Create client from CRM'}
+      </button>
+      <span className="text-[11px] text-gray-400">Opens the partner intake form, filled in. Nothing is sent.</span>
+      {err && <p className="w-full text-xs text-red-700">{err}</p>}
+    </div>
+  );
+}
+
 function CompanyPane({ id, onClose }: { id: string; onClose: () => void }) {
   const [c, setC] = useState<Detail | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -219,6 +266,7 @@ function CompanyPane({ id, onClose }: { id: string; onClose: () => void }) {
               ? c.matchedTokens.map((t, i) => <Link key={t} href={`/staff/clients/${t}`} className="text-green-700 font-semibold hover:underline mr-2">Open client{c.matchedTokens.length > 1 ? ` ${i + 1}` : ''} →</Link>)
               : <span className="text-gray-500">Not matched to a client here (no client with company number {c.companyNumber ?? '—'}).</span>}
           </p>
+          {!c.matchedTokens.length && !c.gone && <CreateClient crmId={c.crmId} />}
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
       </div>

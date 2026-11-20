@@ -36,3 +36,11 @@ About 6 list requests plus one detail request per company (the detail call retur
 | "The CRM did not accept the API key (401)" | `CRM_API_KEY` is wrong or incomplete; it must include `integration_id|`. |
 | "integration is inactive or revoked (403)" | Ask the CRM's developer to reactivate the integration. |
 | "Could not load" on a company | That one request failed (shown on the company); the next sync retries it. |
+
+## New clients start in the CRM
+
+- **Baseline:** the first full sync records who is already in the CRM. Those are existing clients and are not imported.
+- **After that:** any company that appears in the CRM and matches no client here (by company number) becomes a **draft client** on the next sync. Its partner intake form is already filled with the name, company number, first current director and firm (GNS Associates by default). Nothing is sent: the engagement letter still goes from the wizard. Dissolved or closed companies are skipped.
+- **By hand:** on the CRM screen, any unmatched company has **Create client from CRM** (choose the firm first). It opens the partner intake form for that draft.
+- A company never gets a second client: an existing client with the same CRM id or company number is opened instead.
+- To stop the automatic drafts, set `CRM_AUTO_CREATE_CLIENTS=off`. The button still works.

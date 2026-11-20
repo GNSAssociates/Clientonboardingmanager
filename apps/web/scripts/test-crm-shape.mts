@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import {
   readCompany, readListPage, readDetail, normaliseCompanyNumber, crmDate, personKey, peopleOf,
+  displayName, clientTypeFor,
 } from "../lib/crm-shape.ts";
 
 let passed = 0;
@@ -99,6 +100,22 @@ test("people: directors (current unless resigned) and PSCs (current unless cease
     ["Dr Raksha Thapa", "psc", false],
   ]);
   assert.equal(p[0]!.verificationDue, "2026-11-30");
+});
+
+test("names: CH style turned round, others kept", () => {
+  assert.equal(displayName("SMITH, Jane Mary"), "Jane Mary Smith");
+  assert.equal(displayName("O'BRIEN-JONES, Pat"), "Pat O'Brien-Jones");
+  assert.equal(displayName("McDonald, Ann"), "Ann McDonald");
+  assert.equal(displayName("Raj Pandey"), "Raj Pandey");
+  assert.equal(displayName("  "), null);
+});
+
+test("client type from company number", () => {
+  assert.equal(clientTypeFor("OC401234"), "llp");
+  assert.equal(clientTypeFor("SO301234"), "llp");
+  assert.equal(clientTypeFor("01234567"), "limited");
+  assert.equal(clientTypeFor("SC012345"), "limited");
+  assert.equal(clientTypeFor(null), "limited");
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", some FAILED" : ""}`);
