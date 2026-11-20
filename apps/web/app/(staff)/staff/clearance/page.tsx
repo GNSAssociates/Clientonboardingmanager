@@ -128,7 +128,7 @@ export default function ClearanceOverviewPage() {
             </button>
           </div>
           <Link
-            href="/staff/intake"
+            href="/onboarding"
             className="px-4 py-2 text-white font-semibold rounded-xl text-sm"
             style={{ background: 'linear-gradient(135deg, #cc2229, #1e3a8a)' }}
           >
