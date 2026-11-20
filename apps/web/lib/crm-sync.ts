@@ -23,16 +23,29 @@
  * cron call or the next press of "Sync now". A full pass finishes the run;
  * companies the CRM no longer lists are marked, not deleted.
  *
+ * NEW CLIENTS. A client starts life in the CRM. Once the first full sync has
+ * finished (the baseline), any company that appears in the CRM later and
+ * matches no client here becomes a DRAFT client automatically: the engagement
+ * wizard opens already filled with its name, number and first director.
+ * Companies that were in the CRM at the baseline are existing clients and are
+ * not imported in bulk; staff can create one from the CRM screen when needed.
+ * A draft sends nothing: the engagement letter still goes out from the wizard.
+ *
  * Settings: CRM_API_KEY (required, the full "integration_id|secret" token),
- * CRM_API_URL (default https://crm.gnsuk.com/api/v1).
+ * CRM_API_URL (default https://crm.gnsuk.com/api/v1), CRM_AUTO_CREATE_CLIENTS
+ * ("off" stops the automatic drafts; the button still works).
  */
 import "server-only";
-import { getDb } from "@gns/db";
+import { randomBytes, randomUUID } from "crypto";
+import { getDb, upsertDraftLink } from "@gns/db";
 import { sql } from "drizzle-orm";
 import {
   readListPage, readDetail, readCompany, peopleOf, normaliseCompanyNumber, personKey,
-  CRM_DATASETS, type Json, type CrmDataset,
+  displayName, clientTypeFor,
+  CRM_DATASETS, type Json, type CrmDataset, type CrmPerson,
 } from "./crm-shape";
+import { EMPTY_INTAKE, intakeToWizardDraft, type IntakeForm } from "./intake";
+import { getFirm } from "./firms";
 
 const BASE = () => (process.env.CRM_API_URL?.trim() || "https://crm.gnsuk.com/api/v1").replace(/\/+$/, "");
 const TOKEN = () => process.env.CRM_API_KEY?.trim() || "";
@@ -117,6 +130,9 @@ export function ensureCrmTables(): Promise<void> {
           gone_at                timestamptz
         )
       `));
+      // Added after the first release: who created a client here from this record, and when.
+      await db.execute(sql.raw(`ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS client_created_at timestamptz`));
+      await db.execute(sql.raw(`ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS client_created_by text`));
       await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_crm_companies_number ON crm_companies (company_number)`));
       await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_crm_companies_seen ON crm_companies (seen_run, detail_run)`));
       await db.execute(sql.raw(`
@@ -139,6 +155,7 @@ export function ensureCrmTables(): Promise<void> {
           finished_at   timestamptz
         )
       `));
+      await db.execute(sql.raw(`ALTER TABLE crm_sync_runs ADD COLUMN IF NOT EXISTS clients_created integer NOT NULL DEFAULT 0`));
     })().catch((e) => { ready = null; throw e; });
   }
   return ready;
@@ -161,6 +178,8 @@ export interface SyncRun {
   failed: number;
   matched: number;
   peopleLinked: number;
+  /** Draft clients made here for companies new in the CRM. */
+  clientsCreated: number;
   message: string | null;
   startedAt: string;
   updatedAt: string;
@@ -180,6 +199,7 @@ const toRun = (r: Record<string, unknown>): SyncRun => ({
   failed: Number(r.failed ?? 0),
   matched: Number(r.matched ?? 0),
   peopleLinked: Number(r.people_linked ?? 0),
+  clientsCreated: Number(r.clients_created ?? 0),
   message: (r.message as string) ?? null,
   startedAt: new Date(String(r.started_at)).toISOString(),
   updatedAt: new Date(String(r.updated_at)).toISOString(),
@@ -211,7 +231,7 @@ export async function startRun(trigger: "manual" | "cron", startedBy: string | n
   return toRun(rows[0]!);
 }
 
-async function patchRun(id: string, set: Partial<Record<"status" | "list_page" | "list_last" | "total" | "message", string | number | null>>, add: Partial<Record<"listed" | "detailed" | "failed" | "matched" | "people_linked", number>> = {}, finish = false) {
+async function patchRun(id: string, set: Partial<Record<"status" | "list_page" | "list_last" | "total" | "message", string | number | null>>, add: Partial<Record<"listed" | "detailed" | "failed" | "matched" | "people_linked" | "clients_created", number>> = {}, finish = false) {
   const has = (k: string) => Object.prototype.hasOwnProperty.call(set, k);
   await getDb().execute(sql`
     UPDATE crm_sync_runs SET
@@ -225,6 +245,7 @@ async function patchRun(id: string, set: Partial<Record<"status" | "list_page" |
       failed        = failed + ${add.failed ?? 0},
       matched       = matched + ${add.matched ?? 0},
       people_linked = people_linked + ${add.people_linked ?? 0},
+      clients_created = clients_created + ${add.clients_created ?? 0},
       updated_at    = now(),
       finished_at   = CASE WHEN ${finish} THEN now() ELSE finished_at END
     WHERE id = ${id}::uuid
@@ -302,12 +323,14 @@ export async function stepRun(runId: string, budgetMs = 20000): Promise<SyncRun>
         let ok = false;
         let matched = 0;
         let linked = 0;
+        let created = 0;
         try {
           const body = await crmGet(`/company-records/${encodeURIComponent(crm_id)}`);
           if (body) {
             const r = await saveDetail(crm_id, body, runId);
             matched = r.matched;
             linked = r.peopleLinked;
+            created = r.created;
             ok = true;
           } else {
             await db.execute(sql`UPDATE crm_companies SET detail_run = ${runId}::uuid, detail_error = 'not found in CRM' WHERE crm_id = ${crm_id}`);
@@ -316,7 +339,7 @@ export async function stepRun(runId: string, budgetMs = 20000): Promise<SyncRun>
           if (e instanceof CrmAuthError) throw e;
           await db.execute(sql`UPDATE crm_companies SET detail_run = ${runId}::uuid, detail_error = ${e instanceof Error ? e.message.slice(0, 300) : String(e)} WHERE crm_id = ${crm_id}`);
         }
-        await patchRun(runId, {}, { detailed: ok ? 1 : 0, failed: ok ? 0 : 1, matched, people_linked: linked });
+        await patchRun(runId, {}, { detailed: ok ? 1 : 0, failed: ok ? 0 : 1, matched, people_linked: linked, clients_created: created });
         await sleep(GAP_MS);
       }
       run = await load();
@@ -330,7 +353,7 @@ export async function stepRun(runId: string, budgetMs = 20000): Promise<SyncRun>
 }
 
 /** Store one company's full record and match it to clients and people here. */
-async function saveDetail(crmId: string, body: unknown, runId: string): Promise<{ matched: number; peopleLinked: number }> {
+async function saveDetail(crmId: string, body: unknown, runId: string): Promise<{ matched: number; peopleLinked: number; created: number }> {
   const db = getDb();
   const d = readDetail(body);
   const c = d.company;
@@ -402,7 +425,125 @@ async function saveDetail(crmId: string, body: unknown, runId: string): Promise<
       }
     } catch { /* document_people not created yet on this database: nothing to link */ }
   }
-  return { matched, peopleLinked };
+
+  // New in the CRM since the baseline, and no client here: start one as a draft.
+  let created = 0;
+  if (!tokens.length && process.env.CRM_AUTO_CREATE_CLIENTS?.trim().toLowerCase() !== "off") {
+    const r = ((await db.execute(sql`
+      SELECT (c.first_seen_at > b.baseline) AS is_new, c.client_created_at, c.ch_status
+      FROM crm_companies c,
+           (SELECT min(finished_at) AS baseline FROM crm_sync_runs WHERE status = 'done') b
+      WHERE c.crm_id = ${crmId}
+    `)) as unknown as Array<{ is_new: boolean | null; client_created_at: unknown; ch_status: string | null }>)[0];
+    const closed = /dissolved|closed|liquidat|struck|removed/i.test(r?.ch_status ?? "");
+    if (r?.is_new === true && !r.client_created_at && !closed) {
+      const res = await createClientFromCrm(crmId, { by: "CRM sync (new in CRM)", people });
+      created = "created" in res && res.created ? 1 : 0;
+    }
+  }
+  return { matched, peopleLinked, created };
+}
+
+/* ------------------------------------------------------------------ */
+/* A client here, from a CRM record                                     */
+/* ------------------------------------------------------------------ */
+
+export interface CreatedFromCrm {
+  token: string;
+  firmSlug: string;
+  /** False when the company already had a client here; that one is returned instead. */
+  created: boolean;
+}
+
+/**
+ * Start a draft client for a CRM company: the same kind of record the partner
+ * intake form saves, already filled with what the CRM knows, and linked to the
+ * CRM by external_ref. Never makes a second client for a company that has one.
+ */
+export async function createClientFromCrm(
+  crmId: string,
+  opts: { by: string; firmSlug?: string; people?: CrmPerson[] },
+): Promise<CreatedFromCrm | { error: string }> {
+  await ensureCrmTables();
+  const db = getDb();
+  const row = ((await db.execute(sql`
+    SELECT crm_id, company_number, company_name, client_name, people, profile
+    FROM crm_companies WHERE crm_id = ${crmId}
+  `)) as unknown as Array<Record<string, unknown>>)[0];
+  if (!row) return { error: "That company is not in the local copy of the CRM. Run a sync first." };
+
+  const number = (row.company_number as string | null) ?? null;
+  // Already a client here, by CRM id or by company number: hand that one back.
+  const existing = ((await db.execute(sql`
+    SELECT token, firm_slug FROM onboarding_links
+    WHERE status <> 'archived'
+      AND (external_ref = ${crmId}
+           OR (${number}::text IS NOT NULL
+               AND upper(regexp_replace(coalesce(company_number,''), '\\s', '', 'g')) IN (${number ?? ""}, ${(number ?? "").replace(/^0+/, "")})))
+    ORDER BY created_at DESC LIMIT 1
+  `)) as unknown as Array<{ token: string; firm_slug: string | null }>)[0];
+  if (existing) {
+    await db.execute(sql`
+      UPDATE crm_companies SET matched_tokens = array_append(matched_tokens, ${existing.token})
+      WHERE crm_id = ${crmId} AND NOT (${existing.token} = ANY(matched_tokens))
+    `);
+    return { token: existing.token, firmSlug: existing.firm_slug ?? "gns", created: false };
+  }
+
+  const parse = (v: unknown, d: unknown) => { try { return typeof v === "string" ? JSON.parse(v) : (v ?? d); } catch { return d; } };
+  const people = opts.people ?? (parse(row.people, []) as CrmPerson[]);
+  const profile = parse(row.profile, {}) as Json;
+  const lead = people.find((p) => p.kind === "director" && p.current) ?? people.find((p) => p.current) ?? null;
+  const name = ((row.company_name as string | null) ?? (row.client_name as string | null) ?? "").trim() || `CRM company ${crmId}`;
+  const firmSlug = opts.firmSlug && getFirm(opts.firmSlug) ? opts.firmSlug : "gns";
+  const address = typeof profile.registered_address === "string" ? profile.registered_address.trim() : "";
+
+  const intake: IntakeForm = {
+    ...EMPTY_INTAKE,
+    filledByRole: "staff",
+    filledByName: opts.by,
+    clientName: name,
+    companyNumber: number ?? "",
+    firmSlug,
+    contact: { ...EMPTY_INTAKE.contact, name: displayName(lead?.name) ?? "" },
+  };
+  const token = randomBytes(32).toString("hex");
+  const now = new Date();
+  await db.transaction((tx) =>
+    upsertDraftLink(tx, {
+      id: randomUUID(),
+      token,
+      companyName: name,
+      companyNumber: number,
+      directorName: intake.contact.name || null,
+      directorEmail: null,
+      clientEmail: "",
+      firmSlug,
+      externalRef: crmId,
+      services: [],
+      sentAt: now,
+      // A draft is not a live link; the wizard sets a real expiry when it sends.
+      expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
+      letterMeta: {
+        intake,
+        intakeSavedBy: opts.by,
+        intakeSavedAt: now.toISOString(),
+        createdFromCrm: { crmId, by: opts.by, at: now.toISOString() },
+        wizardDraft: {
+          ...intakeToWizardDraft(intake),
+          clientType: clientTypeFor(number),
+          ...(address ? { businessAddress: address } : {}),
+        },
+      },
+    }),
+  );
+  await db.execute(sql`
+    UPDATE crm_companies SET
+      matched_tokens = array_append(matched_tokens, ${token}),
+      client_created_at = now(), client_created_by = ${opts.by}
+    WHERE crm_id = ${crmId}
+  `);
+  return { token, firmSlug, created: true };
 }
 
 /* ------------------------------------------------------------------ */
