@@ -249,7 +249,7 @@ function LeadPane({ lead, onChange, onReload, onClose }: {
     setTimeout(() => setSaving(''), 2500);
   };
 
-  /** Fill the partner intake form from the lead, then open it. */
+  /** Save the client from the lead, then open the engagement wizard on it (the partner intake form is switched off for now). */
   const startIntake = async () => {
     setConverting(true);
     const intake: IntakeForm = {
@@ -276,7 +276,7 @@ function LeadPane({ lead, onChange, onReload, onClose }: {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intakeToken: j.token, status: 'won' }),
       });
-      router.push(`/staff/intake?token=${j.token}`);
+      router.push(`/onboarding/services?draft=${j.token}&firm=${intake.firmSlug}`);
     } catch (e) {
       setConverting(false);
       setSaving((e as Error).message);
@@ -438,16 +438,16 @@ function LeadPane({ lead, onChange, onReload, onClose }: {
             </a>
           )}
           {lead.intakeToken ? (
-            <Link href={`/staff/intake?token=${lead.intakeToken}`}
+            <Link href={`/onboarding/services?draft=${lead.intakeToken}&firm=${lead.firmSlug ?? 'gns'}`}
                   className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white bg-green-600 hover:bg-green-700">
-              Open the intake <ArrowRight size={14} />
+              Open the onboarding <ArrowRight size={14} />
             </Link>
           ) : lead.status !== 'spam' && (
             <button onClick={startIntake} disabled={converting}
-                    title="They have agreed to become a client: open the partner intake form filled in from this enquiry"
+                    title="They have agreed to become a client: open the engagement wizard filled in from this enquiry"
                     className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
                     style={{ background: 'linear-gradient(135deg, #cc2229, #1e3a8a)' }}>
-              {converting ? 'Opening…' : <>Start intake <ArrowRight size={14} /></>}
+              {converting ? 'Opening…' : <>Start onboarding <ArrowRight size={14} /></>}
             </button>
           )}
           {lead.status !== 'spam' && !lead.intakeToken && (
