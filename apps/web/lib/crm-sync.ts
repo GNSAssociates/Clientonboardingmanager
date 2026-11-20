@@ -25,8 +25,8 @@
  *
  * NEW CLIENTS. A client starts life in the CRM. Once the first full sync has
  * finished (the baseline), any company that appears in the CRM later and
- * matches no client here becomes a DRAFT client automatically: the partner
- * intake form opens already filled with its name, number and first director.
+ * matches no client here becomes a DRAFT client automatically: the engagement
+ * wizard opens already filled with its name, number and first director.
  * Companies that were in the CRM at the baseline are existing clients and are
  * not imported in bulk; staff can create one from the CRM screen when needed.
  * A draft sends nothing: the engagement letter still goes out from the wizard.

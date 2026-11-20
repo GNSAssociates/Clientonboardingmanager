@@ -193,8 +193,8 @@ function CompanyList({ rows, selected, onSelect, view }: { rows: CrmCompanyRow[]
 }
 
 /**
- * Start a client here from a CRM company that has none. It opens the partner
- * intake form already filled with what the CRM knows; nothing is sent.
+ * Start a client here from a CRM company that has none. It opens the engagement
+ * wizard already filled with what the CRM knows; nothing is sent.
  */
 function CreateClient({ crmId }: { crmId: string }) {
   const router = useRouter();
@@ -211,7 +211,7 @@ function CreateClient({ crmId }: { crmId: string }) {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.token) throw new Error(j.error || 'Could not create the client.');
-      router.push(`/staff/intake?token=${j.token}`);
+      router.push(`/onboarding/services?draft=${j.token}&firm=${j.firmSlug ?? firm}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not create the client.');
       setBusy(false);
@@ -228,7 +228,7 @@ function CreateClient({ crmId }: { crmId: string }) {
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#cc2229] hover:bg-[#a81c22] disabled:opacity-60 rounded-lg px-3 py-1.5">
         <UserPlus size={13} /> {busy ? 'Creating…' : 'Create client from CRM'}
       </button>
-      <span className="text-[11px] text-gray-400">Opens the partner intake form, filled in. Nothing is sent.</span>
+      <span className="text-[11px] text-gray-400">Opens the engagement wizard, filled in. Nothing is sent.</span>
       {err && <p className="w-full text-xs text-red-700">{err}</p>}
     </div>
   );

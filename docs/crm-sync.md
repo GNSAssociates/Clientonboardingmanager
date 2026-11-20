@@ -40,7 +40,7 @@ About 6 list requests plus one detail request per company (the detail call retur
 ## New clients start in the CRM
 
 - **Baseline:** the first full sync records who is already in the CRM. Those are existing clients and are not imported.
-- **After that:** any company that appears in the CRM and matches no client here (by company number) becomes a **draft client** on the next sync. Its partner intake form is already filled with the name, company number, first current director and firm (GNS Associates by default). Nothing is sent: the engagement letter still goes from the wizard. Dissolved or closed companies are skipped.
-- **By hand:** on the CRM screen, any unmatched company has **Create client from CRM** (choose the firm first). It opens the partner intake form for that draft.
+- **After that:** any company that appears in the CRM and matches no client here (by company number) becomes a **draft client** on the next sync. It opens in the engagement wizard already filled with the name, company number, first current director and firm (GNS Associates by default). Nothing is sent: the engagement letter still goes from the wizard. Dissolved or closed companies are skipped.
+- **By hand:** on the CRM screen, any unmatched company has **Create client from CRM** (choose the firm first). It opens the engagement wizard for that draft.
 - A company never gets a second client: an existing client with the same CRM id or company number is opened instead.
 - To stop the automatic drafts, set `CRM_AUTO_CREATE_CLIENTS=off`. The button still works.
