@@ -57,6 +57,7 @@ export async function GET(
     includeClearance: (lm.includeClearance as boolean | undefined) !== false,
     // Shown and edited on the client screen, so it has to come back.
     specialTerms: (lm.specialTerms as string) ?? null,
+    workDescription: (lm.workDescription as string) ?? null,
     /* Whether fees and services can still be changed, and if not, why.
        Decided from what the CLIENT has done, so the screen can say so rather
        than offering an edit that the API would then refuse. */

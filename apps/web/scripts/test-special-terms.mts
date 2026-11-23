@@ -84,6 +84,48 @@ const base: LetterData = {
   check("special terms add content to the PDF", pdf.length > without.length, true);
 }
 
+// --- 7. Description of the work: absent by default.
+{
+  const html = buildLetterHtml(base);
+  check("no description heading when blank", html.includes("Description of the work"), false);
+  const blank = buildLetterHtml({ ...base, workDescription: "  \n\n " });
+  check("whitespace-only description prints nothing", blank.includes("Description of the work"), false);
+}
+
+// --- 8. Description: under Scope of services, before the responsibilities, and NOT an override.
+{
+  const html = buildLetterHtml({ ...base, workDescription: "Rental income for two let properties.\n\nSelf-assessment each year." });
+  const scope = html.indexOf("Scope of services to be provided");
+  const at = html.indexOf("Description of the work");
+  const resp = html.indexOf("Our responsibility to you");
+  check("description is printed", at > 0, true);
+  check("description sits inside Scope of services", scope < at && at < resp, true);
+  check("description keeps its paragraphs", html.includes("<p>Rental income for two let properties.</p>") && html.includes("<p>Self-assessment each year.</p>"), true);
+  const descSection = html.slice(at, resp);
+  check("description carries no precedence wording", /takes precedence|the following applies/i.test(descSection), false);
+  check("description alone adds no specific-terms clause", html.includes("Specific terms agreed with you"), false);
+}
+
+// --- 9. Description is escaped like the specific terms.
+{
+  const html = buildLetterHtml({ ...base, workDescription: `<script>alert(1)</script> & "quotes"` });
+  check("description markup is escaped", html.includes("<script>alert(1)</script>"), false);
+}
+
+// --- 10. Both together: each in its own place.
+{
+  const html = buildLetterHtml({ ...base, workDescription: "Work described.", specialTerms: "Fee waived." });
+  check("both print, description first", html.indexOf("Description of the work") < html.indexOf("Specific terms agreed with you"), true);
+}
+
+// --- 11. The PDF carries the description too.
+{
+  const { buildEngagementPdf } = await import("../lib/engagement-pdf");
+  const withDesc = await buildEngagementPdf({ ...base, workDescription: "Rental income for two let properties." });
+  const without = await buildEngagementPdf(base);
+  check("description adds content to the PDF", withDesc.length > without.length, true);
+}
+
 console.log(`\n${pass} passed, ${failures.length} failed`);
 if (failures.length) {
   failures.forEach((f) => console.log("  FAIL  " + f));

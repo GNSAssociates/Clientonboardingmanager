@@ -46,6 +46,7 @@ interface OnboardingLinkData {
     includeClearance?: boolean;
     include648?: boolean;
     specialTerms?: string | null;
+    workDescription?: string | null;
     taxes648?: Form648Taxes | null;
   } | null;
   prevAccountant?: { firmName: string | null; email: string | null; phone: string | null; address: string | null } | null;

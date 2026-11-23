@@ -32,6 +32,7 @@ export interface WizardDraftState {
   taxes648?: Partial<Form648Taxes>;
   /** Terms agreed with this client that the standard letter does not cover. */
   specialTerms?: string;
+  workDescription?: string;
   /** Run professional clearance for this client (prev-accountant details are
    *  collected, the outgoing firm is emailed, the authority letter is sent). */
   includeClearance?: boolean;
