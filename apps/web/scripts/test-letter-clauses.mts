@@ -56,9 +56,10 @@ for (const slug of ["gns", "llp", "galaxy"]) {
   ];
   for (const [label, re] of points) check(`data clause: ${label}`, re.test(dp));
   check("Nepal named exactly once in the data clause", (dp.match(/Nepal/g) ?? []).length === 1);
-  check("no ICO number printed when none is held", !/registered with the Information Commissioner's Office under number/.test(dp));
-  const withIco = all(howWeLookAfterYourData({ ...FIRMS.gns!, icoNumber: "ZA123456" }));
-  check("ICO number printed when held", withIco.includes("under number ZA123456"));
+  check("GNS Associates Limited ICO number printed", dp.includes("under number ZA283845"));
+  check("GNS Associates UK LLP ICO number printed", all(howWeLookAfterYourData(FIRMS.llp!)).includes("under number ZB895765"));
+  const galaxy = all(howWeLookAfterYourData(FIRMS.galaxy!));
+  check("no ICO number printed when none is held (Galaxy)", !/registered with the Information Commissioner's Office under number/.test(galaxy));
 }
 
 // --- 3. Identity checks: the duties are there, calmly put.
