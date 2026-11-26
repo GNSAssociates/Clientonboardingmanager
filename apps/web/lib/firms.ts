@@ -57,6 +57,8 @@ export interface FirmConfig {
   gradient: string;
   accentColor: string;
   description: string;
+  /** Information Commissioner's Office registration number. Printed in the letter's data clause once recorded; absent = not printed. */
+  icoNumber?: string;
   /** HMRC agent codes for form 64-8. Absent = this firm cannot issue a 64-8. */
   agent648?: Agent648Config;
 }

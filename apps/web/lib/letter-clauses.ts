@@ -71,7 +71,7 @@ export function whoDoesTheWork(firm: FirmConfig): Clause {
 }
 
 /** Clause 2: printed inside "Data Protection", after the privacy-notice paragraph. */
-export function howWeLookAfterYourData(firm: FirmConfig & { icoNumber?: string }): Clause {
+export function howWeLookAfterYourData(firm: FirmConfig): Clause {
   const us = contracting(firm);
   const ico = firm.icoNumber?.trim();
   return {
