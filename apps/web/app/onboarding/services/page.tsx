@@ -390,6 +390,7 @@ function ServicesPageInner() {
      Per client — the /staff/templates intro and closing apply to every client
      of a firm, so they are the wrong place for one client's negotiation. */
   const [specialTerms, setSpecialTerms] = useState('');
+  const [workDescription, setWorkDescription] = useState('');
   // Professional clearance: ON unless staff deliberately exclude it (some
   // handovers are arranged by email outside the app).
   const [includeClearance, setIncludeClearance] = useState(true);
@@ -578,6 +579,7 @@ function ServicesPageInner() {
         if (d.includeAnnexA !== undefined) setIncludeAnnexA(d.includeAnnexA as boolean);
         if (d.include648 !== undefined) setInclude648(d.include648 as boolean);
         if (d.specialTerms !== undefined) setSpecialTerms((d.specialTerms as string) ?? '');
+        if (d.workDescription !== undefined) setWorkDescription((d.workDescription as string) ?? '');
         if (d.taxes648 !== undefined) {
           setTaxes648({ ...EMPTY_648_TAXES, ...(d.taxes648 as Partial<Form648Taxes>) });
           // A saved tick set is a deliberate choice; do not re-seed over it.
@@ -639,6 +641,7 @@ function ServicesPageInner() {
         include648,
         taxes648,
         specialTerms,
+        workDescription,
         includeClearance,
         clearanceMode,
         prevFirmName: prefillPrevFirm || undefined,
@@ -812,6 +815,7 @@ function ServicesPageInner() {
             paymentMethod,
             includeClearance,
             specialTerms,
+            workDescription,
           }),
         });
         const j = await res.json().catch(() => ({}));
@@ -866,6 +870,7 @@ function ServicesPageInner() {
     q.set('paymentMethod', paymentMethod);
     q.set('includeAnnexA', includeAnnexA ? '1' : '0');
     if (specialTerms.trim()) q.set('specialTerms', specialTerms.trim());
+    if (workDescription.trim()) q.set('workDescription', workDescription.trim());
     /* Always sent explicitly, never left to a default on the far side: a
        missing flag has to keep meaning "no 64-8" so existing engagements are
        untouched, which only works if new ones always say what they want. */
@@ -1034,6 +1039,31 @@ function ServicesPageInner() {
               <input type="checkbox" checked={includeAnnexA} onChange={(e) => setIncludeAnnexA(e.target.checked)} className="sr-only peer" />
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
             </label>
+          </div>
+
+          {/* A plain description of the work, for a client whose work does not
+              fit the standard list (property owners, arrangements settled by
+              email). Prints with the scope of services; it does not override
+              the letter, unlike the specific terms below. */}
+          <div className="pt-4 mt-4 border-t border-purple-100">
+            <p className="text-sm font-semibold text-gray-700">Description of the work</p>
+            <p className="text-xs text-gray-500 mb-2">
+              What was discussed with the client, in your own words, when their work does not fit the standard
+              services. Prints under &ldquo;Scope of services&rdquo; as &ldquo;Description of the work&rdquo;. It does not override
+              anything else in the letter. Leave blank if there is nothing.
+            </p>
+            <textarea
+              value={workDescription}
+              onChange={(e) => setWorkDescription(e.target.value)}
+              rows={4}
+              placeholder={'e.g. Rental income and expenses for the two let properties, and the self-assessment return each year, as discussed in our emails of 12 November.\n\nLeave a blank line between points to start a new paragraph.'}
+              className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+            {workDescription.trim().length > 0 && (
+              <p className="mt-1 text-xs text-gray-500">
+                This will appear in the contract and can still be changed later, up until the client signs.
+              </p>
+            )}
           </div>
 
           {/* Anything this client negotiated. Kept here beside the other

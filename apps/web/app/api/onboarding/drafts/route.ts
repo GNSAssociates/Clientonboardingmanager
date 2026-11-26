@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
       businessAddress,
       oneoffScopes,
       utr,
+      specialTerms,
+      workDescription,
     } = body as {
       token?: string;
       firmSlug?: string;
@@ -77,6 +79,8 @@ export async function POST(req: NextRequest) {
       businessAddress?: string;
       oneoffScopes?: Record<string, string>;
       utr?: string;
+      specialTerms?: string;
+      workDescription?: string;
     };
 
     if (!firmSlug) {
@@ -126,6 +130,10 @@ export async function POST(req: NextRequest) {
             businessAddress: businessAddress ?? null,
             oneoffScopes: oneoffScopes ?? {},
             utr: utr ?? null,
+            /* Free text typed in the wizard. specialTerms was read back by
+               drafts/[token] but never saved here, so reopening a draft lost it. */
+            specialTerms: typeof specialTerms === "string" ? specialTerms : undefined,
+            workDescription: typeof workDescription === "string" ? workDescription : undefined,
             savedAt: now.toISOString(),
           },
           ch: ch ?? null,

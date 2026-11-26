@@ -828,6 +828,18 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("We will deal with matters arising in respect of periods prior to the above date as appropriate should there be any such requirement.", { gap: 8 });
 
   heading2("Scope of services to be provided");
+  /* The plain description of the work, in the same place as in the HTML
+     letter: part of the instructions, not a term that overrides the letter. */
+  const workDescription = (d.workDescription ?? "").trim();
+  if (workDescription) {
+    heading3("Description of the work");
+    text("As discussed with you, the work we will carry out is as follows.", { gap: 6 });
+    workDescription
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .forEach((para) => text(sanitize(para.replace(/\n/g, " ")), { gap: 6 }));
+  }
   heading3("Our responsibility to you");
   text("We have set out the agreed scope and objectives of your instructions within this letter of engagement. Any subsequent changes will be discussed with you and where appropriate a new letter of engagement will be agreed. We shall proceed on the basis of the instructions we have received from you and will rely on you to tell us as soon as possible if anything occurs which renders any information previously given to us as incorrect or inaccurate. We shall not be responsible for any failure to advise or comment on any matter that falls outside the specific scope of your instructions. We cannot accept any responsibility for any event, loss or situation unless it is one against which it is the expressed purpose of these instructions to provide protection.", { gap: 8 });
   heading3("Your responsibility to us");

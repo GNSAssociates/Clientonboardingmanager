@@ -33,6 +33,7 @@ export async function PATCH(
     paymentMethod?: "dd" | "manual";
     includeClearance?: boolean;
     specialTerms?: string;
+    workDescription?: string;
     services?: LetterService[];
     customFees?: CustomFee[];
     scopeRows?: ScopeRow[];
@@ -86,6 +87,12 @@ export async function PATCH(
   if (typeof body.specialTerms === "string") {
     const next = body.specialTerms.trim();
     nextMeta = { ...nextMeta, specialTerms: next || undefined };
+  }
+  /* The plain description of the work, editable on the same terms: it is
+     wording, not price, and the signed-contract guard below still applies. */
+  if (typeof body.workDescription === "string") {
+    const next = body.workDescription.trim();
+    nextMeta = { ...nextMeta, workDescription: next || undefined };
   }
   if (typeof body.includeClearance === "boolean") {
     nextMeta = { ...nextMeta, includeClearance: body.includeClearance,
@@ -160,6 +167,7 @@ export async function PATCH(
         paymentMethod?: string; includeAnnexA?: boolean; clientType?: string;
         clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
         specialTerms?: string;
+        workDescription?: string;
       };
       const overrides = await loadEngagementLetterOverrides(firm.slug);
       updates.letterHtml = buildLetterHtml({
@@ -183,6 +191,7 @@ export async function PATCH(
         paymentMethod: meta.paymentMethod,
         includeAnnexA: meta.includeAnnexA,
         specialTerms: meta.specialTerms,
+        workDescription: meta.workDescription,
         clientType: meta.clientType,
         clientName: meta.clientName,
         utr: meta.utr,
@@ -308,6 +317,7 @@ export async function GET(
         // Only whether terms exist and what they say — the client is about to
         // sign them, so this is their own contract text, not internal data.
         specialTerms: ((link.letterMeta as Record<string, unknown> | null)?.specialTerms as string) ?? null,
+        workDescription: ((link.letterMeta as Record<string, unknown> | null)?.workDescription as string) ?? null,
         /* The 64-8, and the taxes it would authorise, so the signing page can
            show the client what they are about to authorise and let them untick
            any of it. Resolved rather than read raw, so an engagement issued

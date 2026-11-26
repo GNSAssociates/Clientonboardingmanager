@@ -52,6 +52,7 @@ export async function GET(
          not being handed back, so reopening a draft silently dropped it and
          the letter went out without a term somebody had agreed. */
       specialTerms: draft.specialTerms ?? null,
+      workDescription: draft.workDescription ?? null,
       clientName: draft.clientName ?? null,
       businessAddress: draft.businessAddress ?? null,
       oneoffScopes: draft.oneoffScopes ?? {},

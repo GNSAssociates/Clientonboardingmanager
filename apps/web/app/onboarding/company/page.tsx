@@ -331,6 +331,7 @@ function CompanyPageInner() {
       includeAnnexA: includeAnnexAParam,
       include648: include648Param,
       specialTerms: searchParams.get('specialTerms') || undefined,
+      workDescription: searchParams.get('workDescription') || undefined,
       taxes648: taxes648Param,
       includeClearance: includeClearanceParam,
       prevFirmName: searchParams.get('prevFirmName') || undefined,

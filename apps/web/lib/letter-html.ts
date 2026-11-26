@@ -79,6 +79,7 @@ export interface LetterData {
    * that a reader has to hunt for is a variation waiting to be disputed.
    */
   specialTerms?: string;
+  workDescription?: string;
   includeAnnexA?: boolean; // default true; when false the SSC annex is omitted
   clientType?: string; // 'limited' | 'llp' | 'sole_trader' | 'btl' | 'partnership' | 'individual'
   clientName?: string; // client / business / trading name (for non-company types)
@@ -277,6 +278,21 @@ export function buildLetterHtml(d: LetterData): string {
     ? `<h2>Specific terms agreed with you</h2>
   <p>The following has been agreed with you and forms part of this engagement. Where it differs from anything stated elsewhere in this letter, the following applies.</p>
   ${specialTermsText
+    .split(/\n\s*\n/)
+    .map((para) => `<p>${esc(para.trim()).replace(/\n/g, '<br>')}</p>`)
+    .join('\n  ')}`
+    : '';
+  /* A plain description of the work, in the staff member's own words: what
+     was discussed by email for a client whose work does not fit the standard
+     list (property owners, one-off arrangements). Printed with the scope of
+     services as part of the instructions, NOT as a term that overrides the
+     letter: that is what "Specific terms agreed with you" is for. Escaped and
+     split on blank lines, like the specific terms. */
+  const workDescriptionText = (d.workDescription ?? '').trim();
+  const workDescriptionHtml = workDescriptionText
+    ? `<h3>Description of the work</h3>
+  <p>As discussed with you, the work we will carry out is as follows.</p>
+  ${workDescriptionText
     .split(/\n\s*\n/)
     .map((para) => `<p>${esc(para.trim()).replace(/\n/g, '<br>')}</p>`)
     .join('\n  ')}`
@@ -672,6 +688,7 @@ export function buildLetterHtml(d: LetterData): string {
   <p>We will deal with matters arising in respect of periods prior to the above date as appropriate should there be any such requirement.</p>
 
   <h2>Scope of services to be provided</h2>
+  ${workDescriptionHtml}
   <h3>Our responsibility to you</h3>
   <p>We have set out the agreed scope and objectives of your instructions within this letter of engagement. Any subsequent changes will be discussed with you and where appropriate a new letter of engagement will be agreed. We shall proceed on the basis of the instructions we have received from you and will rely on you to tell us as soon as possible if anything occurs which renders any information previously given to us as incorrect or inaccurate. We shall not be responsible for any failure to advise or comment on any matter that falls outside the specific scope of your instructions. We cannot accept any responsibility for any event, loss or situation unless it is one against which it is the expressed purpose of these instructions to provide protection.</p>
   <h3>Your responsibility to us</h3>

@@ -32,6 +32,7 @@ interface Details {
   paymentMethod?: string;
   includeClearance?: boolean;
   specialTerms?: string;
+  workDescription?: string;
   editState?: { editable: boolean; blockers: string[]; warnings: string[] };
   gocardless?: { mandateId?: string; ddConfirmed?: boolean; success?: boolean; configured?: boolean; error?: string } | null;
   engagement: {
@@ -168,10 +169,12 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
   const [clearance, setClearance] = useState(currentClearance);
   const currentTerms = details.specialTerms ?? '';
   const [terms, setTerms] = useState(currentTerms);
+  const currentDesc = details.workDescription ?? '';
+  const [desc, setDesc] = useState(currentDesc);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const changed = dd !== currentDd || clearance !== currentClearance || terms.trim() !== currentTerms.trim();
+  const changed = dd !== currentDd || clearance !== currentClearance || terms.trim() !== currentTerms.trim() || desc.trim() !== currentDesc.trim();
   const ddAlreadySetUp = Boolean(details.gocardless?.ddConfirmed);
 
   const save = async () => {
@@ -179,7 +182,7 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
     try {
       const res = await fetch(`/api/onboarding/links/${token}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethod: dd ? 'dd' : 'manual', includeClearance: clearance, specialTerms: terms }),
+        body: JSON.stringify({ paymentMethod: dd ? 'dd' : 'manual', includeClearance: clearance, specialTerms: terms, workDescription: desc }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || 'Could not save');
@@ -255,6 +258,29 @@ function EngagementSettingsForm({ token, details, onSaved }: { token: string; de
           )}
         </div>
       )}
+
+      {/* The plain description of the work, editable on the same terms as the
+          specific terms below: same link, letter rebuilt, nothing re-sent. */}
+      <div className="pt-3 mt-1 border-t border-gray-200">
+        <p className="text-sm font-semibold text-gray-800">Description of the work</p>
+        <p className="text-xs text-gray-500 mb-2">
+          What was discussed with the client, in your own words. Prints under &ldquo;Scope of services&rdquo;; it does
+          not override anything else in the letter.
+        </p>
+        <textarea
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          rows={4}
+          placeholder="e.g. Rental income and expenses for the two let properties, and the self-assessment return each year."
+          className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+        />
+        {desc.trim() !== currentDesc.trim() && (
+          <p className="mt-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Saving rewrites the contract this client opens. They keep the same link and nothing is re-sent, so
+            let them know if they have already read it.
+          </p>
+        )}
+      </div>
 
       {/* Where a negotiated change goes. Editing it rebuilds the letter the
           client opens, on the same link — nothing is re-sent, so if they have

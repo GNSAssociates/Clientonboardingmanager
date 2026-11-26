@@ -69,6 +69,7 @@ export async function POST(
     clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
     includeClearance?: boolean;
     specialTerms?: string;
+    workDescription?: string;
   };
   const firm = getFirm(link.firmSlug || "gns");
   const isManualPayment = meta.paymentMethod === "manual";
@@ -123,6 +124,7 @@ export async function POST(
       paymentMethod: meta.paymentMethod,
       includeAnnexA: meta.includeAnnexA,
       specialTerms: meta.specialTerms,
+      workDescription: meta.workDescription,
       clientType: meta.clientType,
       clientName: meta.clientName,
       utr: meta.utr,

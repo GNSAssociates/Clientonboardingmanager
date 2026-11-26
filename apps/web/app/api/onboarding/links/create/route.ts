@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       paymentMethod,   // 'dd' | 'manual'
       includeAnnexA,   // bool — include the SSC annex
       specialTerms,     // free text — terms agreed with THIS client only
+      workDescription,  // free text — what was discussed about the work (no precedence)
       include648,       // bool — append HMRC form 64-8 to the contract
       taxes648,         // which taxes that 64-8 authorises
       includeClearance, // bool — run professional clearance (ask for prev accountant, email them)
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       paymentMethod?: string; includeAnnexA?: boolean; includeClearance?: boolean; clientType?: string;
       include648?: boolean; taxes648?: Record<string, boolean>;
       specialTerms?: string;
+      workDescription?: string;
       prevFirmName?: string; prevFirmEmail?: string;
       softwareItems?: Array<{ name: string; price: number }>;
       includeDdClause?: boolean; ddClauseNote?: string;
@@ -120,6 +122,7 @@ export async function POST(req: NextRequest) {
       paymentMethod: string; includeAnnexA: boolean; includeClearance: boolean; clientType: string;
       include648: boolean; taxes648?: Form648Taxes;
       specialTerms?: string;
+      workDescription?: string;
       includeDdClause: boolean; ddClauseNote: string;
       clientName?: string; utr?: string; oneoffScopes?: Record<string, string>;
       softwareItems?: Array<{ name: string; price: number }>;
@@ -137,6 +140,7 @@ export async function POST(req: NextRequest) {
       includeAnnexA: includeAnnexA !== false,
       // Stored trimmed; empty means there are none, not an empty clause.
       specialTerms: (specialTerms ?? "").toString().trim() || undefined,
+      workDescription: (workDescription ?? "").toString().trim() || undefined,
       /* Opt-IN, and deliberately not `!== false` like the flags around it.
          Engagement PDFs are rebuilt from letterMeta on every request, so if a
          missing flag meant "include", every engagement already sent — and
@@ -187,6 +191,7 @@ export async function POST(req: NextRequest) {
         paymentMethod: letterMeta.paymentMethod,
         includeAnnexA: letterMeta.includeAnnexA,
         specialTerms: letterMeta.specialTerms,
+        workDescription: letterMeta.workDescription,
         includeDdClause: letterMeta.includeDdClause,
         ddClauseNote: letterMeta.ddClauseNote,
         clientType: letterMeta.clientType,
@@ -244,6 +249,7 @@ export async function POST(req: NextRequest) {
           paymentMethod: letterMeta.paymentMethod,
           includeAnnexA: letterMeta.includeAnnexA,
         specialTerms: letterMeta.specialTerms,
+        workDescription: letterMeta.workDescription,
           includeDdClause: letterMeta.includeDdClause,
           ddClauseNote: letterMeta.ddClauseNote,
           clientType: letterMeta.clientType,

@@ -81,6 +81,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     utr: m.utr ?? null,
     ch: m.ch ?? null,
     specialTerms: m.specialTerms ?? "",
+    workDescription: m.workDescription ?? "",
     /* 64-8 is deliberately read-only here. It is fixed when the engagement is
        created and the PATCH route refuses to change it, so the wizard shows
        what was issued rather than offering an edit that cannot be saved. */
