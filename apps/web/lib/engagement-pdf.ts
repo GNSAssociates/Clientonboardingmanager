@@ -33,6 +33,7 @@ import {
   type AuditData,
 } from "./letter-html";
 import { renderVars, templateDef } from "./email-templates-lib";
+import { whoDoesTheWork, howWeLookAfterYourData, identityChecks, type Clause } from "./letter-clauses";
 import { buildSchedulesHtml } from "./service-schedules";
 import { buildTermsOfBusinessHtml, buildPrivacyNoticeHtml } from "./terms-of-business";
 import { GNS_LOGO_DATA_URI, GNS_SIGNATURE_DATA_URI } from "./brand-assets";
@@ -827,6 +828,13 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("This letter is effective from the date signed.", { gap: 6 });
   text("We will deal with matters arising in respect of periods prior to the above date as appropriate should there be any such requirement.", { gap: 8 });
 
+  /* The shared clauses (lib/letter-clauses.ts), in the same places as the HTML letter. */
+  const clause = (c: Clause, level: 2 | 3) => {
+    if (level === 2) heading2(c.heading); else heading3(c.heading);
+    for (const p of c.paras) text(sanitize(p.lead ? `${p.lead} ${p.text}` : p.text), { gap: 6 });
+  };
+  clause(whoDoesTheWork(f), 2);
+
   heading2("Scope of services to be provided");
   /* The plain description of the work, in the same place as in the HTML
      letter: part of the instructions, not a term that overrides the letter. */
@@ -906,6 +914,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("This includes, but is not limited to, purposes such as updating and enhancing our client records, analysis for management purposes and statutory returns.", { gap: 8 });
   text(`In regard to our professional obligations we are a member firm of the ${regBody}. Under the ethical and regulatory rules of ${regBody}, we are required to allow access to client files and records for the purpose of maintaining our membership of this body.`, { gap: 8 });
   text("Further details on the processing of data are contained in our privacy notice, which should be read alongside these terms and conditions.", { gap: 8 });
+  clause(howWeLookAfterYourData(f), 3);
   heading3("Requirements of the Data Protection Act (DPA) 2018 and the General Data Protection Regulation (GDPR)");
   text("The DPA 2018 and GDPR set out a number of requirements in relation to the processing of personal data.", { gap: 8 });
   text(`Here at ${f.name}, we take your privacy and the privacy of the information we process seriously. We will only use your personal information and the personal information you give us access to under this contract to administer your account and to provide the services you have requested from us. Bank details provided for the Direct Debit mandate are used solely for that purpose and are transmitted securely to our payment provider.`, { gap: 8 });
@@ -923,6 +932,8 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("* If you require us to correspond with you by email that is not encrypted or password protected, you also accept the risks associated with this form of communication.", { gap: 8 });
   heading3("(c) Other services — contact preferences");
   text("From time to time we would like to contact you with details of other services we provide. Your chosen contact preferences are recorded in the acceptance section of this contract.", { gap: 8 });
+
+  clause(identityChecks(f), 2);
 
   /* Terms agreed with this client specifically, immediately before the
      agreement clause — the same position as in the HTML letter, so the two

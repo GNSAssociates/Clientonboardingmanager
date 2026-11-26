@@ -10,6 +10,7 @@
  *   - the signed copy (this HTML + e-signature audit certificate appended)
  */
 import type { FirmConfig } from './firms';
+import { whoDoesTheWork, howWeLookAfterYourData, identityChecks, type Clause } from './letter-clauses';
 import { GNS_LOGO_DATA_URI, GNS_SIGNATURE_DATA_URI } from './brand-assets';
 import { SG_SIGNATURE_DATA_URI } from './sg-signature';
 import { MG_SIGNATURE_DATA_URI } from './mg-signature';
@@ -197,6 +198,12 @@ const gbp = fmtGBP;
 
 const fmtDate = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+
+/** One shared clause (lib/letter-clauses.ts) as HTML; all text escaped. */
+function clauseHtml(c: Clause, level: 'h2' | 'h3'): string {
+  return `<${level}>${esc(c.heading)}</${level}>
+  ${c.paras.map((p) => `<p>${p.lead ? `<strong>${esc(p.lead)}</strong> ` : ''}${esc(p.text)}</p>`).join('\n  ')}`;
+}
 
 export function buildLetterHtml(d: LetterData): string {
   const f = d.firm;
@@ -687,6 +694,8 @@ export function buildLetterHtml(d: LetterData): string {
   <p>This letter is effective from the date signed.</p>
   <p>We will deal with matters arising in respect of periods prior to the above date as appropriate should there be any such requirement.</p>
 
+  ${clauseHtml(whoDoesTheWork(f), 'h2')}
+
   <h2>Scope of services to be provided</h2>
   ${workDescriptionHtml}
   <h3>Our responsibility to you</h3>
@@ -755,6 +764,7 @@ export function buildLetterHtml(d: LetterData): string {
   <p>This includes, but is not limited to, purposes such as updating and enhancing our client records, analysis for management purposes and statutory returns.</p>
   <p>In regard to our professional obligations we are a member firm of the ${esc(regBody)}. Under the ethical and regulatory rules of ${esc(regBody)}, we are required to allow access to client files and records for the purpose of maintaining our membership of this body.</p>
   <p>Further details on the processing of data are contained in our privacy notice, which should be read alongside these terms and conditions.</p>
+  ${clauseHtml(howWeLookAfterYourData(f), 'h3')}
   <h3>Requirements of the Data Protection Act (DPA) 2018 and the General Data Protection Regulation (GDPR)</h3>
   <p>The DPA 2018 and GDPR set out a number of requirements in relation to the processing of personal data.</p>
   <p>Here at ${esc(f.name)}, we take your privacy and the privacy of the information we process seriously. We will only use your personal information and the personal information you give us access to under this contract to administer your account and to provide the services you have requested from us. Bank details provided for the Direct Debit mandate are used solely for that purpose and are transmitted securely to our payment provider.</p>
@@ -773,6 +783,8 @@ export function buildLetterHtml(d: LetterData): string {
   <p>* If you require us to correspond with you by email that is not encrypted or password protected, you also accept the risks associated with this form of communication.</p>
   <h3>(c) Other services — contact preferences</h3>
   <p>From time to time we would like to contact you with details of other services we provide. Your chosen contact preferences are recorded in the acceptance section of this contract.</p>
+
+  ${clauseHtml(identityChecks(f), 'h2')}
 
   ${specialTermsHtml}
   <h2>Agreement of terms</h2>
