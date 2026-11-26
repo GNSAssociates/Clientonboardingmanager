@@ -25,6 +25,15 @@ for (const slug of ["gns", "llp", "galaxy"]) {
   check(`${slug}: associated company named`, who.includes("GNS Associates Private Limited"));
   check(`${slug}: contracting practice stays responsible`, /remains responsible to you/.test(who));
   check(`${slug}: Nepal not mentioned in clause 1`, !/Nepal/.test(who));
+  check(`${slug}: clause 1 says the other practices may access information`, /may work on your affairs and access your information/.test(who));
+
+  // Each firm's data clause names the OTHER two practices as having access, and never itself.
+  const dp = all(howWeLookAfterYourData(f));
+  const own = { gns: "GNS Associates Limited", llp: "GNS Associates UK LLP", galaxy: "Galaxy GNS Accountants Ltd" }[slug]!;
+  const sharing = howWeLookAfterYourData(f).paras.find((p) => p.lead === "Who we share it with.")!.text;
+  check(`${slug}: data clause names both other practices`, names.filter((n) => n !== own).every((n) => sharing.includes(n)));
+  check(`${slug}: data clause does not list itself as a recipient`, !sharing.includes(own));
+  check(`${slug}: shared resources, VPN, MFA and separation`, /share offices, servers, software/.test(dp) && /VPN/.test(dp) && /multi-factor authentication/.test(dp) && /each practice's records are kept separate/.test(dp));
 }
 
 // --- 2. Every Article 13 point is in the data clause.

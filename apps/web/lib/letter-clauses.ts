@@ -61,7 +61,7 @@ export function whoDoesTheWork(firm: FirmConfig): Clause {
     heading: "Who will carry out the work",
     paras: [
       {
-        text: `This engagement is with ${us}. We work closely with our associated practices, ${andList(others)}, and share staff and systems with them. Whoever carries out the work, ${us} remains responsible to you for it.`,
+        text: `This engagement is with ${us}. We work closely with our associated practices, ${andList(others)}, and share staff, offices and systems with them, so their staff may work on your affairs and access your information for that purpose. Whoever carries out the work, ${us} remains responsible to you for it.`,
       },
       {
         text: `Some of the work, such as bookkeeping and the preparation of accounts and returns, may be carried out by our associated company, ${ASSOCIATED_COMPANY}. Its team works on our instructions and under our supervision and review, to the same standards of confidentiality and care as our own staff.`,
@@ -73,6 +73,7 @@ export function whoDoesTheWork(firm: FirmConfig): Clause {
 /** Clause 2: printed inside "Data Protection", after the privacy-notice paragraph. */
 export function howWeLookAfterYourData(firm: FirmConfig): Clause {
   const us = contracting(firm);
+  const others = Object.entries(PRACTICES).filter(([slug]) => slug !== firm.slug).map(([, n]) => n);
   const ico = firm.icoNumber?.trim();
   return {
     heading: "How we look after your information",
@@ -83,11 +84,11 @@ export function howWeLookAfterYourData(firm: FirmConfig): Clause {
       },
       {
         lead: "Who we share it with.",
-        text: "We share your information only where we need to in order to provide our services: with HM Revenue & Customs, Companies House and other authorities; with the software providers we use, which are listed in our privacy notice; with our professional body, as described above; and with staff of our associated practices when they work on your affairs for us.",
+        text: `We share your information only where we need to in order to provide our services: with HM Revenue & Customs, Companies House and other authorities; with the software providers we use, which are listed in our privacy notice; with our professional body, as described above; and with our associated practices, ${andList(others)}, whose staff may access it when they work on your affairs for us.`,
       },
       {
-        lead: "Work carried out overseas.",
-        text: `Some of our work is carried out by our associated company, ${ASSOCIATED_COMPANY}, in Nepal. Your information is protected there by the safeguards that UK data protection law requires for transfers outside the UK, including the International Data Transfer Agreement issued by the Information Commissioner's Office. A copy of these safeguards is available on request.`,
+        lead: "Shared systems and security.",
+        text: `Our three practices and our associated company, ${ASSOCIATED_COMPANY}, which has an office in Nepal, share offices, servers, software and other resources. Access is protected by a secure private network connection (VPN) and multi-factor authentication, and each practice's records are kept separate, so staff see only the information they need for the work they are doing. Where your information is accessed from outside the UK, it is protected by the safeguards that UK data protection law requires, including the International Data Transfer Agreement issued by the Information Commissioner's Office. A copy of these safeguards is available on request.`,
       },
       {
         lead: "Why we need it.",
