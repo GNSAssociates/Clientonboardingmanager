@@ -391,6 +391,10 @@ function ServicesPageInner() {
      of a firm, so they are the wrong place for one client's negotiation. */
   const [specialTerms, setSpecialTerms] = useState('');
   const [workDescription, setWorkDescription] = useState('');
+  /* One-off advice letter (lib/letter-advice.ts): a fixed fee for a single
+     piece of work, e.g. a VAT position review. No recurring services. */
+  const [adviceMode, setAdviceMode] = useState(false);
+  const [adviceSummary, setAdviceSummary] = useState('');
   // Professional clearance: ON unless staff deliberately exclude it (some
   // handovers are arranged by email outside the app).
   const [includeClearance, setIncludeClearance] = useState(true);
@@ -580,6 +584,8 @@ function ServicesPageInner() {
         if (d.include648 !== undefined) setInclude648(d.include648 as boolean);
         if (d.specialTerms !== undefined) setSpecialTerms((d.specialTerms as string) ?? '');
         if (d.workDescription !== undefined) setWorkDescription((d.workDescription as string) ?? '');
+        if (d.adviceMode !== undefined) setAdviceMode(d.adviceMode === true);
+        if (d.adviceSummary !== undefined) setAdviceSummary((d.adviceSummary as string) ?? '');
         if (d.taxes648 !== undefined) {
           setTaxes648({ ...EMPTY_648_TAXES, ...(d.taxes648 as Partial<Form648Taxes>) });
           // A saved tick set is a deliberate choice; do not re-seed over it.
@@ -642,6 +648,8 @@ function ServicesPageInner() {
         taxes648,
         specialTerms,
         workDescription,
+        adviceMode,
+        adviceSummary,
         includeClearance,
         clearanceMode,
         prevFirmName: prefillPrevFirm || undefined,
@@ -770,7 +778,11 @@ function ServicesPageInner() {
   const packageMonthly = totalMonthly + customMonthly;
   const packageAnnual = totalAnnual + customAnnual + chAnnual;
 
-  const canContinue = selected.length > 0 && directorEmail && clientName.trim() && (needsCH ? companyNumber : true);
+  /* An advice letter has no recurring services: it needs a priced line (a
+     one-off service or an additional fee) and the instruction instead. */
+  const hasAdviceFee = selectedOneoff.length > 0 || customFees.some((c) => c.description.trim() && Number(c.price) > 0) || selected.length > 0;
+  const canContinue = (adviceMode ? hasAdviceFee && adviceSummary.trim().length > 0 : selected.length > 0)
+    && directorEmail && clientName.trim() && (needsCH ? companyNumber : true);
 
   const handleContinue = async () => {
     if (!canContinue) return;
@@ -816,6 +828,7 @@ function ServicesPageInner() {
             includeClearance,
             specialTerms,
             workDescription,
+            adviceSummary,
           }),
         });
         const j = await res.json().catch(() => ({}));
@@ -871,6 +884,8 @@ function ServicesPageInner() {
     q.set('includeAnnexA', includeAnnexA ? '1' : '0');
     if (specialTerms.trim()) q.set('specialTerms', specialTerms.trim());
     if (workDescription.trim()) q.set('workDescription', workDescription.trim());
+    if (adviceMode) q.set('adviceMode', '1');
+    if (adviceMode && adviceSummary.trim()) q.set('adviceSummary', adviceSummary.trim());
     /* Always sent explicitly, never left to a default on the far side: a
        missing flag has to keep meaning "no 64-8" so existing engagements are
        untouched, which only works if new ones always say what they want. */
@@ -962,13 +977,55 @@ function ServicesPageInner() {
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
               <option value="limited">Limited Company</option>
-              <option value="sole_trader">Sole Trader</option>
-              <option value="btl">Buy-to-Let Individual</option>
+              <option value="sole_trader">Sole Trader (self-employed)</option>
+              <option value="btl">Buy-to-Let landlord</option>
               <option value="partnership">Partnership</option>
               <option value="llp">LLP</option>
-              <option value="individual">Individual</option>
+              <option value="individual">Individual (salaried, pension or other income)</option>
             </select>
           </div>
+          {/* Ongoing services or a single piece of advice for a fixed fee. */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-700">One-off advice letter</p>
+              <p className="text-xs text-gray-500">
+                A single piece of work for a fixed fee, e.g. a VAT position review. The letter shows one fee table,
+                the work as Schedule A and no monthly fees. Payment is by invoice; Annex A is left out.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-1">
+              <input
+                type="checkbox"
+                checked={adviceMode}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setAdviceMode(on);
+                  if (on) { setPaymentMethod('manual'); setIncludeAnnexA(false); }
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600" />
+            </label>
+          </div>
+          {adviceMode && (
+            <div className="rounded-lg bg-purple-50 border border-purple-100 p-3 space-y-2">
+              <label className="block text-xs font-semibold text-gray-700">
+                The instruction: &ldquo;We are pleased to accept your instruction to &hellip;&rdquo;
+              </label>
+              <input
+                type="text"
+                value={adviceSummary}
+                onChange={(e) => setAdviceSummary(e.target.value)}
+                placeholder="review the VAT position of your income streams"
+                className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+              <p className="text-xs text-gray-600">
+                Then add the fee under <strong>Additional fees</strong> (one-off), or tick a one-off service, and write
+                the work in <strong>Description of the work</strong>: it prints as Schedule A. Its first fee line
+                names the schedule.
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-gray-700">Payment Method</p>

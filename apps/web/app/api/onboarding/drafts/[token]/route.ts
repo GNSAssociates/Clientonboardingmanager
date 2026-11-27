@@ -53,6 +53,8 @@ export async function GET(
          the letter went out without a term somebody had agreed. */
       specialTerms: draft.specialTerms ?? null,
       workDescription: draft.workDescription ?? null,
+      adviceMode: (draft.adviceMode) === true,
+      adviceSummary: draft.adviceSummary ?? null,
       clientName: draft.clientName ?? null,
       businessAddress: draft.businessAddress ?? null,
       oneoffScopes: draft.oneoffScopes ?? {},

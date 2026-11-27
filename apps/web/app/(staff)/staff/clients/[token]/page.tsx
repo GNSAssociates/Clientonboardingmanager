@@ -33,6 +33,8 @@ interface Details {
   includeClearance?: boolean;
   specialTerms?: string;
   workDescription?: string;
+  adviceMode?: boolean;
+  adviceSummary?: string;
   editState?: { editable: boolean; blockers: string[]; warnings: string[] };
   gocardless?: { mandateId?: string; ddConfirmed?: boolean; success?: boolean; configured?: boolean; error?: string } | null;
   engagement: {

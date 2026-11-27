@@ -34,6 +34,8 @@ export async function PATCH(
     includeClearance?: boolean;
     specialTerms?: string;
     workDescription?: string;
+    adviceMode?: boolean;
+    adviceSummary?: string;
     services?: LetterService[];
     customFees?: CustomFee[];
     scopeRows?: ScopeRow[];
@@ -93,6 +95,13 @@ export async function PATCH(
   if (typeof body.workDescription === "string") {
     const next = body.workDescription.trim();
     nextMeta = { ...nextMeta, workDescription: next || undefined };
+  }
+  /* The instruction on an advice letter ("accept your instruction to …"):
+     wording, editable on the same terms. Switching a letter into or out of
+     advice mode changes its fee structure, so that is done in the wizard. */
+  if (typeof body.adviceSummary === "string") {
+    const next = body.adviceSummary.trim();
+    nextMeta = { ...nextMeta, adviceSummary: next || undefined };
   }
   if (typeof body.includeClearance === "boolean") {
     nextMeta = { ...nextMeta, includeClearance: body.includeClearance,
@@ -168,6 +177,8 @@ export async function PATCH(
         clientName?: string; utr?: string; softwareItems?: Array<{ name: string; price: number }>;
         specialTerms?: string;
         workDescription?: string;
+        adviceMode?: boolean;
+        adviceSummary?: string;
       };
       const overrides = await loadEngagementLetterOverrides(firm.slug);
       updates.letterHtml = buildLetterHtml({
@@ -192,6 +203,8 @@ export async function PATCH(
         includeAnnexA: meta.includeAnnexA,
         specialTerms: meta.specialTerms,
         workDescription: meta.workDescription,
+        adviceMode: (meta.adviceMode) === true,
+        adviceSummary: meta.adviceSummary,
         clientType: meta.clientType,
         clientName: meta.clientName,
         utr: meta.utr,
@@ -318,6 +331,8 @@ export async function GET(
         // sign them, so this is their own contract text, not internal data.
         specialTerms: ((link.letterMeta as Record<string, unknown> | null)?.specialTerms as string) ?? null,
         workDescription: ((link.letterMeta as Record<string, unknown> | null)?.workDescription as string) ?? null,
+        adviceMode: (((link.letterMeta as Record<string, unknown> | null)?.adviceMode)) === true,
+        adviceSummary: ((link.letterMeta as Record<string, unknown> | null)?.adviceSummary as string) ?? null,
         /* The 64-8, and the taxes it would authorise, so the signing page can
            show the client what they are about to authorise and let them untick
            any of it. Resolved rather than read raw, so an engagement issued
