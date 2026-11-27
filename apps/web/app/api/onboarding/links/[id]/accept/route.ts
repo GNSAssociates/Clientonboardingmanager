@@ -84,6 +84,8 @@ export async function POST(
       includeClearance?: boolean;
       specialTerms?: string;
       workDescription?: string;
+      adviceMode?: boolean;
+      adviceSummary?: string;
     };
     const isManualPayment = meta.paymentMethod === "manual";
     /* Staff can exclude professional clearance for a client whose handover they
@@ -256,6 +258,8 @@ export async function POST(
         includeAnnexA: meta.includeAnnexA,
         specialTerms: meta.specialTerms,
         workDescription: meta.workDescription,
+        adviceMode: (meta.adviceMode) === true,
+        adviceSummary: meta.adviceSummary,
         clientType: meta.clientType,
         clientName: meta.clientName,
         softwareItems: meta.softwareItems,

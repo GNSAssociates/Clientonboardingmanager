@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
       includeAnnexA,   // bool — include the SSC annex
       specialTerms,     // free text — terms agreed with THIS client only
       workDescription,  // free text — what was discussed about the work (no precedence)
+      adviceMode,       // bool — one-off advice letter (lib/letter-advice.ts)
+      adviceSummary,    // the instruction: "accept your instruction to …"
       include648,       // bool — append HMRC form 64-8 to the contract
       taxes648,         // which taxes that 64-8 authorises
       includeClearance, // bool — run professional clearance (ask for prev accountant, email them)
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
       include648?: boolean; taxes648?: Record<string, boolean>;
       specialTerms?: string;
       workDescription?: string;
+      adviceMode?: boolean;
+      adviceSummary?: string;
       prevFirmName?: string; prevFirmEmail?: string;
       softwareItems?: Array<{ name: string; price: number }>;
       includeDdClause?: boolean; ddClauseNote?: string;
@@ -123,6 +127,8 @@ export async function POST(req: NextRequest) {
       include648: boolean; taxes648?: Form648Taxes;
       specialTerms?: string;
       workDescription?: string;
+      adviceMode?: boolean;
+      adviceSummary?: string;
       includeDdClause: boolean; ddClauseNote: string;
       clientName?: string; utr?: string; oneoffScopes?: Record<string, string>;
       softwareItems?: Array<{ name: string; price: number }>;
@@ -141,6 +147,8 @@ export async function POST(req: NextRequest) {
       // Stored trimmed; empty means there are none, not an empty clause.
       specialTerms: (specialTerms ?? "").toString().trim() || undefined,
       workDescription: (workDescription ?? "").toString().trim() || undefined,
+      adviceMode: adviceMode === true || undefined,
+      adviceSummary: (adviceSummary ?? "").toString().trim() || undefined,
       /* Opt-IN, and deliberately not `!== false` like the flags around it.
          Engagement PDFs are rebuilt from letterMeta on every request, so if a
          missing flag meant "include", every engagement already sent — and
@@ -192,6 +200,8 @@ export async function POST(req: NextRequest) {
         includeAnnexA: letterMeta.includeAnnexA,
         specialTerms: letterMeta.specialTerms,
         workDescription: letterMeta.workDescription,
+        adviceMode: (letterMeta.adviceMode) === true,
+        adviceSummary: letterMeta.adviceSummary,
         includeDdClause: letterMeta.includeDdClause,
         ddClauseNote: letterMeta.ddClauseNote,
         clientType: letterMeta.clientType,
@@ -250,6 +260,8 @@ export async function POST(req: NextRequest) {
           includeAnnexA: letterMeta.includeAnnexA,
         specialTerms: letterMeta.specialTerms,
         workDescription: letterMeta.workDescription,
+        adviceMode: (letterMeta.adviceMode) === true,
+        adviceSummary: letterMeta.adviceSummary,
           includeDdClause: letterMeta.includeDdClause,
           ddClauseNote: letterMeta.ddClauseNote,
           clientType: letterMeta.clientType,

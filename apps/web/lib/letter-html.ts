@@ -11,6 +11,7 @@
  */
 import type { FirmConfig } from './firms';
 import { whoDoesTheWork, howWeLookAfterYourData, identityChecks, type Clause } from './letter-clauses';
+import { adviceFeeLines, adviceTotal, adviceTitle, adviceIntroHtml, advicePaymentText, adviceBasisHtml, adviceScheduleHtml, adviceAcceptanceText } from './letter-advice';
 import { GNS_LOGO_DATA_URI, GNS_SIGNATURE_DATA_URI } from './brand-assets';
 import { SG_SIGNATURE_DATA_URI } from './sg-signature';
 import { MG_SIGNATURE_DATA_URI } from './mg-signature';
@@ -81,6 +82,10 @@ export interface LetterData {
    */
   specialTerms?: string;
   workDescription?: string;
+  /** One-off advice engagement (lib/letter-advice.ts): fixed fee, Schedule A, no recurring-fee or tax-return sections. */
+  adviceMode?: boolean;
+  /** The instruction, completing "We are pleased to accept your instruction to …". */
+  adviceSummary?: string;
   includeAnnexA?: boolean; // default true; when false the SSC annex is omitted
   clientType?: string; // 'limited' | 'llp' | 'sole_trader' | 'btl' | 'partnership' | 'individual'
   clientName?: string; // client / business / trading name (for non-company types)
@@ -199,6 +204,41 @@ const gbp = fmtGBP;
 const fmtDate = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
 
+/**
+ * Statutory responsibilities for clients who are NOT a company or LLP (sole
+ * trader, landlord, partnership, individual). Exported so the PDF prints the
+ * same words; it used to print the Companies Act block for every client.
+ */
+export function nonCompanyDutiesHtml(clientType?: string): string {
+  const recordsSubject =
+    (clientType ?? '') === 'btl' ? 'rental income and allowable expenses for each let property'
+    : (clientType ?? '') === 'sole_trader' ? 'business income and expenses'
+    : (clientType ?? '') === 'partnership' ? 'the partnership\'s income and expenses'
+    : 'income and expenses relevant to your tax return';
+
+  const partnershipExtra = (clientType ?? '') === 'partnership'
+    ? '<p>In addition to the partnership return, each partner remains personally responsible for including their share of the partnership profits on their own Self Assessment return and for paying the tax due on it.</p>'
+    : '';
+
+  return `
+  <h3>Your statutory responsibilities</h3>
+  <p>You are legally responsible for:</p>
+  <ul>
+    <li>ensuring that your Self Assessment tax return is correct and complete;</li>
+    <li>filing it by the due date — normally 31 January following the end of the tax year; and</li>
+    <li>paying the tax due on time.</li>
+  </ul>
+  <p>Failure to do so may result in automatic penalties, surcharges and interest. The taxpayer who signs the return cannot delegate this legal responsibility to anyone else, including us. You are therefore responsible for the accuracy of the information you provide to us, and for reviewing and approving the return before it is submitted on your behalf.</p>
+  <p>It is your responsibility to keep complete and accurate records of ${recordsSubject}, and to retain them for at least five years after the 31 January submission deadline for the tax year concerned. HMRC treats the letting of property as a trade for record-keeping purposes, so this longer retention period applies to rental records as well as to trading records.</p>
+  <p>You are also responsible for telling us about all sources of income, gains and reliefs that need to be reported. We can only prepare your return from the records and information you give us; where information is incomplete or provided late we may be unable to file by the deadline, and any resulting penalties or interest will remain your responsibility.</p>
+  <p>Where your qualifying income from self-employment and property exceeds the Making Tax Digital for Income Tax threshold, you are required to keep digital records and to submit quarterly updates to HMRC using compatible software. We will tell you if we believe this applies to you and can agree the additional work separately, but the obligation to comply rests with you.</p>
+  ${partnershipExtra}
+  <h3>Our service to you</h3>
+  <p>We will prepare your Self Assessment tax return, and the supporting schedules, from the books, records and information you provide. Our work is not an audit and we will not independently verify the accuracy or completeness of what you give us. Accordingly, our work will not provide any assurance that your records are free from misstatement, irregularity or error, and we cannot undertake to discover any such matters.</p>
+  <p>We will send the return to you for your approval before submitting it to HMRC. Nothing will be filed without your authority.</p>
+  `;
+}
+
 /** One shared clause (lib/letter-clauses.ts) as HTML; all text escaped. */
 function clauseHtml(c: Clause, level: 'h2' | 'h3'): string {
   return `<${level}>${esc(c.heading)}</${level}>
@@ -210,7 +250,8 @@ export function buildLetterHtml(d: LetterData): string {
   const partner = d.partnerName || f.partnerName;
   const regBody = d.regBody || f.regBody; // ACCA or ICAEW letter body
   const isManual = d.paymentMethod === 'manual'; // manual invoicing vs Direct Debit
-  const showAnnexA = d.includeAnnexA !== false;  // annex included unless explicitly turned off
+  const advice = d.adviceMode === true;          // one-off advice letter (lib/letter-advice.ts)
+  const showAnnexA = d.includeAnnexA !== false && !advice;  // annex included unless turned off; never on an advice letter
   const terms = CLIENT_TYPE_TERMS[d.clientType ?? 'limited'] ?? CLIENT_TYPE_TERMS.limited!;
   // Only a company or LLP carries the Companies Act obligations set out in the
   // "Statutory responsibilities" and "Our service to you" sections. Sending
@@ -239,33 +280,7 @@ export function buildLetterHtml(d: LetterData): string {
    *    qualifying income (gross self-employment + property income, before
    *    expenses) exceeds £50,000; £30,000 from April 2027; £20,000 from April 2028.
    */
-  const recordsSubject =
-    (d.clientType ?? '') === 'btl' ? 'rental income and allowable expenses for each let property'
-    : (d.clientType ?? '') === 'sole_trader' ? 'business income and expenses'
-    : (d.clientType ?? '') === 'partnership' ? 'the partnership\'s income and expenses'
-    : 'income and expenses relevant to your tax return';
-
-  const partnershipExtra = (d.clientType ?? '') === 'partnership'
-    ? '<p>In addition to the partnership return, each partner remains personally responsible for including their share of the partnership profits on their own Self Assessment return and for paying the tax due on it.</p>'
-    : '';
-
-  const nonCompanyDuties = `
-  <h3>Your statutory responsibilities</h3>
-  <p>You are legally responsible for:</p>
-  <ul>
-    <li>ensuring that your Self Assessment tax return is correct and complete;</li>
-    <li>filing it by the due date — normally 31 January following the end of the tax year; and</li>
-    <li>paying the tax due on time.</li>
-  </ul>
-  <p>Failure to do so may result in automatic penalties, surcharges and interest. The taxpayer who signs the return cannot delegate this legal responsibility to anyone else, including us. You are therefore responsible for the accuracy of the information you provide to us, and for reviewing and approving the return before it is submitted on your behalf.</p>
-  <p>It is your responsibility to keep complete and accurate records of ${recordsSubject}, and to retain them for at least five years after the 31 January submission deadline for the tax year concerned. HMRC treats the letting of property as a trade for record-keeping purposes, so this longer retention period applies to rental records as well as to trading records.</p>
-  <p>You are also responsible for telling us about all sources of income, gains and reliefs that need to be reported. We can only prepare your return from the records and information you give us; where information is incomplete or provided late we may be unable to file by the deadline, and any resulting penalties or interest will remain your responsibility.</p>
-  <p>Where your qualifying income from self-employment and property exceeds the Making Tax Digital for Income Tax threshold, you are required to keep digital records and to submit quarterly updates to HMRC using compatible software. We will tell you if we believe this applies to you and can agree the additional work separately, but the obligation to comply rests with you.</p>
-  ${partnershipExtra}
-  <h3>Our service to you</h3>
-  <p>We will prepare your Self Assessment tax return, and the supporting schedules, from the books, records and information you provide. Our work is not an audit and we will not independently verify the accuracy or completeness of what you give us. Accordingly, our work will not provide any assurance that your records are free from misstatement, irregularity or error, and we cannot undertake to discover any such matters.</p>
-  <p>We will send the return to you for your approval before submitting it to HMRC. Nothing will be filed without your authority.</p>
-  `;
+  const nonCompanyDuties = nonCompanyDutiesHtml(d.clientType);
 
 
   // Staff-editable text blocks (/staff/templates) — intro paragraphs and the
@@ -348,6 +363,21 @@ export function buildLetterHtml(d: LetterData): string {
     firmName: f.name,
     regBody: f.regBody,
   });
+
+  const adviceLines = advice ? adviceFeeLines(d.services, d.customFees ?? []) : [];
+  const adviceFee = adviceTotal(adviceLines);
+  const adviceFeesHtml = `<table class="fees sans">
+    <thead><tr><th>Service</th><th style="width:150px;text-align:right">Fee</th></tr></thead>
+    <tbody>
+      ${adviceLines.map((l) => `<tr><td>${esc(l.name)}</td><td class="r">${gbp(l.price)}+VAT</td></tr>`).join('\n      ')}
+      <tr class="total"><td>Total fixed fee</td><td class="r">${gbp(adviceFee)}+VAT</td></tr>
+    </tbody>
+  </table>
+  <p class="vatnote sans">Note: 20% VAT applies to the fees above.</p>
+  <div class="dd sans">
+    <div class="t">Payment</div>
+    <p style="text-align:left">${esc(advicePaymentText(adviceFee))}</p>
+  </div>`;
 
   const tobOpts = { firmName: f.name, firmLegalName: f.legalName, firmAddress: `${f.address}, ${f.city} ${f.postcode}`, regBody, firmEmail: f.email };
   const termsHtml = buildTermsOfBusinessHtml(tobOpts);
@@ -629,7 +659,7 @@ export function buildLetterHtml(d: LetterData): string {
 
   ${chBox}
 
-  <table class="fees sans">
+  ${advice ? adviceFeesHtml : `<table class="fees sans">
     <thead>
       <tr><th>Fees</th><th style="width:110px;text-align:right">Annual Equivalent £</th><th style="width:92px;text-align:right">Fees Upfront £</th><th style="width:78px;text-align:right">Monthly £</th><th style="width:96px">Payment Mode</th></tr>
     </thead>
@@ -667,7 +697,7 @@ export function buildLetterHtml(d: LetterData): string {
     GoCardless, who hold the bank details; ${esc(f.name)} never receives or stores them. Payments are protected by the
     Direct Debit Guarantee.</p>
     ${d.ddClauseNote ? `<p style="text-align:left">${esc(d.ddClauseNote)}</p>` : ''}
-  </div>`}
+  </div>`}`}
 
   <div class="imp sans">
     <div class="t">Important!</div>
@@ -675,11 +705,11 @@ export function buildLetterHtml(d: LetterData): string {
     read and understood the contract in its entirety.</strong>
   </div>
 
-  <p class="sans" style="font-weight:bold;font-size:12px">Services not covered below will be as per our Schedule of Service Charges (SSC) included in Annex A of this contract (last page).</p>
+  ${advice ? '' : `<p class="sans" style="font-weight:bold;font-size:12px">Services not covered below will be as per our Schedule of Service Charges (SSC) included in Annex A of this contract (last page).</p>
   <table class="scope sans">
     <thead><tr><th style="width:31%">Scope of Services</th><th style="width:36%">Coverage Threshold (What is included?)</th><th>Fee Exceeding Scope</th></tr></thead>
     <tbody>${scopeRowsHtml}</tbody>
-  </table>
+  </table>`}
 
   <hr class="divider">
 
@@ -687,7 +717,7 @@ export function buildLetterHtml(d: LetterData): string {
   <p style="font-weight:bold">${esc(d.clientName || d.companyName)}</p>
   ${d.utr ? `<p style="font-size:11px;color:#374151">UTR: <strong>${esc(d.utr)}</strong></p>` : ''}
   <p>Dear Sir/s</p>
-  ${introHtml}
+  ${advice ? adviceIntroHtml(d.adviceSummary) : introHtml}
   <p>We are bound by the ${regBody === 'ICAEW' ? 'Code of Ethics of the Institute of Chartered Accountants in England and Wales (ICAEW)' : 'ethical guidelines of the Association of Chartered Certified Accountants (ACCA)'} and accept instructions to act for you on the basis that we will act in accordance with those ethical guidelines. A copy of these guidelines can be viewed at our offices on request${regBody === 'ACCA' ? ' or at www.accaglobal.com' : ' or at www.icaew.com'}.</p>
 
   <h2>Period of engagement</h2>
@@ -697,12 +727,12 @@ export function buildLetterHtml(d: LetterData): string {
   ${clauseHtml(whoDoesTheWork(f), 'h2')}
 
   <h2>Scope of services to be provided</h2>
-  ${workDescriptionHtml}
+  ${advice ? '<p>The work we will carry out, and our fee for it, are set out in Schedule A.</p>' : workDescriptionHtml}
   <h3>Our responsibility to you</h3>
   <p>We have set out the agreed scope and objectives of your instructions within this letter of engagement. Any subsequent changes will be discussed with you and where appropriate a new letter of engagement will be agreed. We shall proceed on the basis of the instructions we have received from you and will rely on you to tell us as soon as possible if anything occurs which renders any information previously given to us as incorrect or inaccurate. We shall not be responsible for any failure to advise or comment on any matter that falls outside the specific scope of your instructions. We cannot accept any responsibility for any event, loss or situation unless it is one against which it is the expressed purpose of these instructions to provide protection.</p>
   <h3>Your responsibility to us</h3>
   <p>The advice that we give can only be as good as the information on which it is based. In so far as that information is provided by you, or by third parties with your permission, your responsibility arises as soon as possible if any circumstances or facts alter, as any alteration may have a significant impact on the advice given. If the circumstances change therefore or your needs alter, advise us of the alteration as soon as possible in writing.</p>
-  ${isCompanyClient ? `
+  ${advice ? adviceBasisHtml() : isCompanyClient ? `
   <!-- Companies Act 2006 obligations. Only a company or LLP has directors,
        an audit exemption under s477, shareholders' meetings or an AGM, so this
        whole block is omitted for a sole trader, landlord, partnership or
@@ -798,13 +828,14 @@ export function buildLetterHtml(d: LetterData): string {
     <div class="r">Partner, ${esc(f.legalName)}</div>
   </div>
   <p>I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.</p>
+  ${advice ? `<p>${esc(adviceAcceptanceText(adviceFee))}</p>` : ''}
   <!--CLIENT-SIGNATURE-->
 
   <hr class="divider">
 
   <h1 style="letter-spacing:1px">SCHEDULE OF SERVICES</h1>
   <p>This section provides a full explanation of the services you have engaged us to carry out, and should be read in conjunction with the engagement letter and the terms and conditions of business. Only the services listed in these schedules are included within the scope of our instructions.</p>
-  ${schedulesHtml}
+  ${advice ? adviceScheduleHtml({ title: adviceTitle(adviceLines), description: d.workDescription, total: adviceFee, regBody }) : schedulesHtml}
   ${termsHtml}
   ${privacyHtml}
   ${showAnnexA ? `

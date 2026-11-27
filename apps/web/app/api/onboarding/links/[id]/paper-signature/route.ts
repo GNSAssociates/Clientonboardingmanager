@@ -70,6 +70,8 @@ export async function POST(
     includeClearance?: boolean;
     specialTerms?: string;
     workDescription?: string;
+    adviceMode?: boolean;
+    adviceSummary?: string;
   };
   const firm = getFirm(link.firmSlug || "gns");
   const isManualPayment = meta.paymentMethod === "manual";
@@ -125,6 +127,8 @@ export async function POST(
       includeAnnexA: meta.includeAnnexA,
       specialTerms: meta.specialTerms,
       workDescription: meta.workDescription,
+      adviceMode: (meta.adviceMode) === true,
+      adviceSummary: meta.adviceSummary,
       clientType: meta.clientType,
       clientName: meta.clientName,
       utr: meta.utr,

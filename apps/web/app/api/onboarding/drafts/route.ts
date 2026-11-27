@@ -47,6 +47,8 @@ export async function POST(req: NextRequest) {
       utr,
       specialTerms,
       workDescription,
+      adviceMode,       // bool — one-off advice letter (lib/letter-advice.ts)
+      adviceSummary,    // the instruction: "accept your instruction to …"
     } = body as {
       token?: string;
       firmSlug?: string;
@@ -81,6 +83,8 @@ export async function POST(req: NextRequest) {
       utr?: string;
       specialTerms?: string;
       workDescription?: string;
+      adviceMode?: boolean;
+      adviceSummary?: string;
     };
 
     if (!firmSlug) {
@@ -134,6 +138,8 @@ export async function POST(req: NextRequest) {
                drafts/[token] but never saved here, so reopening a draft lost it. */
             specialTerms: typeof specialTerms === "string" ? specialTerms : undefined,
             workDescription: typeof workDescription === "string" ? workDescription : undefined,
+            adviceMode: adviceMode === true,
+            adviceSummary: typeof adviceSummary === "string" ? adviceSummary : undefined,
             savedAt: now.toISOString(),
           },
           ch: ch ?? null,

@@ -24,7 +24,9 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFP
 import fontkit from "@pdf-lib/fontkit";
 import type { FirmConfig } from "./firms";
 import { DANCING_SCRIPT_DATA_URI } from "./font-cursive";
+import { adviceFeeLines, adviceTotal, adviceTitle, adviceIntroHtml, advicePaymentText, adviceBasisHtml, adviceScheduleHtml, adviceAcceptanceText } from "./letter-advice";
 import {
+  nonCompanyDutiesHtml,
   CLIENT_TYPE_TERMS,
   scopeRowsForServices,
   type LetterData,
@@ -292,7 +294,11 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   const partner = d.partnerName?.trim() || f.partnerName;
   const regBody = d.regBody || f.regBody;
   const isManual = d.paymentMethod === "manual";
-  const showAnnexA = d.includeAnnexA !== false;
+  const advice = d.adviceMode === true; // one-off advice letter (lib/letter-advice.ts)
+  const showAnnexA = d.includeAnnexA !== false && !advice;
+  const isCompanyClient = (d.clientType ?? "limited") === "limited" || (d.clientType ?? "limited") === "llp";
+  const adviceLines = advice ? adviceFeeLines(d.services, d.customFees ?? []) : [];
+  const adviceFee = adviceTotal(adviceLines);
   const terms = CLIENT_TYPE_TERMS[d.clientType ?? "limited"] ?? CLIENT_TYPE_TERMS.limited!;
   // Unified professional navy for every entity's letter accents (rules, labels,
   // subtitle). The bright brand red/purple read as less formal on a legal
@@ -667,6 +673,24 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   // strictly separate tables/totals. Neither table includes the "References
   // and Letters" scope row (that lives only in the Scope of Services table
   // below, and is display-only coverage text, never a charge).
+  if (advice) {
+    heading2("Fees", false);
+    drawTable(
+      [
+        { header: "Service", width: CONTENT_W - 130 },
+        { header: "Fee", width: 130, align: "right" },
+      ],
+      [
+        ...adviceLines.map((l) => [{ text: l.name }, { text: `${gbp(l.price)}+VAT`, align: "right" as const }]),
+        [{ text: "Total fixed fee", bold: true }, { text: `${gbp(adviceFee)}+VAT`, bold: true, align: "right" as const }],
+      ],
+      { rowBg: (i) => (i >= adviceLines.length ? TABLE_TOTAL_BG : i % 2 ? TABLE_ALT_BG : null) },
+    );
+    text("Note: 20% VAT applies to the fees above.", { font: italic, size: 8.5, color: GREY, gap: 10 });
+    text("Payment", { font: bold, size: 9.5, color: INK, gap: 2 });
+    text(sanitize(advicePaymentText(adviceFee)), { size: 9.5, gap: 10 });
+    text("Important! Please read the contract to the last page and return to the signature section. Do not sign unless you have read and understood the contract in its entirety.", { font: bold, size: 9.5, color: accent, gap: 12 });
+  } else {
   const payModeLabel = isManual ? "Monthly Invoice (manual)" : "Monthly Direct Debit";
   heading2("Fees", false);
   text(`Payment mode: ${payModeLabel}`, { font: bold, size: 9.5, color: accent, gap: 8 });
@@ -803,6 +827,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
       { rowBg: (i) => (i % 2 ? TABLE_ALT_BG : null), fontSize: 9 },
     );
   }
+  } // end of the ongoing-compliance fee section
 
   need(LINE);
   page.drawRectangle({ x: MARGIN_X, y, width: CONTENT_W, height: 0.6, color: HAIRLINE });
@@ -815,7 +840,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text(d.clientName || d.companyName, { font: bold, gap: 1 });
   if (d.utr) text(`UTR: ${d.utr}`, { size: 9.5, color: GREY, gap: 2 });
   text("Dear Sir/s", { gap: 8 });
-  for (const p of introText.split(/<\/p>\s*<p>|<p>|<\/p>/i).map((s) => s.trim()).filter(Boolean)) {
+  for (const p of (advice ? adviceIntroHtml(d.adviceSummary) : introText).split(/<\/p>\s*<p>|<p>|<\/p>/i).map((s) => s.trim()).filter(Boolean)) {
     text(decodeEntities(p.replace(/<[^>]+>/g, "")), { gap: 8 });
   }
   const ethicsBody = regBody === "ICAEW"
@@ -839,7 +864,9 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   /* The plain description of the work, in the same place as in the HTML
      letter: part of the instructions, not a term that overrides the letter. */
   const workDescription = (d.workDescription ?? "").trim();
-  if (workDescription) {
+  if (advice) {
+    text("The work we will carry out, and our fee for it, are set out in Schedule A.", { gap: 8 });
+  } else if (workDescription) {
     heading3("Description of the work");
     text("As discussed with you, the work we will carry out is as follows.", { gap: 6 });
     workDescription
@@ -852,6 +879,15 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("We have set out the agreed scope and objectives of your instructions within this letter of engagement. Any subsequent changes will be discussed with you and where appropriate a new letter of engagement will be agreed. We shall proceed on the basis of the instructions we have received from you and will rely on you to tell us as soon as possible if anything occurs which renders any information previously given to us as incorrect or inaccurate. We shall not be responsible for any failure to advise or comment on any matter that falls outside the specific scope of your instructions. We cannot accept any responsibility for any event, loss or situation unless it is one against which it is the expressed purpose of these instructions to provide protection.", { gap: 8 });
   heading3("Your responsibility to us");
   text("The advice that we give can only be as good as the information on which it is based. In so far as that information is provided by you, or by third parties with your permission, your responsibility arises as soon as possible if any circumstances or facts alter, as any alteration may have a significant impact on the advice given. If the circumstances change therefore or your needs alter, advise us of the alteration as soon as possible in writing.", { gap: 8 });
+  /* Which duties apply depends on the client: an advice letter states the
+     basis of the advice; a company or LLP gets the Companies Act block; anyone
+     else gets their Self Assessment duties. The PDF used to print the
+     Companies Act block for every client, unlike the online letter. */
+  if (advice) {
+    renderBlocks(htmlToBlocks(adviceBasisHtml()));
+  } else if (!isCompanyClient) {
+    renderBlocks(htmlToBlocks(nonCompanyDutiesHtml(d.clientType)));
+  } else {
   heading3("Statutory responsibilities");
   text("As directors of the company, you are required by statute to prepare accounts (financial statements) for each financial year, which give a true and fair view of the state of affairs of the company and of its profit or loss for that period. In preparing those accounts you must:", { gap: 4 });
   bullet("Select suitable accounting policies and then apply them consistently.");
@@ -878,6 +914,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   text("We will attach to the accounts a report developed by the Consultative Committee of Accountancy Bodies (CCAB) which explains what work has been done by us, the professional requirements we have to fulfil and the standard to which the work has been carried out. To ensure that anyone reading the accounts is aware that we have not carried out an audit, we will attach to the accounts a report stating this fact.", { gap: 8 });
   text("The intended users of the report are the directors. The report will be addressed to the directors.", { gap: 8 });
   text("Once we have issued our report we have no further direct responsibility in relation to the accounts for that financial year. However, we expect that you will inform us of any material event occurring between the date of our report and that of the annual general meeting that may affect the accounts.", { gap: 8 });
+  }
   heading3("Limitation of liability");
   text("We specifically draw your attention to the limitation of liability paragraphs in our standard terms and conditions which set out the basis on which we limit our liability to you and to others. You should read this in conjunction with the limitation of third party rights paragraphs in our standard terms and conditions which exclude liability to third parties. These are important provisions which you should read and consider carefully.", { gap: 8 });
   text("There are no third parties that we have agreed should be entitled to rely on the work done pursuant to this engagement letter.", { gap: 8 });
@@ -976,6 +1013,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   if (PARTNER_DESIGNATIONS[partner]) text(PARTNER_DESIGNATIONS[partner]!, { font: italic, size: 9, color: accent, gap: 1 });
   text(`Partner, ${f.legalName}`, { size: 9.5, color: GREY, gap: 8 });
   text("I/We confirm that I/we have read and understood the contents of this letter and related terms and conditions and agree that it accurately reflects my/our fair understanding of the services that I/we require you to undertake.", { gap: 10 });
+  if (advice) text(sanitize(adviceAcceptanceText(adviceFee)), { gap: 10 });
 
   // ── The client's executed signature (SIGNED copy only) ────────────────────
   // Rendered as a real signature on the contract itself — blue handwriting over
@@ -1075,7 +1113,7 @@ export async function buildEngagementPdf(input: EngagementPdfInput): Promise<Buf
   // ═══════════════════════════════════════════════════════════════════════
   heading1("Schedule of Services");
   text("This section provides a full explanation of the services you have engaged us to carry out, and should be read in conjunction with the engagement letter and the terms and conditions of business. Only the services listed in these schedules are included within the scope of our instructions.", { gap: 10 });
-  renderBlocks(htmlToBlocks(schedulesHtml));
+  renderBlocks(htmlToBlocks(advice ? adviceScheduleHtml({ title: adviceTitle(adviceLines), description: d.workDescription, total: adviceFee, regBody }) : schedulesHtml));
 
   y -= 6;
   need(LINE);
