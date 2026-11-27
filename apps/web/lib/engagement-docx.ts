@@ -18,6 +18,14 @@ import { renderVars, templateDef } from "./email-templates-lib";
 import { buildSchedulesHtml } from "./service-schedules";
 import { buildTermsOfBusinessHtml, buildPrivacyNoticeHtml } from "./terms-of-business";
 import { fmtGBP as gbp } from "./format";
+import { whoDoesTheWork, type Clause } from "./letter-clauses";
+import { adviceFeeLines, adviceTotal, adviceTitle, adviceIntroHtml, advicePaymentText, adviceScheduleHtml, adviceAcceptanceText } from "./letter-advice";
+
+const escHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** A shared clause (lib/letter-clauses.ts) as simple HTML for blocksToParagraphs. */
+const clauseHtml = (c: Clause) => `<h2>${escHtml(c.heading)}</h2>${c.paras.map((p) => `<p>${escHtml(p.lead ? `${p.lead} ${p.text}` : p.text)}</p>`).join("")}`;
+/** A staff-typed box as paragraphs (blank line = new paragraph). */
+const boxHtml = (t: string) => t.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${escHtml(p.replace(/\n/g, " "))}</p>`).join("");
 import { GNS_LOGO_DATA_URI } from "./brand-assets";
 import { ACCA_LOGO_DATA_URI } from "./acca-logo";
 import { ICAEW_LOGO_DATA_URI } from "./icaew-logo";
@@ -121,6 +129,12 @@ export async function buildEngagementDocx(input: LetterData): Promise<Buffer> {
   const privacyHtml = buildPrivacyNoticeHtml({ ...tobOpts, companyNumber: f.companyNumber });
 
   const body: Paragraph[] = [];
+  /* One-off advice letter (lib/letter-advice.ts): one fee table, the
+     instruction as the opening, the work as Schedule A. Same wording as the
+     online letter and PDF. */
+  const advice = d.adviceMode === true;
+  const adviceLines = advice ? adviceFeeLines(d.services, d.customFees ?? []) : [];
+  const adviceFee = adviceTotal(adviceLines);
 
   // Title block (the letterhead itself is the running header/footer below).
   body.push(P("PRIVATE & CONFIDENTIAL", { bold: true, color: NAVY, size: 18, after: 40 }));
@@ -136,7 +150,8 @@ export async function buildEngagementDocx(input: LetterData): Promise<Buffer> {
   body.push(P(clientLine, { after: 200 }));
 
   // Intro
-  body.push(...blocksToParagraphs(`<p>${introText.replace(/<\/p>\s*<p>/gi, "</p><p>")}</p>`.replace(/<p><p>/g, "<p>").replace(/<\/p><\/p>/g, "</p>")));
+  if (advice) body.push(...blocksToParagraphs(adviceIntroHtml(d.adviceSummary)));
+  else body.push(...blocksToParagraphs(`<p>${introText.replace(/<\/p>\s*<p>/gi, "</p><p>")}</p>`.replace(/<p><p>/g, "<p>").replace(/<\/p><\/p>/g, "</p>")));
 
   // Fees
   const feeRows: TableRow[] = [
@@ -144,14 +159,23 @@ export async function buildEngagementDocx(input: LetterData): Promise<Buffer> {
     ...monthly.map((s) => new TableRow({ children: [feeCell(s.name), feeCell(gbp(svcToMonthly(s)), { align: AlignmentType.RIGHT }), feeCell(gbp(svcToAnnual(s)), { align: AlignmentType.RIGHT })] })),
     new TableRow({ children: [feeCell("Total", { bold: true }), feeCell(gbp(totalMonthly), { bold: true, align: AlignmentType.RIGHT }), feeCell(gbp(totalAnnual), { bold: true, align: AlignmentType.RIGHT })] }),
   ];
-  if (monthly.length) {
+  if (advice) {
+    const rows: TableRow[] = [new TableRow({ tableHeader: true, children: [feeCell("Service", { bold: true }), feeCell("Fee", { bold: true, align: AlignmentType.RIGHT })] })];
+    for (const l of adviceLines) rows.push(new TableRow({ children: [feeCell(l.name), feeCell(`${gbp(l.price)}+VAT`, { align: AlignmentType.RIGHT })] }));
+    rows.push(new TableRow({ children: [feeCell("Total fixed fee", { bold: true }), feeCell(`${gbp(adviceFee)}+VAT`, { bold: true, align: AlignmentType.RIGHT })] }));
+    body.push(new Paragraph({ text: "Fees", heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 } }));
+    (body as (Paragraph | Table)[]).push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows }));
+    body.push(P("", { after: 120 }));
+    body.push(P(advicePaymentText(adviceFee), { after: 160 }));
+  }
+  if (!advice && monthly.length) {
     body.push(new Paragraph({ text: "Fees", heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 } }));
     body.push(new Paragraph({ children: [], spacing: { after: 0 } }));
     (body as (Paragraph | Table)[]).push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: feeRows,
       borders: { top: { style: BorderStyle.SINGLE, size: 2, color: "D1D5DB" }, bottom: { style: BorderStyle.SINGLE, size: 2, color: "D1D5DB" }, left: { style: BorderStyle.SINGLE, size: 2, color: "D1D5DB" }, right: { style: BorderStyle.SINGLE, size: 2, color: "D1D5DB" }, insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" }, insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" } } }));
     body.push(P("", { after: 120 }));
   }
-  if (oneoff.length || customFees.length) {
+  if (!advice && (oneoff.length || customFees.length)) {
     const rows: TableRow[] = [new TableRow({ tableHeader: true, children: [feeCell("One-off / Upfront", { bold: true }), feeCell("Fee", { bold: true, align: AlignmentType.RIGHT })] })];
     for (const s of oneoff) rows.push(new TableRow({ children: [feeCell(s.name), feeCell(gbp(s.price), { align: AlignmentType.RIGHT })] }));
     for (const c of customFees) rows.push(new TableRow({ children: [feeCell(c.description), feeCell(gbp(c.price), { align: AlignmentType.RIGHT })] }));
@@ -161,8 +185,19 @@ export async function buildEngagementDocx(input: LetterData): Promise<Buffer> {
     body.push(P("", { after: 120 }));
   }
 
+  // Who does the work: the three practices share staff, offices and systems (lib/letter-clauses.ts).
+  body.push(...blocksToParagraphs(clauseHtml(whoDoesTheWork(f))));
+  const workDescription = (d.workDescription ?? "").trim();
+  if (!advice && workDescription) {
+    body.push(...blocksToParagraphs(`<h2>Description of the work</h2><p>As discussed with you, the work we will carry out is as follows.</p>${boxHtml(workDescription)}`));
+  }
+  const specialTerms = (d.specialTerms ?? "").trim();
+  if (specialTerms) {
+    body.push(...blocksToParagraphs(`<h2>Specific terms agreed with you</h2><p>The following has been agreed with you and forms part of this engagement. Where it differs from anything stated elsewhere in this letter, the following applies.</p>${boxHtml(specialTerms)}`));
+  }
+
   // Standard body — schedules, terms of business, privacy notice
-  body.push(...blocksToParagraphs(schedulesHtml));
+  body.push(...blocksToParagraphs(advice ? adviceScheduleHtml({ title: adviceTitle(adviceLines), description: d.workDescription, total: adviceFee, regBody }) : schedulesHtml));
   body.push(...blocksToParagraphs(termsHtml));
   body.push(...blocksToParagraphs(privacyHtml));
 
@@ -172,6 +207,7 @@ export async function buildEngagementDocx(input: LetterData): Promise<Buffer> {
   body.push(P(partner, { bold: true, after: 20 }));
   if (d.partnerName && PARTNER_DESIGNATIONS[partner]) body.push(P(PARTNER_DESIGNATIONS[partner]!, { italics: true, color: NAVY, size: 18, after: 20 }));
   body.push(P(`For and on behalf of ${f.legalName}`, { color: GREY, size: 18, after: 160 }));
+  if (advice) body.push(P(adviceAcceptanceText(adviceFee), { after: 160 }));
   // ── Running header (logo + entity + reg) on every page ────────────────────
   const headerLogo = logoRun(GNS_LOGO_DATA_URI, 30);
   const regLabel = f.regNumber

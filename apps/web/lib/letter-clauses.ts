@@ -29,6 +29,21 @@ const PRACTICES: Record<string, string> = {
   galaxy: "Galaxy GNS Accountants Ltd",
 };
 
+/**
+ * The other two practices, for a practice known only by its legal name (the
+ * terms of business and privacy notice are built from the legal name, which
+ * may be in capitals, e.g. "GALAXY GNS ACCOUNTANTS LTD").
+ */
+export function otherPractices(legalName: string): string[] {
+  const key = legalName.trim().toLowerCase();
+  return Object.values(PRACTICES).filter((n) => n.toLowerCase() !== key);
+}
+
+/** "A and B" for the terms of business and privacy notice. */
+export function otherPracticesText(legalName: string): string {
+  return andList(otherPractices(legalName));
+}
+
 /** Records are kept this long after the engagement ends (HMRC enquiry and limitation periods). */
 export const RETENTION_YEARS = 6;
 

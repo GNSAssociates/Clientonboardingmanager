@@ -1,3 +1,4 @@
+import { otherPracticesText } from './letter-clauses';
 /**
  * Terms of Business for engagement letters.
  *
@@ -47,6 +48,7 @@ export function buildTermsOfBusinessHtml(opts: {
   <p>You agree that, if we act for other clients who are or who become your competitors, to comply with our duty of confidentiality it will be sufficient for us to take such steps as we think appropriate to preserve the confidentiality of information given to us by you, both during and after this engagement.</p>
   <p>In addition, if we act for other clients whose interests are or may be adverse to yours, we will manage the conflict by implementing additional safeguards to preserve confidentiality. Safeguards may include measures such as separate teams, physical separation of teams, and separate arrangements for storage of, and access to, information.</p>
   <p>We may, on occasion, subcontract work on your affairs to other tax or accounting professionals. The subcontractors will be bound by our client confidentiality terms. We will inform you of the proposed use of a subcontractor before they commence work, except where your data will not be transferred out of our systems and the subcontractor is bound by confidentiality terms equivalent to an employee.</p>
+  <p>We work closely with our associated practices, ${esc(otherPracticesText(firmLegalName))}, and our associated company, ${esc(OVERSEAS_PROCESSOR.name)}. We share staff, offices, servers, software and other resources with them, so their staff may work on your affairs and see your information for that purpose. They are bound by the same duty of confidentiality as our own staff. Access is protected by a secure private network connection (VPN) and multi-factor authentication, and each practice's records are kept separate. ${esc(firmLegalName)} remains responsible to you for all work carried out.</p>
 
   <h3>4. Conflicts of interest</h3>
   <p>We will inform you if we become aware of any conflict of interest in our relationship with you or in our relationship with you and another client, unless we are unable to do so because of our confidentiality obligations. If conflicts are identified which cannot be managed in a way that protects your interests, we regret that we will be unable to provide further services.</p>
@@ -212,11 +214,12 @@ export function buildPrivacyNoticeHtml(opts: {
 
   <h3>Data sharing</h3>
   <p>We will share your personal data with third parties where we are required by law, where it is necessary to administer the relationship between us, or where we have another legitimate interest in doing so. This may include sharing your personal data with a regulator or to otherwise comply with the law.</p>
+  <p>Our practice shares staff, offices, servers, software and other resources with our associated practices, ${esc(otherPracticesText(firmLegalName))}. Their staff may access your personal data when they work on your affairs for us, and may use it only for that purpose. We do not pass your personal data to them for their own use.</p>
   <p>"Third parties" includes third-party service providers and other entities. The following activities are carried out by third-party service providers: IT and cloud services, professional advisory services, administration services, payment processing and banking services. We only permit our third-party service providers to process your personal data for specified purposes and in accordance with our instructions.</p>
 
   <h3>Transferring personal data outside the United Kingdom (UK)</h3>
   <p>Some of the work we carry out for you is performed outside the UK. Our operations team at ${esc(OVERSEAS_PROCESSOR.name)} in ${esc(OVERSEAS_PROCESSOR.location)} — a separate company that works solely on our instructions and for no other purpose — accesses our systems remotely in order to process client records.</p>
-  <p>${esc(firmLegalName)} remains the data controller and remains responsible to you, and to the Information Commissioner's Office, for all processing carried out on our behalf. Personnel there work under written confidentiality and data protection obligations, access our systems only over an encrypted connection secured by multi-factor authentication, and may process your personal data only in accordance with our instructions.</p>
+  <p>${esc(firmLegalName)} remains the data controller and remains responsible to you, and to the Information Commissioner's Office, for all processing carried out on our behalf. Personnel there work under written confidentiality and data protection obligations, access our systems only over an encrypted VPN connection secured by multi-factor authentication, and may process your personal data only in accordance with our instructions. Each practice's records are kept separate, so staff see only the information they need for the work they are doing.</p>
   <p>We may also use service providers located outside the UK, for example for cloud hosting and software services. Where we transfer personal data outside the UK we take steps to ensure it continues to be protected to UK standards. You may ask us at any time for details of the countries concerned and the safeguards that apply, by contacting us at ${esc(firmEmail)}.</p>
 
   <h3>Data security</h3>
